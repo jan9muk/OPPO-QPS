@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QPS RAW 대시보드 v5</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}
+  .title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}
+  .row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}
+  .group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"]{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px}
+  .status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px}
+  .empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}
+  .machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px}.machine-grid{margin-bottom:18px}
+  .machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}.metrics{display:flex;gap:18px;flex-wrap:wrap;color:#6b7280;font-size:13px;margin-top:10px}.metric b{display:block;color:#1f2937;font-size:22px;margin-top:2px}
+  .aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}
+  .zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 8px 10px;font-size:16px;font-weight:800}.zone-sum{font-size:12px;font-weight:700;color:#6b7280;white-space:nowrap}
+  .spark-stack{display:grid;gap:8px}.spark-row{display:grid;grid-template-columns:78px 1fr 64px;gap:8px;align-items:center;min-height:28px}.spark-row.blank{grid-template-columns:1fr;min-height:20px}
+  .ws-label{font-size:13px;font-weight:700;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.spark-track{width:100%;height:18px;background:#eef2f7;border-radius:999px;overflow:hidden;border:1px solid #e2e8f0}.spark-fill{height:100%;border-radius:999px}.spark-value{text-align:right;font-size:12px;font-weight:800;color:#374151;white-space:nowrap}
+  .blank-cell{height:20px;border-radius:10px;background:transparent;border:1px dashed #e5e7eb}.footer-note{margin-top:14px;font-size:12px;color:#6b7280}
+  #loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.68);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:9999}
+  .loader-box{width:120px;height:120px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.08);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+  .loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}.loader-text{font-size:13px;color:#6b7280;font-weight:700}@keyframes spin{to{transform:rotate(360deg)}}
+  @media (max-width:1180px){.machine-grid,.zones{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
+
+<div class="card">
+  <div class="title">QPS RAW 대시보드 v5</div>
+  <div class="subtitle">SKU 정규화 강화 + 매핑 진단 로그</div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <div class="group">
+      <label>박스상품 상세정보 RAW</label>
+      <input type="file" id="boxFile" accept=".xlsx,.xls">
+    </div>
+    <div class="group">
+      <label>셀할당 현황 RAW</label>
+      <input type="file" id="cellFile" accept=".xlsx,.xls">
+    </div>
+  </div>
+  <div class="status" id="status">두 파일을 모두 업로드하면 작업대별 터치수를 계산합니다.</div>
+  <div class="debug" id="debugLog">대기 중</div>
+</div>
+
+<div id="emptyState" class="card empty">파일 2개 업로드 전에는 표시되는 데이터가 없습니다.</div>
+<div id="content" class="section">
+  <div class="machine-grid" id="machineSummary"></div>
+  <div class="zones" id="zonesArea"></div>
+  <div class="footer-note" id="footNote"></div>
+</div>
+
+<script>
+const zoneDefs = {
+  APS1: { label:'1호기', cols:[
+    { zone:'A존', order:['APS1-01','APS1-02','APS1-03','APS1-04','APS1-05','APS1-06','APS1-07','APS1-08','APS1-09','APS1-10'] },
+    { zone:'B존', order:['APS1-20','APS1-19','APS1-18','APS1-17','APS1-16','APS1-15','APS1-14','APS1-13','APS1-12','APS1-11'] }
+  ]},
+  APS2: { label:'2호기', cols:[
+    { zone:'C존', order:['APS2-01','APS2-02','APS2-03','APS2-04','APS2-05','APS2-06','APS2-07','APS2-08','APS2-09','APS2-10'] },
+    { zone:'D존', order:['APS2-20','APS2-19','APS2-18','APS2-17','APS2-16','APS2-15','APS2-14','APS2-13','APS2-12','APS2-11'] }
+  ]},
+  APS3: { label:'3호기', cols:[
+    { zone:'E존', order:[null,'APS3-07','APS3-06','APS3-05','APS3-04',null,null,'APS3-03','APS3-02','APS3-01'] },
+    { zone:'F존', order:['APS3-08','APS3-09','APS3-10','APS3-11','APS3-12','APS3-13','APS3-14','APS3-15','APS3-16','APS3-17','APS3-18','APS3-19'] }
+  ]}
+};
+const machineList = ['APS1','APS2','APS3'];
+let boxRows=null, cellRows=null, boxMeta=null, cellMeta=null;
+const $ = s => document.querySelector(s);
+
+function setStatus(msg,isError=false){const el=$('#status'); el.textContent=msg; el.style.color=isError?'#b91c1c':'#6b7280';}
+function appendDebug(msg){const el=$('#debugLog'); const time=new Date().toLocaleTimeString('ko-KR'); el.textContent=`[${time}] ${msg}\n` + (el.textContent==='대기 중'?'':el.textContent);}
+function showLoading(on){$('#loadingOverlay').style.display=on?'flex':'none';}
+function fmt(n){return (n??0).toLocaleString('ko-KR');}
+function toNumber(v){if(v==null||v==='') return 0; if(typeof v==='number') return isFinite(v)?v:0; const cleaned=String(v).replace(/,/g,'').trim(); const num=Number(cleaned); return isFinite(num)?num:0;}
+function normalizeWs(v){if(v==null) return null; const s=String(v).toUpperCase().replace(/\s+/g,'').replace(/_/g,'-'); const m=s.match(/APS\s*([123])[- ]?(\d{1,2})/i); return m?`APS${m[1]}-${String(m[2]).padStart(2,'0')}`:null;}
+function normalizeSheetName(v){return String(v||'').replace(/\s+/g,'').toLowerCase();}
+function normalizeSku(v){
+  if(v==null) return '';
+  let s = String(v).trim();
+  // excel numeric-looking IDs can arrive as 1554273 or 1554273.0; preserve as 13-digit id
+  s = s.replace(/\.0+$/,'');
+  s = s.replace(/[^\d]/g,'');
+  if(!s) return '';
+  return s.padStart(13,'0');
+}
+function heatColor(value,min,max){if(value==null||isNaN(value)) return '#dbeafe'; if(max===min) return 'hsl(8,85%,60%)'; const t=Math.max(0,Math.min(1,(value-min)/(max-min))); const hue=220-(220*t); return `hsl(${hue},82%,${62-(t*10)}%)`;}
+function ensureXLSX(){if(typeof XLSX==='undefined') throw new Error('XLSX 라이브러리 로딩 실패');}
+function readSheetRows(workbook,sheetName){const ws=workbook.Sheets[sheetName]; return XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});}
+function hasHeaders(rows, requiredHeaders){if(!rows||!rows.length) return false; const headers=Object.keys(rows[0]||{}); return requiredHeaders.every(h=>headers.includes(h));}
+function findBestSheet(workbook, type){
+  const required = type==='box' ? ['물류상품ID','피킹지시수량'] : ['작업대','물류상품ID'];
+  const preferredNames = type==='box' ? ['박스상품상세정보'] : ['셀할당현황','셀할당 현황'];
+  let candidate = null;
+  for(const name of workbook.SheetNames){
+    const norm=normalizeSheetName(name);
+    if(preferredNames.some(p=>norm.includes(normalizeSheetName(p)))){
+      const rows=readSheetRows(workbook,name);
+      if(hasHeaders(rows, required)) return {sheetName:name, rows};
+      candidate = {sheetName:name, rows};
+    }
+  }
+  for(const name of workbook.SheetNames){
+    const rows=readSheetRows(workbook,name);
+    if(hasHeaders(rows, required)) return {sheetName:name, rows};
+  }
+  return candidate;
+}
+async function readExcelRows(file, type){
+  ensureXLSX();
+  const wb = XLSX.read(await file.arrayBuffer(), {type:'array'});
+  const found = findBestSheet(wb, type);
+  return { workbookSheetNames: wb.SheetNames, sheetName: found ? found.sheetName : null, rows: found ? found.rows : [] };
+}
+function buildTouchMap(boxRows, cellRows){
+  const skuToQty = new Map();
+  let boxNonEmpty=0;
+  for(const row of boxRows){
+    const sku = normalizeSku(row['물류상품ID']);
+    if(!sku) continue;
+    boxNonEmpty++;
+    skuToQty.set(sku, (skuToQty.get(sku) || 0) + toNumber(row['피킹지시수량']));
+  }
+
+  const cellPairs = [];
+  const cellSkuSet = new Set();
+  let validWsRows = 0;
+  for(const row of cellRows){
+    const ws = normalizeWs(row['작업대']);
+    const sku = normalizeSku(row['물류상품ID']);
+    if(!sku) continue;
+    cellSkuSet.add(sku);
+    if(!ws) continue;
+    validWsRows++;
+    cellPairs.push([ws, sku]);
+  }
+
+  let overlapCount = 0;
+  for(const sku of cellSkuSet){
+    if(skuToQty.has(sku)) overlapCount++;
+  }
+
+  const wsToTouch = new Map();
+  const seenPairs = new Set();
+  for(const [ws, sku] of cellPairs){
+    const pairKey = ws + '||' + sku;
+    if(seenPairs.has(pairKey)) continue;
+    seenPairs.add(pairKey);
+    const qty = skuToQty.get(sku) || 0;
+    wsToTouch.set(ws, (wsToTouch.get(ws) || 0) + qty);
+  }
+
+  const result = {};
+  for(const [ws, qty] of wsToTouch.entries()) result[ws] = qty;
+  return {
+    touchMap: result,
+    diag: {
+      boxRows: boxRows.length,
+      boxNonEmptySkuRows: boxNonEmpty,
+      boxUniqueSku: skuToQty.size,
+      cellRows: cellRows.length,
+      cellValidWsRows: validWsRows,
+      cellUniqueSku: cellSkuSet.size,
+      overlapSku: overlapCount,
+      mappedWs: Object.keys(result).length,
+      sampleBoxSku: Array.from(skuToQty.keys()).slice(0,5).join(', '),
+      sampleCellSku: Array.from(cellSkuSet.keys()).slice(0,5).join(', ')
+    }
+  };
+}
+function computeZoneStats(touchMap){
+  const res={};
+  for(const machine of machineList){
+    const def=zoneDefs[machine];
+    let machineTotal=0,machineCount=0;
+    res[machine]={zones:{},total:0,count:0,avg:0};
+    for(const col of def.cols){
+      let zTotal=0,zCount=0;
+      for(const ws of col.order){
+        if(!ws) continue;
+        const v=touchMap[ws]||0;
+        zTotal+=v; zCount+=1; machineTotal+=v; machineCount+=1;
+      }
+      res[machine].zones[col.zone]={total:zTotal,count:zCount,avg:zCount?zTotal/zCount:0};
+    }
+    res[machine].total=machineTotal; res[machine].count=machineCount; res[machine].avg=machineCount?machineTotal/machineCount:0;
+  }
+  return res;
+}
+function renderDashboard(touchMap){
+  const values=Object.values(touchMap), min=values.length?Math.min(...values):0, max=values.length?Math.max(...values):0;
+  const stats=computeZoneStats(touchMap);
+  $('#machineSummary').innerHTML = machineList.map(machine => {
+    const st=stats[machine];
+    return `<div class="card machine-card"><div class="machine-name">${zoneDefs[machine].label}</div><div class="metrics"><div class="metric">총 터치수<b>${fmt(Math.round(st.total))}</b></div><div class="metric">평균/WS<b>${fmt(Math.round(st.avg))}</b></div></div></div>`;
+  }).join('');
+  $('#zonesArea').innerHTML = machineList.map(machine => {
+    const def=zoneDefs[machine], st=stats[machine];
+    return `<div class="card aps-block"><div class="aps-head"><div class="aps-title">${zoneDefs[machine].label}</div><div class="metrics"><div class="metric">총 터치수<b>${fmt(Math.round(st.total))}</b></div><div class="metric">평균/WS<b>${fmt(Math.round(st.avg))}</b></div></div></div><div class="zone-columns">${def.cols.map(col => { const z=st.zones[col.zone]; return `<div class="zone-col"><div class="zone-head"><span>${col.zone}</span><span class="zone-sum">총 ${fmt(Math.round(z.total))} · 평균 ${fmt(Math.round(z.avg))}</span></div><div class="spark-stack">${col.order.map(ws => { if(!ws) return `<div class="spark-row blank"><div class="blank-cell"></div></div>`; const v=touchMap[ws]||0, width=max>0?Math.max(v>0?3:0,(v/max)*100):0, color=heatColor(v,min,max); return `<div class="spark-row"><div class="ws-label">${ws}</div><div class="spark-track"><div class="spark-fill" style="width:${width}%;background:${color};"></div></div><div class="spark-value">${fmt(v)}</div></div>`; }).join('')}</div></div>`; }).join('')}</div></div>`;
+  }).join('');
+  const boxInfo = boxMeta ? `${boxMeta.fileName} / 시트: ${boxMeta.sheetName || '미탐지'}` : '-';
+  const cellInfo = cellMeta ? `${cellMeta.fileName} / 시트: ${cellMeta.sheetName || '미탐지'}` : '-';
+  $('#footNote').textContent = `박스상품 상세정보: ${boxInfo} · 셀할당 현황: ${cellInfo}`;
+  $('#emptyState').style.display='none'; $('#content').style.display='block';
+}
+function validateRows(rows, type){
+  if(!rows||!rows.length) return `${type} 시트에 데이터가 없습니다.`;
+  const headers=Object.keys(rows[0]||{});
+  if(type==='박스상품 상세정보'){
+    if(!headers.includes('물류상품ID')) return `${type} 시트에 "물류상품ID" 컬럼이 없습니다. 현재 헤더: ${headers.join(', ')}`;
+    if(!headers.includes('피킹지시수량')) return `${type} 시트에 "피킹지시수량" 컬럼이 없습니다. 현재 헤더: ${headers.join(', ')}`;
+  } else {
+    if(!headers.includes('작업대')) return `${type} 시트에 "작업대" 컬럼이 없습니다. 현재 헤더: ${headers.join(', ')}`;
+    if(!headers.includes('물류상품ID')) return `${type} 시트에 "물류상품ID" 컬럼이 없습니다. 현재 헤더: ${headers.join(', ')}`;
+  }
+  return null;
+}
+async function tryBuild(){
+  if(!(boxRows && cellRows)) return;
+  showLoading(true);
+  try{
+    const err1 = validateRows(boxRows, '박스상품 상세정보'); if(err1){setStatus(err1,true); appendDebug(err1); return;}
+    const err2 = validateRows(cellRows, '셀할당 현황'); if(err2){setStatus(err2,true); appendDebug(err2); return;}
+    const {touchMap, diag} = buildTouchMap(boxRows, cellRows);
+    appendDebug(`boxRows=${diag.boxRows}, boxUniqueSku=${diag.boxUniqueSku}, cellRows=${diag.cellRows}, cellUniqueSku=${diag.cellUniqueSku}, overlapSku=${diag.overlapSku}, mappedWs=${diag.mappedWs}`);
+    appendDebug(`sampleBoxSku=${diag.sampleBoxSku}`);
+    appendDebug(`sampleCellSku=${diag.sampleCellSku}`);
+    if(!Object.keys(touchMap).length || diag.overlapSku === 0){
+      const msg = '매핑된 작업대 터치수 결과가 없습니다. SKU 형식(앞자리 0 포함), 시트 선택, 작업대 값 형식을 확인해 주세요.';
+      setStatus(msg, true); appendDebug(msg); $('#content').style.display='none'; $('#emptyState').style.display='block'; return;
+    }
+    renderDashboard(touchMap);
+    setStatus('RAW 데이터 분석 완료'); appendDebug('RAW 데이터 분석 완료');
+  } catch(err){
+    console.error(err);
+    const msg = '파일 분석 중 오류가 발생했습니다: ' + (err.message || err);
+    setStatus(msg, true); appendDebug(msg); $('#content').style.display='none'; $('#emptyState').style.display='block';
+  } finally { showLoading(false); }
+}
+document.addEventListener('DOMContentLoaded', () => {
+  if(typeof XLSX==='undefined'){ setStatus('XLSX 라이브러리 로딩 실패', true); appendDebug('XLSX 라이브러리 로딩 실패'); }
+  else { appendDebug('XLSX 라이브러리 로딩 성공'); }
+});
+$('#boxFile').addEventListener('change', async e => {
+  const file=e.target.files[0]; if(!file) return;
+  showLoading(true);
+  try{
+    appendDebug(`박스상품 상세정보 파일 선택: ${file.name}`);
+    const result=await readExcelRows(file,'box');
+    boxRows=result.rows; boxMeta={fileName:file.name,sheetName:result.sheetName};
+    const msg=`박스상품 상세정보 업로드 완료 / 시트: ${result.sheetName || '미탐지'} / 시트목록: ${result.workbookSheetNames.join(', ')}`;
+    setStatus(msg); appendDebug(msg);
+  } catch(err){
+    console.error(err); boxRows=null;
+    const msg='박스상품 상세정보 파일 읽기에 실패했습니다: ' + (err.message || err);
+    setStatus(msg,true); appendDebug(msg);
+  } finally { showLoading(false); }
+  await tryBuild();
+});
+$('#cellFile').addEventListener('change', async e => {
+  const file=e.target.files[0]; if(!file) return;
+  showLoading(true);
+  try{
+    appendDebug(`셀할당 현황 파일 선택: ${file.name}`);
+    const result=await readExcelRows(file,'cell');
+    cellRows=result.rows; cellMeta={fileName:file.name,sheetName:result.sheetName};
+    const msg=`셀할당 현황 업로드 완료 / 시트: ${result.sheetName || '미탐지'} / 시트목록: ${result.workbookSheetNames.join(', ')}`;
+    setStatus(msg); appendDebug(msg);
+  } catch(err){
+    console.error(err); cellRows=null;
+    const msg='셀할당 현황 파일 읽기에 실패했습니다: ' + (err.message || err);
+    setStatus(msg,true); appendDebug(msg);
+  } finally { showLoading(false); }
+  await tryBuild();
+});
+</script>
+</body>
+</html>
