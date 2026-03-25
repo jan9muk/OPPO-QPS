@@ -1,147 +1,398 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<title>QPS Dashboard v8.2</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QPS RAW 대시보드 v8.2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
 <style>
-body{font-family:Arial;padding:20px;background:#f5f7fb}
-.card{background:#fff;padding:16px;margin-bottom:16px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.08)}
-.ws{margin-bottom:8px}
+body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}
+.title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}
+.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}
+.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"]{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px}
+.status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}
+.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}
+.empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}
+.machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px}.machine-grid{margin-bottom:18px}
+.machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}
+.metrics{display:flex;gap:28px;flex-wrap:nowrap;justify-content:center;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}
+.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-width:100px}
+.metric b{display:block;color:#1f2937;font-size:22px;margin-top:2px}
+.metric .share{display:block;font-size:12px;color:#6b7280;margin-top:4px}
+.aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}
+.zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}
+.spark-stack{display:grid;gap:8px}.spark-row{display:grid;grid-template-columns:78px 1fr 120px;gap:8px;align-items:center;min-height:28px}
+.spark-row.blank{display:none}
+.ws-label{font-size:13px;font-weight:700;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spark-track{width:100%;height:18px;background:#eef2f7;border-radius:999px;overflow:hidden;border:1px solid #e2e8f0}
+.spark-fill{height:100%;border-radius:999px}
+.spark-value{text-align:right;font-size:12px;font-weight:800;color:#374151;white-space:nowrap;line-height:1.35}
+.footer-note{margin-top:14px;font-size:12px;color:#6b7280}
+.subhead{font-size:18px;font-weight:800;margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border-bottom:1px solid #e5e7eb;padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#f8fafc}
+.pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:700}
+.pill.bad{background:#fef2f2;color:#b91c1c}
+.pill.warn{background:#fffbeb;color:#b45309}
+.map-grid{display:grid;grid-template-columns:repeat(2,minmax(320px,1fr));gap:16px}
+.mini-card{background:#fafafa;border:1px solid #e5e7eb;border-radius:12px;padding:12px}
+#loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.68);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:9999}
+.loader-box{width:120px;height:120px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.08);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+.loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}.loader-text{font-size:13px;color:#6b7280;font-weight:700}@keyframes spin{to{transform:rotate(360deg)}}
+@media (max-width:1180px){.machine-grid,.zones,.map-grid{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}
 </style>
 </head>
-
 <body>
+<div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
 
 <div class="card">
-<h2>QPS Dashboard v8.2</h2>
-<input type="file" id="boxFile">
-<input type="file" id="cellFile">
+  <div class="title">QPS RAW 대시보드 v8.2</div>
+  <div class="subtitle">토트 기반 유입/완료/진척률 + 셀 이동 추천</div>
 </div>
 
-<div class="card" id="result"></div>
+<div class="card">
+  <div class="row">
+    <div class="group">
+      <label>박스상품 상세정보 RAW</label>
+      <input type="file" id="boxFile" accept=".xlsx,.xls">
+    </div>
+    <div class="group">
+      <label>셀할당현황 RAW</label>
+      <input type="file" id="cellFile" accept=".xlsx,.xls">
+    </div>
+  </div>
+  <div class="status" id="status">두 파일을 모두 업로드하면 W/S별 유입 토트 수와 진척률을 계산합니다.</div>
+</div>
+
+<div id="emptyState" class="card empty">파일 2개 업로드 전에는 표시되는 데이터가 없습니다.</div>
+
+<div id="content" class="section">
+  <div class="machine-grid" id="machineSummary"></div>
+  <div class="zones" id="zonesArea"></div>
+
+  <div class="card">
+    <div class="subhead">셀 이동 추천</div>
+    <table>
+      <thead>
+        <tr>
+          <th>SKU</th><th>상품명</th><th>PCS</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>현재 우선순위</th><th>권장 랙</th><th>추천 셀</th><th>사유</th><th>비고</th>
+        </tr>
+      </thead>
+      <tbody id="recommendBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="subhead">셀 지도 요약</div>
+    <div class="map-grid">
+      <div class="mini-card">
+        <div class="subhead" style="font-size:16px">존/랙유형별 셀 수</div>
+        <table>
+          <thead><tr><th>존</th><th>온도대</th><th>랙유형</th><th>전체 셀</th><th>할당 셀</th><th>공셀</th></tr></thead>
+          <tbody id="cellMapSummary"></tbody>
+        </table>
+      </div>
+      <div class="mini-card">
+        <div class="subhead" style="font-size:16px">랙유형별 피킹 현황</div>
+        <table>
+          <thead><tr><th>온도대</th><th>랙유형</th><th>피킹 SKU</th><th>피킹 PCS</th></tr></thead>
+          <tbody id="rackLoadSummary"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note" id="footNote"></div>
+</div>
+
+<div class="card">
+  <div class="debug" id="debugLog">대기 중</div>
+</div>
 
 <script>
+const zoneDefs={APS1:{label:'1호기',cols:[{zone:'A존',order:['APS1-01','APS1-02','APS1-03','APS1-04','APS1-05','APS1-06','APS1-07','APS1-08','APS1-09','APS1-10']},{zone:'B존',order:['APS1-20','APS1-19','APS1-18','APS1-17','APS1-16','APS1-15','APS1-14','APS1-13','APS1-12','APS1-11']}]},APS2:{label:'2호기',cols:[{zone:'C존',order:['APS2-01','APS2-02','APS2-03','APS2-04','APS2-05','APS2-06','APS2-07','APS2-08','APS2-09','APS2-10']},{zone:'D존',order:['APS2-20','APS2-19','APS2-18','APS2-17','APS2-16','APS2-15','APS2-14','APS2-13','APS2-12','APS2-11']}]},APS3:{label:'3호기',cols:[{zone:'E존',order:[null,'APS3-07','APS3-06','APS3-05','APS3-04',null,null,'APS3-03','APS3-02','APS3-01']},{zone:'F존',order:['APS3-08','APS3-09','APS3-10','APS3-11','APS3-12','APS3-13','APS3-14','APS3-15','APS3-16','APS3-17','APS3-18','APS3-19']}]}};
+const machineList=['APS1','APS2','APS3'];
+let boxRows=null,cellRows=null,boxMeta=null,cellMeta=null;
+const $=s=>document.querySelector(s);
 
-const COMPLETE = ['피킹완료','토트매핑완료','패킹완료','출고완료','출하완료','배송완료'];
-const INCOMPLETE = ['배송지시','배송지시완료','피킹지시'];
-const EXCLUDE = ['전체취소','전체결품','출고불가','취소대기'];
+const COMPLETE_STATUS=['피킹완료','토트매핑완료','패킹완료','출고완료','출하완료','배송완료'];
+const INCOMPLETE_STATUS=['배송지시','배송지시완료','피킹지시'];
+const EXCLUDE_STATUS=['전체취소','전체결품','출고불가','취소대기'];
 
-let boxRows=null, cellRows=null;
+const SLOT_RULES={chilled:{rackPriority:{'Gate Rack':1,'Flow Rack':2,'냉장평대':3,'냉장오픈다단':4,'Shelf Rack':5,'Shelf Rack (후순위)':6},idealRankByPercentile:[{minPct:0.90,rank:1},{minPct:0.65,rank:2},{minPct:0.45,rank:3},{minPct:0.25,rank:4},{minPct:0.00,rank:5}]},frozen:{rackPriority:{'냉동워크인':1,'냉동평대':2,'냉동리치인':3},idealRankByPercentile:[{minPct:0.80,rank:1},{minPct:0.40,rank:2},{minPct:0.00,rank:3}]}}
+const INTRA_RACK_PRIORITY_RULES = [
+  {zone:'A01', from:'A01-050101', to:'A01-050405', score:100},{zone:'A02', from:'A02-020101', to:'A02-020405', score:100},{zone:'A03', from:'A03-050101', to:'A03-050405', score:100},{zone:'A04', from:'A04-030101', to:'A04-030405', score:100},{zone:'A05', from:'A05-020101', to:'A05-020405', score:100},{zone:'A06', from:'A06-050101', to:'A06-050405', score:100},{zone:'A07', from:'A07-020101', to:'A07-020405', score:100},
+  {zone:'B01', from:'B01-020101', to:'B01-020405', score:100},{zone:'B02', from:'B02-050101', to:'B02-050405', score:100},{zone:'B03', from:'B03-020101', to:'B03-020405', score:100},{zone:'B04', from:'B04-050101', to:'B04-050405', score:100},{zone:'B05', from:'B05-020101', to:'B05-020405', score:100},{zone:'B06', from:'B06-050101', to:'B06-050405', score:100},{zone:'B07', from:'B07-020101', to:'B07-020405', score:100},{zone:'B09', from:'B09-010202', to:'B09-020402', score:100},{zone:'B10', from:'B10-050101', to:'B10-050405', score:100},
+  {zone:'C01', from:'C01-050101', to:'C01-050405', score:100},{zone:'C02', from:'C02-020101', to:'C02-020405', score:100},{zone:'C03', from:'C03-050101', to:'C03-050405', score:100},{zone:'C04', from:'C04-030101', to:'C04-030405', score:100},{zone:'C05', from:'C05-020101', to:'C05-020405', score:100},{zone:'C06', from:'C06-050101', to:'C06-050405', score:100},{zone:'C07', from:'C07-020101', to:'C07-020405', score:100},{zone:'C09', from:'C09-020101', to:'C09-030405', score:100},
+  {zone:'D01', from:'D01-030101', to:'D01-030507', score:100},{zone:'D01', from:'D01-050101', to:'D01-050507', score:100},{zone:'D02', from:'D02-010101', to:'D02-010107', score:100},{zone:'D02', from:'D02-030101', to:'D02-030507', score:100},{zone:'D02', from:'D02-050101', to:'D02-050507', score:100},{zone:'D03', from:'D03-020101', to:'D03-020405', score:100},{zone:'D04', from:'D04-050101', to:'D04-050405', score:100},{zone:'D05', from:'D05-010103', to:'D05-020404', score:100},{zone:'D06', from:'D06-050101', to:'D06-050405', score:100},{zone:'D07', from:'D07-010102', to:'D07-020403', score:100},
+  {zone:'E01', from:'E01-010101', to:'E01-020405', score:100},{zone:'E02', from:'E02-050101', to:'E01-020403', score:100},{zone:'E03', from:'E03-010201', to:'E03-010405', score:100},{zone:'E03', from:'E03-030201', to:'E03-030405', score:100},{zone:'E04', from:'E04-070101', to:'E04-070108', score:100},{zone:'E04', from:'E04-010101', to:'E04-010507', score:100},{zone:'E04', from:'E04-030101', to:'E04-030507', score:100},{zone:'E04', from:'E04-050101', to:'E04-050507', score:100},{zone:'E05', from:'E05-010101', to:'E05-010507', score:100},{zone:'E05', from:'E05-030101', to:'E05-030507', score:100},{zone:'E06', from:'E06-010101', to:'E06-010507', score:100},{zone:'E06', from:'E06-030101', to:'E06-030507', score:100},{zone:'E06', from:'E06-050101', to:'E06-050507', score:100},{zone:'E07', from:'E07-010101', to:'E07-010507', score:100},{zone:'E07', from:'E07-030101', to:'E07-030507', score:100},{zone:'E07', from:'E07-050101', to:'E07-050507', score:100},
+  {zone:'F01', from:'F01-030101', to:'F01-040506', score:100},{zone:'F02', from:'F02-030101', to:'F02-040506', score:100},{zone:'F03', from:'F03-030101', to:'F03-040506', score:100},{zone:'F04', from:'F04-030101', to:'F04-040506', score:100},{zone:'F05', from:'F05-030101', to:'F05-040506', score:100},{zone:'F06', from:'F06-030101', to:'F06-040506', score:100},{zone:'F07', from:'F07-030101', to:'F07-040506', score:100},{zone:'F08', from:'F08-030101', to:'F08-040506', score:100},{zone:'F09', from:'F09-030101', to:'F09-040506', score:100},{zone:'F10', from:'F10-020101', to:'F10-030506', score:100},{zone:'F11', from:'F11-020101', to:'F11-030506', score:100},{zone:'F12', from:'F12-020101', to:'F13-030506', score:100}
+];
 
-function readFile(file, cb){
-  const reader = new FileReader();
-  reader.onload = e=>{
-    const wb = XLSX.read(e.target.result, {type:'binary'});
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    cb(XLSX.utils.sheet_to_json(ws));
-  };
-  reader.readAsBinaryString(file);
+function setStatus(msg,isError=false){const el=$('#status');el.textContent=msg;el.style.color=isError?'#b91c1c':'#6b7280';}
+function appendDebug(msg){const el=$('#debugLog');const time=new Date().toLocaleTimeString('ko-KR');el.textContent=`[${time}] ${msg}\n`+(el.textContent==='대기 중'?'':el.textContent);}
+function showLoading(on){$('#loadingOverlay').style.display=on?'flex':'none';}
+function fmt(n){return (n??0).toLocaleString('ko-KR');}
+function fmtPct(n){return `${(n*100).toFixed(1)}%`;}
+function toNumber(v){if(v==null||v==='') return 0;if(typeof v==='number') return isFinite(v)?v:0;const num=Number(String(v).replace(/,/g,'').trim());return isFinite(num)?num:0;}
+function normalizeWs(v){if(v==null) return null;const s=String(v).toUpperCase().replace(/\s+/g,'').replace(/_/g,'-');const m=s.match(/APS\s*([123])[- ]?(\d{1,2})/i);return m?`APS${m[1]}-${String(m[2]).padStart(2,'0')}`:null;}
+function normalizeSheetName(v){return String(v||'').replace(/\s+/g,'').toLowerCase();}
+function normalizeSku(v){if(v==null) return '';let s=String(v).trim();s=s.replace(/\.0+$/,'').replace(/[^\d]/g,'');if(!s) return '';return s.padStart(13,'0');}
+function normalizeTemp(code){const s=String(code||'').trim();if(s==='WET 냉동') return 'frozen';if(s==='WET 일반'||s==='WET 냉장') return 'chilled';return 'unknown';}
+function tempLabel(temp){if(temp==='frozen') return '냉동';if(temp==='chilled') return '냉장';return '기타';}
+function zoneFromLocation(loc){return String(loc||'').trim().slice(0,3);}
+function suffix6(loc){const m=String(loc||'').match(/(\d{6})$/); return m?m[1]:'';}
+function heatColor(value,min,max){if(value==null||isNaN(value)) return '#dbeafe';if(max===min) return 'hsl(8,85%,60%)';const t=Math.max(0,Math.min(1,(value-min)/(max-min)));const hue=220-(220*t);return `hsl(${hue},82%,${62-(t*10)}%)`;}
+function ensureXLSX(){if(typeof XLSX==='undefined') throw new Error('XLSX 라이브러리 로딩 실패');}
+function readSheetRows(workbook,sheetName){const ws=workbook.Sheets[sheetName];return XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});}
+function headersOfRows(rows){return rows&&rows.length?Object.keys(rows[0]):[];}
+function findStatusColumns(headers){
+  const candidates = headers.filter(h => String(h).includes('WMS배송진행상태'));
+  return {all:candidates, primary:candidates[candidates.length-1] || null};
 }
-
-document.getElementById('boxFile').onchange = e=>{
-  readFile(e.target.files[0], rows=>{
-    boxRows = rows;
-    tryBuild();
-  });
-};
-
-document.getElementById('cellFile').onchange = e=>{
-  readFile(e.target.files[0], rows=>{
-    cellRows = rows;
-    tryBuild();
-  });
-};
-
-function getStatus(row){
-  const keys = Object.keys(row).filter(k=>k.includes('WMS배송진행상태'));
-  return row[keys[keys.length-1]] || '';
+function findBestSheet(workbook,type){
+  const required=type==='box'?['물류상품ID','피킹지시수량']:['작업대','물류상품ID','보관위치','랙유형','물류분류코드','현재고'];
+  const preferredNames=type==='box'?['박스상품상세정보']:['셀할당현황','셀할당 현황'];
+  let candidate=null;
+  for(const name of workbook.SheetNames){
+    const norm=normalizeSheetName(name);
+    if(preferredNames.some(p=>norm.includes(normalizeSheetName(p)))){
+      const rows=readSheetRows(workbook,name);
+      const headers=headersOfRows(rows);
+      if(required.every(h=>headers.includes(h))) return {sheetName:name,rows};
+      candidate={sheetName:name,rows};
+    }
+  }
+  for(const name of workbook.SheetNames){
+    const rows=readSheetRows(workbook,name);
+    const headers=headersOfRows(rows);
+    if(required.every(h=>headers.includes(h))) return {sheetName:name,rows};
+  }
+  return candidate;
 }
-
-function getToteKey(row){
-  return row['배송번호'] + '_' + row['배송박스순번'];
+async function readExcelRows(file,type){ensureXLSX();const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});const found=findBestSheet(wb,type);return {workbookSheetNames:wb.SheetNames,sheetName:found?found.sheetName:null,rows:found?found.rows:[]};}
+function getProductName(row){return String(row['물류상품명']||row['상품명']||'').trim();}
+function isEgg(name){return name.includes('식용란')&&!name.includes('훈제란');}
+function isLivestock(name){return /축산|소고기|돼지고기|닭|계육|우육|돈육|목심|삼겹|갈비|차돌|불고기|양념육/.test(name);}
+function isSeafood(name){return /수산|생선|오징어|낙지|쭈꾸미|새우|연어|고등어|갈치|참치|조개|문어/.test(name);}
+function isMincedMeat(name){return /다짐육|민찌|간고기/.test(name);}
+function makeToteKey(row){
+  const d = String(row['배송번호']||'').trim();
+  const b = String(row['배송박스순번']||'').trim();
+  if(!d || !b) return '';
+  return `${d}__${b}`;
 }
+function classifyRack(cell){let rack=cell.rackType, loc=cell.location;if(rack==='Shelf Rack'){if(loc>='B08-050101'&&loc<='B08-080505') rack='Shelf Rack (후순위)';if(loc>='C05-050101'&&loc<='C05-060505') rack='Shelf Rack (후순위)';}return rack;}
+function isForbiddenCell(cell,productName){const loc=cell.location, zone=cell.zone, suf=suffix6(loc); if(zone==='A08'&&suf&&(suf[3]==='1'||suf[3]==='5')) return true; if(cell.rackType==='냉장평대'&&!(loc>='D02-010101'&&loc<='D02-020108')) return true; if(cell.rackType==='냉동평대'&&!(loc>='E04-070101'&&loc<='E04-080108')) return true; if(isEgg(productName)&&!(loc>='A06-010101'&&loc<='A09-010114')) return true; if(isLivestock(productName)){const allow=(loc>='D01-000000'&&loc<='D06-999999')||(loc>='D07-030101'&&loc<='D07-060505'); if(!allow) return true;} return false;}
+function shouldAvoidCell(cell,productName){const loc=cell.location; if(loc>='D01-000000'&&loc<='D02-999999'){if(!(isMincedMeat(productName)||isSeafood(productName))) return true;} return false;}
+function getIntraRackPriorityScore(cell){const loc=cell.location||''; for(const rule of INTRA_RACK_PRIORITY_RULES){if(cell.zone!==rule.zone) continue; if(loc>=rule.from&&loc<=rule.to) return rule.score;} return 0;}
+function summarizeToteStatus(statuses){
+  let hasComplete=false, hasIncomplete=false;
+  for(const s of statuses){
+    if(EXCLUDE_STATUS.includes(s)) continue;
+    if(COMPLETE_STATUS.includes(s)) hasComplete=true;
+    if(INCOMPLETE_STATUS.includes(s)) hasIncomplete=true;
+  }
+  if(hasComplete && !hasIncomplete) return 'complete';
+  if(!hasComplete && hasIncomplete) return 'not_started';
+  if(hasComplete && hasIncomplete) return 'in_progress';
+  return 'exclude';
+}
+function buildAllModels(boxRows,cellRows){
+  const boxHeaders = headersOfRows(boxRows);
+  const statusCols = findStatusColumns(boxHeaders);
+  const statusCol = statusCols.primary;
+  const skuToPcs=new Map(), skuMeta=new Map(), toteRowsMap=new Map();
+  for(const row of boxRows){
+    const sku=normalizeSku(row['물류상품ID']); if(sku) skuToPcs.set(sku,(skuToPcs.get(sku)||0)+toNumber(row['피킹지시수량']));
+    if(sku && !skuMeta.has(sku)) skuMeta.set(sku,{name:getProductName(row)});
+    const toteKey = makeToteKey(row);
+    if(toteKey){
+      if(!toteRowsMap.has(toteKey)) toteRowsMap.set(toteKey, []);
+      toteRowsMap.get(toteKey).push(row);
+    }
+  }
 
-function tryBuild(){
-  if(!boxRows || !cellRows) return;
+  const toteStatusMap = new Map();
+  for(const [toteKey, rows] of toteRowsMap.entries()){
+    const statuses = rows.map(r => String(statusCol ? r[statusCol] : '').trim()).filter(Boolean);
+    toteStatusMap.set(toteKey, summarizeToteStatus(statuses));
+  }
 
-  const toteMap = {};
-  const skuWsMap = {};
+  const wsMetrics=new Map(), seenWsSku=new Set(), allocSkuSet=new Set(), pickedSkuSet=new Set(), cellMaster=[], emptyCells=[], assignedCells=[];
+  const skuToWsSet = new Map();
+  for(const row of cellRows){
+    const ws=normalizeWs(row['작업대']), sku=normalizeSku(row['물류상품ID']), location=String(row['보관위치']||'').trim(), zone=zoneFromLocation(location), rackType=String(row['랙유형']||'').trim(), temp=normalizeTemp(row['물류분류코드']), stock=toNumber(row['현재고']), productName=getProductName(row)||(skuMeta.get(sku)?.name||'');
+    const cell={ws,sku,location,zone,rackType,temp,stock,isEmpty:!sku,productName}; cellMaster.push(cell);
+    if(cell.isEmpty) emptyCells.push(cell); else {
+      assignedCells.push(cell); allocSkuSet.add(sku);
+      if(!skuToWsSet.has(sku)) skuToWsSet.set(sku, new Set());
+      if(ws) skuToWsSet.get(sku).add(ws);
+      if(!wsMetrics.has(ws)) wsMetrics.set(ws,{pcs:0,skuPicked:0,skuAllocated:0,inboundTotes:new Set(),completeTotes:new Set(),inProgressTotes:new Set(),notStartedTotes:new Set(),effectiveTotes:new Set()});
+      const pairKey=ws+'||'+sku;
+      if(!seenWsSku.has(pairKey)){
+        seenWsSku.add(pairKey);
+        const m=wsMetrics.get(ws); m.skuAllocated += 1;
+        const pcs=skuToPcs.get(sku)||0;
+        if(pcs>0){m.pcs += pcs; m.skuPicked += 1; pickedSkuSet.add(sku);}
+      }
+    }
+  }
 
-  // SKU → WS 매핑
-  cellRows.forEach(r=>{
-    const sku = r['물류상품ID'];
-    const ws = r['작업대'];
-    if(!sku || !ws) return;
-    if(!skuWsMap[sku]) skuWsMap[sku]=new Set();
-    skuWsMap[sku].add(ws);
-  });
-
-  // 토트 그룹핑
-  boxRows.forEach(r=>{
-    const key = getToteKey(r);
-    if(!toteMap[key]) toteMap[key]=[];
-    toteMap[key].push(r);
-  });
-
-  const wsData = {};
-
-  Object.keys(toteMap).forEach(tote=>{
-    const rows = toteMap[tote];
-
-    let hasC=false, hasI=false;
-
-    rows.forEach(r=>{
-      const s = getStatus(r);
-      if(EXCLUDE.includes(s)) return;
-      if(COMPLETE.includes(s)) hasC=true;
-      if(INCOMPLETE.includes(s)) hasI=true;
-    });
-
-    let state='exclude';
-    if(hasC && !hasI) state='complete';
-    else if(!hasC && hasI) state='not';
-    else if(hasC && hasI) state='progress';
-
+  for(const [toteKey, rows] of toteRowsMap.entries()){
     const wsSet = new Set();
+    for(const row of rows){
+      const sku = normalizeSku(row['물류상품ID']);
+      if(!sku) continue;
+      const candidateWs = skuToWsSet.get(sku);
+      if(candidateWs) for(const ws of candidateWs) wsSet.add(ws);
+    }
+    const toteStatus = toteStatusMap.get(toteKey) || 'exclude';
+    for(const ws of wsSet){
+      if(!wsMetrics.has(ws)) continue;
+      const m = wsMetrics.get(ws);
+      m.inboundTotes.add(toteKey);
+      if(toteStatus !== 'exclude') m.effectiveTotes.add(toteKey);
+      if(toteStatus === 'complete') m.completeTotes.add(toteKey);
+      else if(toteStatus === 'in_progress') m.inProgressTotes.add(toteKey);
+      else if(toteStatus === 'not_started') m.notStartedTotes.add(toteKey);
+    }
+  }
 
-    rows.forEach(r=>{
-      const sku = r['물류상품ID'];
-      if(skuWsMap[sku]){
-        skuWsMap[sku].forEach(ws=>wsSet.add(ws));
-      }
-    });
+  const wsResult={};
+  for(const [ws,m] of wsMetrics.entries()){
+    wsResult[ws]={
+      pcs:m.pcs, skuPicked:m.skuPicked, skuAllocated:m.skuAllocated,
+      inboundToteCount:m.inboundTotes.size,
+      completeToteCount:m.completeTotes.size,
+      inProgressToteCount:m.inProgressTotes.size,
+      notStartedToteCount:m.notStartedTotes.size,
+      effectiveToteCount:m.effectiveTotes.size,
+      progressRate:m.effectiveTotes.size ? (m.completeTotes.size / m.effectiveTotes.size) : 0
+    };
+  }
 
-    wsSet.forEach(ws=>{
-      if(!wsData[ws]){
-        wsData[ws]={in:0,complete:0,effective:0};
-      }
-      wsData[ws].in++;
+  const rackLoad=new Map();
+  for(const cell of assignedCells){
+    const pcs=skuToPcs.get(cell.sku)||0, rack=classifyRack(cell), key=`${cell.temp}||${rack}`;
+    if(!rackLoad.has(key)) rackLoad.set(key,{temp:cell.temp,rackType:rack,pcs:0,skuSet:new Set()});
+    const obj=rackLoad.get(key); obj.pcs += pcs; if(pcs>0) obj.skuSet.add(cell.sku);
+  }
+  const cellMapSummary=new Map();
+  for(const cell of cellMaster){
+    const rack=classifyRack(cell), key=`${cell.zone}||${cell.temp}||${rack}`;
+    if(!cellMapSummary.has(key)) cellMapSummary.set(key,{zone:cell.zone,temp:cell.temp,rackType:rack,total:0,assigned:0,empty:0});
+    const obj=cellMapSummary.get(key); obj.total += 1; if(cell.isEmpty) obj.empty += 1; else obj.assigned += 1;
+  }
 
-      if(state!=='exclude') wsData[ws].effective++;
-      if(state==='complete') wsData[ws].complete++;
-    });
+  let totalDirectedTotes = 0, totalCompleteTotes = 0, totalEffectiveTotes = 0;
+  for(const [k,v] of toteStatusMap.entries()){
+    if(v !== 'exclude') totalEffectiveTotes += 1;
+    if(v === 'complete') totalCompleteTotes += 1;
+    totalDirectedTotes += 1;
+  }
 
-  });
-
-  let html='';
-
-  Object.keys(wsData).forEach(ws=>{
-    const d = wsData[ws];
-    const rate = d.effective ? (d.complete/d.effective*100).toFixed(1) : 0;
-
-    html+=`
-      <div class="ws">
-      <b>${ws}</b> | 토트 ${d.in} | 완료 ${d.complete} | 진척률 ${rate}%
-      </div>
-    `;
-  });
-
-  document.getElementById('result').innerHTML = html;
+  return {
+    skuToPcs, skuMeta, wsMetrics:wsResult,
+    allocSkuCount:allocSkuSet.size, pickedSkuCount:pickedSkuSet.size,
+    allocationRate:allocSkuSet.size?pickedSkuSet.size/allocSkuSet.size:0,
+    totalDirectedTotes, totalEffectiveTotes, totalCompleteTotes,
+    toteStatusColumn: statusCol, toteRowsMapSize: toteRowsMap.size,
+    cellMaster, emptyCells, assignedCells,
+    rackLoad:Array.from(rackLoad.values()).map(x=>({temp:x.temp,rackType:x.rackType,pcs:x.pcs,skuPicked:x.skuSet.size})),
+    cellMapSummary:Array.from(cellMapSummary.values())
+  };
 }
-
+function computeZoneStats(wsMetrics){
+  const res={};
+  for(const machine of machineList){
+    const def=zoneDefs[machine]; let machineIn=0,machineComp=0,machineEff=0,machineCount=0;
+    res[machine]={zones:{},inboundTotes:0,completeTotes:0,effectiveTotes:0,progressRate:0,count:0};
+    for(const col of def.cols){
+      let zIn=0,zComp=0,zEff=0,zCount=0;
+      for(const ws of col.order){
+        if(!ws) continue;
+        const m=wsMetrics[ws]||{inboundToteCount:0,completeToteCount:0,effectiveToteCount:0};
+        zIn += m.inboundToteCount||0; zComp += m.completeToteCount||0; zEff += m.effectiveToteCount||0; zCount += 1;
+        machineIn += m.inboundToteCount||0; machineComp += m.completeToteCount||0; machineEff += m.effectiveToteCount||0; machineCount += 1;
+      }
+      res[machine].zones[col.zone]={inboundTotes:zIn,completeTotes:zComp,effectiveTotes:zEff,progressRate:zEff?zComp/zEff:0,count:zCount};
+    }
+    res[machine].inboundTotes=machineIn; res[machine].completeTotes=machineComp; res[machine].effectiveTotes=machineEff; res[machine].progressRate=machineEff?machineComp/machineEff:0; res[machine].count=machineCount;
+  }
+  return res;
+}
+function getRankForRack(temp,rackType){const rules=SLOT_RULES[temp]; if(!rules) return 999; return rules.rackPriority[rackType] ?? 999;}
+function percentileRank(pcs,sorted){if(!sorted.length) return 0;const idx=sorted.findIndex(v=>pcs>=v);const pos=idx===-1?sorted.length-1:idx;return 1-(pos/sorted.length);}
+function idealRankForPcs(temp,pcs,sorted){const rules=SLOT_RULES[temp]; if(!rules) return 999; const pct=percentileRank(pcs,sorted); for(const rule of rules.idealRankByPercentile){if(pct>=rule.minPct) return rule.rank;} return 999;}
+function scoreCandidateCell(cell,sourceCell){let score=0; if(cell.zone===sourceCell.zone) score+=30; else if(cell.location.slice(0,1)===sourceCell.location.slice(0,1)) score+=10; if(cell.ws===sourceCell.ws) score+=20; score -= getRankForRack(cell.temp,classifyRack(cell))*5; score += getIntraRackPriorityScore(cell); if(shouldAvoidCell(cell,sourceCell.productName)) score -= 50; return score;}
+function findCandidateCell(sourceCell,targetRank,models){const candidates=models.emptyCells.filter(c=>{if(c.temp!==sourceCell.temp) return false; const rack=classifyRack(c), rank=getRankForRack(c.temp,rack); if(rank!==targetRank) return false; if(isForbiddenCell(c,sourceCell.productName)) return false; return true;}).sort((a,b)=>scoreCandidateCell(b,sourceCell)-scoreCandidateCell(a,sourceCell)); return candidates[0]||null;}
+function buildRecommendations(models){
+  const byTempPcs={chilled:[],frozen:[]}; for(const cell of models.assignedCells){const pcs=models.skuToPcs.get(cell.sku)||0; if(cell.temp==='chilled'||cell.temp==='frozen') byTempPcs[cell.temp].push(pcs);}
+  byTempPcs.chilled.sort((a,b)=>b-a); byTempPcs.frozen.sort((a,b)=>b-a);
+  const recs=[], seenSku=new Set();
+  for(const cell of models.assignedCells){
+    const sku=cell.sku; if(!sku||seenSku.has(sku)) continue; seenSku.add(sku);
+    const pcs=models.skuToPcs.get(sku)||0, temp=cell.temp; if(pcs<=0||(temp!=='chilled'&&temp!=='frozen')) continue;
+    const productName=cell.productName||models.skuMeta.get(sku)?.name||'', currentRack=classifyRack(cell), currentRank=getRankForRack(temp,currentRack), idealRank=idealRankForPcs(temp,pcs,byTempPcs[temp]);
+    if(currentRank>idealRank){
+      let targetCell=null;
+      for(let rank=idealRank; rank<currentRank; rank++){targetCell=findCandidateCell({...cell,productName},rank,models); if(targetCell) break;}
+      let note=''; if(isEgg(productName)) note='이동 전 사용자 확인 필요';
+      recs.push({sku,productName,pcs,temp,currentCell:cell.location,currentRack,currentRank,targetRack:targetCell?classifyRack(targetCell):`우선순위 ${idealRank} 랙`,targetCell:targetCell?targetCell.location:'적정 공셀 없음',reason:'고출고 SKU가 상대적으로 낮은 우선순위 랙에 배치됨',note});
+    } else if(currentRank<=2){
+      const pct=percentileRank(pcs,byTempPcs[temp]); if(pct<0.20){recs.push({sku,productName,pcs,temp,currentCell:cell.location,currentRack,currentRank,targetRack:'하위 우선 랙 검토',targetCell:'-',reason:'저출고 SKU가 상위 우선 랙을 점유 중',note:''});}
+    }
+  }
+  recs.sort((a,b)=>b.pcs-a.pcs); return recs.slice(0,30);
+}
+function renderDashboard(models){
+  const toteValues=Object.values(models.wsMetrics).map(v=>v.inboundToteCount||0), min=toteValues.length?Math.min(...toteValues):0, max=toteValues.length?Math.max(...toteValues):0;
+  const stats=computeZoneStats(models.wsMetrics);
+  const totalInAll=machineList.reduce((acc,m)=>acc+stats[m].inboundTotes,0), totalCompAll=machineList.reduce((acc,m)=>acc+stats[m].completeTotes,0);
+  $('#machineSummary').innerHTML=machineList.map(machine=>{const st=stats[machine], inShare=totalInAll?st.inboundTotes/totalInAll:0, compShare=totalCompAll?st.completeTotes/totalCompAll:0; return `<div class="card machine-card"><div class="machine-name">${zoneDefs[machine].label}</div><div class="metrics"><div class="metric">유입 토트 수<b>${fmt(Math.round(st.inboundTotes))}</b><span class="share">비중 ${fmtPct(inShare)}</span></div><div class="metric">완료 토트 수<b>${fmt(Math.round(st.completeTotes))}</b><span class="share">비중 ${fmtPct(compShare)}</span></div><div class="metric">피킹 진척률<b>${fmtPct(st.progressRate)}</b></div><div class="metric">유효 토트 수<b>${fmt(Math.round(st.effectiveTotes))}</b></div></div></div>`;}).join('');
+  $('#zonesArea').innerHTML=machineList.map(machine=>{const def=zoneDefs[machine]; return `<div class="card aps-block"><div class="aps-head"><div class="aps-title">${zoneDefs[machine].label}</div></div><div class="zone-columns">${def.cols.map(col=>`<div class="zone-col"><div class="zone-head"><span>${col.zone}</span></div><div class="spark-stack">${col.order.map(ws=>{if(!ws) return `<div class="spark-row blank"></div>`; const m=models.wsMetrics[ws]||{inboundToteCount:0,completeToteCount:0,progressRate:0}, tote=m.inboundToteCount||0, width=max>0?Math.max(tote>0?3:0,(tote/max)*100):0, color=heatColor(tote,min,max); return `<div class="spark-row"><div class="ws-label">${ws}</div><div class="spark-track"><div class="spark-fill" style="width:${width}%;background:${color};"></div></div><div class="spark-value">토트 ${fmt(tote)}<br>진척 ${fmtPct(m.progressRate||0)}</div></div>`;}).join('')}</div></div>`).join('')}</div></div>`;}).join('');
+  const recs=buildRecommendations(models);
+  $('#recommendBody').innerHTML=recs.map(r=>`<tr><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.pcs)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill ${r.currentRank<=2?'bad':''}">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td><td>${r.note?`<span class="pill warn">${r.note}</span>`:''}</td></tr>`).join('') || '<tr><td colspan="11">추천 결과 없음</td></tr>';
+  $('#cellMapSummary').innerHTML=models.cellMapSummary.sort((a,b)=>a.zone.localeCompare(b.zone)||a.temp.localeCompare(b.temp)||a.rackType.localeCompare(b.rackType)).map(x=>`<tr><td>${x.zone}</td><td>${tempLabel(x.temp)}</td><td>${x.rackType}</td><td>${fmt(x.total)}</td><td>${fmt(x.assigned)}</td><td>${fmt(x.empty)}</td></tr>`).join('');
+  $('#rackLoadSummary').innerHTML=models.rackLoad.sort((a,b)=>b.pcs-a.pcs).map(x=>`<tr><td>${tempLabel(x.temp)}</td><td>${x.rackType}</td><td>${fmt(x.skuPicked)}</td><td>${fmt(x.pcs)}</td></tr>`).join('');
+  const boxInfo=boxMeta?`${boxMeta.fileName} / 시트: ${boxMeta.sheetName||'미탐지'}`:'-', cellInfo=cellMeta?`${cellMeta.fileName} / 시트: ${cellMeta.sheetName||'미탐지'}`:'-';
+  $('#footNote').textContent=`박스상품 상세정보: ${boxInfo} · 셀할당현황: ${cellInfo}`;
+  $('#emptyState').style.display='none'; $('#content').style.display='block';
+}
+function validateRows(rows,type){
+  if(!rows||!rows.length) return `${type} 시트에 데이터가 없습니다.`;
+  const headers=headersOfRows(rows);
+  if(type==='박스상품 상세정보'){
+    for(const col of ['물류상품ID','피킹지시수량','배송번호','배송박스순번']) if(!headers.includes(col)) return `${type} 시트에 "${col}" 컬럼이 없습니다.`;
+    const st = findStatusColumns(headers);
+    if(!st.primary) return `${type} 시트에 "WMS배송진행상태" 컬럼을 찾지 못했습니다.`;
+  } else {
+    for(const col of ['작업대','물류상품ID','보관위치','랙유형','물류분류코드','현재고']) if(!headers.includes(col)) return `${type} 시트에 "${col}" 컬럼이 없습니다.`;
+  }
+  return null;
+}
+async function tryBuild(){
+  if(!(boxRows&&cellRows)) return; showLoading(true);
+  try{
+    const err1=validateRows(boxRows,'박스상품 상세정보'); if(err1){setStatus(err1,true);appendDebug(err1);return;}
+    const err2=validateRows(cellRows,'셀할당현황'); if(err2){setStatus(err2,true);appendDebug(err2);return;}
+    const models=buildAllModels(boxRows,cellRows);
+    appendDebug(`같은 랙 내 우선 셀 규칙 ${INTRA_RACK_PRIORITY_RULES.length}건 로드`);
+    appendDebug(`토트 상태 컬럼: ${models.toteStatusColumn}`);
+    appendDebug(`총 지시 토트=${models.totalDirectedTotes}, 유효 토트=${models.totalEffectiveTotes}, 완료 토트=${models.totalCompleteTotes}`);
+    appendDebug(`allocSku=${models.allocSkuCount}, pickedSku=${models.pickedSkuCount}, allocationRate=${fmtPct(models.allocationRate)}`);
+    appendDebug(`cellMaster=${models.cellMaster.length}, emptyCells=${models.emptyCells.length}, assignedCells=${models.assignedCells.length}`);
+    if(!Object.keys(models.wsMetrics).length){const msg='매핑된 작업대 결과가 없습니다. 작업대 또는 SKU 형식을 확인해 주세요.'; setStatus(msg,true); appendDebug(msg); $('#content').style.display='none'; $('#emptyState').style.display='block'; return;}
+    renderDashboard(models); setStatus('RAW 데이터 분석 완료'); appendDebug('RAW 데이터 분석 완료');
+  }catch(err){console.error(err);const msg='파일 분석 중 오류가 발생했습니다: '+(err.message||err);setStatus(msg,true);appendDebug(msg);$('#content').style.display='none';$('#emptyState').style.display='block';}
+  finally{showLoading(false);}
+}
+document.addEventListener('DOMContentLoaded',()=>{if(typeof XLSX==='undefined'){setStatus('XLSX 라이브러리 로딩 실패',true);appendDebug('XLSX 라이브러리 로딩 실패');} else appendDebug('XLSX 라이브러리 로딩 성공');});
+$('#boxFile').addEventListener('change', async e=>{const file=e.target.files[0]; if(!file) return; showLoading(true); try{appendDebug(`박스상품 상세정보 파일 선택: ${file.name}`); const result=await readExcelRows(file,'box'); boxRows=result.rows; boxMeta={fileName:file.name,sheetName:result.sheetName}; const msg=`박스상품 상세정보 업로드 완료 / 시트: ${result.sheetName||'미탐지'} / 시트목록: ${result.workbookSheetNames.join(', ')}`; setStatus(msg); appendDebug(msg);}catch(err){console.error(err); boxRows=null; const msg='박스상품 상세정보 파일 읽기에 실패했습니다: '+(err.message||err); setStatus(msg,true); appendDebug(msg);} finally{showLoading(false);} await tryBuild();});
+$('#cellFile').addEventListener('change', async e=>{const file=e.target.files[0]; if(!file) return; showLoading(true); try{appendDebug(`셀할당현황 파일 선택: ${file.name}`); const result=await readExcelRows(file,'cell'); cellRows=result.rows; cellMeta={fileName:file.name,sheetName:result.sheetName}; const msg=`셀할당현황 업로드 완료 / 시트: ${result.sheetName||'미탐지'} / 시트목록: ${result.workbookSheetNames.join(', ')}`; setStatus(msg); appendDebug(msg);}catch(err){console.error(err); cellRows=null; const msg='셀할당현황 파일 읽기에 실패했습니다: '+(err.message||err); setStatus(msg,true); appendDebug(msg);} finally{showLoading(false);} await tryBuild();});
 </script>
-
 </body>
 </html>
