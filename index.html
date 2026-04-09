@@ -77,7 +77,7 @@ th{background:#f8fafc}
     <table>
       <thead>
         <tr>
-          <th>SKU</th><th>상품명</th><th>PCS</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>현재 우선순위</th><th>권장 랙</th><th>추천 셀</th><th>사유</th><th>비고</th>
+          <th>순번</th><th>SKU</th><th>상품명</th><th>PCS</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>현재 우선순위</th><th>권장 랙</th><th>추천 셀</th><th>사유</th>
         </tr>
       </thead>
       <tbody id="recommendBody"></tbody>
@@ -112,7 +112,7 @@ th{background:#f8fafc}
 </div>
 
 <script>
-const zoneDefs={APS1:{label:'1호기',cols:[{zone:'A존',order:['APS1-01','APS1-02','APS1-03','APS1-04','APS1-05','APS1-06','APS1-07','APS1-08','APS1-09','APS1-10']},{zone:'B존',order:['APS1-20','APS1-19','APS1-18','APS1-17','APS1-16','APS1-15','APS1-14','APS1-13','APS1-12','APS1-11']}]},APS2:{label:'2호기',cols:[{zone:'C존',order:['APS2-01','APS2-02','APS2-03','APS2-04','APS2-05','APS2-06','APS2-07','APS2-08','APS2-09','APS2-10']},{zone:'D존',order:['APS2-20','APS2-19','APS2-18','APS2-17','APS2-16','APS2-15','APS2-14','APS2-13','APS2-12','APS2-11']}]},APS3:{label:'3호기',cols:[{zone:'E존',order:[null,'APS3-07','APS3-06','APS3-05','APS3-04',null,null,'APS3-03','APS3-02','APS3-01']},{zone:'F존',order:['APS3-08','APS3-09','APS3-10','APS3-11','APS3-12','APS3-13','APS3-14','APS3-15','APS3-16','APS3-17','APS3-18','APS3-19']}]}};
+const zoneDefs={APS1:{label:'1호기',cols:[{zone:'A존',order:['APS1-01','APS1-02','APS1-03','APS1-04','APS1-05','APS1-06','APS1-07','APS1-08','APS1-09','APS1-10']},{zone:'B존',order:['APS1-20','APS1-19','APS1-18','APS1-17','APS1-16','APS1-15','APS1-14','APS1-13','APS1-12','APS1-11']}]},APS2:{label:'2호기',cols:[{zone:'C존',order:['APS2-01','APS2-02','APS2-03','APS2-04','APS2-05','APS2-06','APS2-07','APS2-08','APS2-09','APS2-10']},{zone:'D존',order:['APS2-20','APS2-19','APS2-18','APS2-17','APS2-16','APS2-15','APS2-14','APS2-13','APS2-12','APS2-11']}]},APS3:{label:'3호기',cols:[{zone:'E존',order:[null,'APS3-07','APS3-06','APS3-05','APS3-04',null,null,'APS3-03','APS3-02','APS3-01']},{zone:'F존',order:['APS3-08','APS3-09','APS3-10','APS3-11','APS3-12','APS3-13','APS3-14','APS3-15','APS3-16','APS3-17','APS3-18','APS3-19']}]}}; 
 const machineList=['APS1','APS2','APS3'];
 let boxRows=null,cellRows=null,boxMeta=null,cellMeta=null;
 const $=s=>document.querySelector(s);
@@ -340,13 +340,37 @@ function buildRecommendations(models){
     if(currentRank>idealRank){
       let targetCell=null;
       for(let rank=idealRank; rank<currentRank; rank++){targetCell=findCandidateCell({...cell,productName},rank,models); if(targetCell) break;}
-      let note=''; if(isEgg(productName)) note='이동 전 사용자 확인 필요';
-      recs.push({sku,productName,pcs,temp,currentCell:cell.location,currentRack,currentRank,targetRack:targetCell?classifyRack(targetCell):`우선순위 ${idealRank} 랙`,targetCell:targetCell?targetCell.location:'적정 공셀 없음',reason:'고출고 SKU가 상대적으로 낮은 우선순위 랙에 배치됨',note});
+      recs.push({
+        sku,
+        productName,
+        pcs,
+        temp,
+        currentCell:cell.location,
+        currentRack,
+        currentRank,
+        targetRack:targetCell?classifyRack(targetCell):`우선순위 ${idealRank} 랙`,
+        targetCell:targetCell?targetCell.location:'적정 공셀 없음',
+        reason:'고출고 SKU가 상대적으로 낮은 우선순위 랙에 배치됨'
+      });
     } else if(currentRank<=2){
-      const pct=percentileRank(pcs,byTempPcs[temp]); if(pct<0.20){recs.push({sku,productName,pcs,temp,currentCell:cell.location,currentRack,currentRank,targetRack:'하위 우선 랙 검토',targetCell:'-',reason:'저출고 SKU가 상위 우선 랙을 점유 중',note:''});}
+      const pct=percentileRank(pcs,byTempPcs[temp]); if(pct<0.20){
+        recs.push({
+          sku,
+          productName,
+          pcs,
+          temp,
+          currentCell:cell.location,
+          currentRack,
+          currentRank,
+          targetRack:'하위 우선 랙 검토',
+          targetCell:'-',
+          reason:'저출고 SKU가 상위 우선 랙을 점유 중'
+        });
+      }
     }
   }
-  recs.sort((a,b)=>b.pcs-a.pcs); return recs.slice(0,30);
+  recs.sort((a,b)=>b.pcs-a.pcs); 
+  return recs.slice(0,20);
 }
 function renderDashboard(models){
   const toteValues=Object.values(models.wsMetrics).map(v=>v.inboundToteCount||0), min=toteValues.length?Math.min(...toteValues):0, max=toteValues.length?Math.max(...toteValues):0;
@@ -355,7 +379,9 @@ function renderDashboard(models){
   $('#machineSummary').innerHTML=machineList.map(machine=>{const st=stats[machine], inShare=totalInAll?st.inboundTotes/totalInAll:0, compShare=totalCompAll?st.completeTotes/totalCompAll:0; return `<div class="card machine-card"><div class="machine-name">${zoneDefs[machine].label}</div><div class="metrics"><div class="metric">유입 토트 수<b>${fmt(Math.round(st.inboundTotes))}</b><span class="share">비중 ${fmtPct(inShare)}</span></div><div class="metric">완료 토트 수<b>${fmt(Math.round(st.completeTotes))}</b><span class="share">비중 ${fmtPct(compShare)}</span></div><div class="metric">피킹 진척률<b>${fmtPct(st.progressRate)}</b></div><div class="metric">유효 토트 수<b>${fmt(Math.round(st.effectiveTotes))}</b></div></div></div>`;}).join('');
   $('#zonesArea').innerHTML=machineList.map(machine=>{const def=zoneDefs[machine]; return `<div class="card aps-block"><div class="aps-head"><div class="aps-title">${zoneDefs[machine].label}</div></div><div class="zone-columns">${def.cols.map(col=>`<div class="zone-col"><div class="zone-head"><span>${col.zone}</span></div><div class="spark-stack">${col.order.map(ws=>{if(!ws) return `<div class="spark-row blank"></div>`; const m=models.wsMetrics[ws]||{inboundToteCount:0,completeToteCount:0,progressRate:0}, tote=m.inboundToteCount||0, width=max>0?Math.max(tote>0?3:0,(tote/max)*100):0, color=heatColor(tote,min,max); return `<div class="spark-row"><div class="ws-label">${ws}</div><div class="spark-track"><div class="spark-fill" style="width:${width}%;background:${color};"></div></div><div class="spark-value">토트 ${fmt(tote)}<br>진척 ${fmtPct(m.progressRate||0)}</div></div>`;}).join('')}</div></div>`).join('')}</div></div>`;}).join('');
   const recs=buildRecommendations(models);
-  $('#recommendBody').innerHTML=recs.map(r=>`<tr><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.pcs)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill ${r.currentRank<=2?'bad':''}">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td><td>${r.note?`<span class="pill warn">${r.note}</span>`:''}</td></tr>`).join('') || '<tr><td colspan="11">추천 결과 없음</td></tr>';
+  $('#recommendBody').innerHTML=
+    recs.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.pcs)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill ${r.currentRank<=2?'bad':''}">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td></tr>`).join('')
+    || '<tr><td colspan="11">추천 결과 없음</td></tr>';
   $('#cellMapSummary').innerHTML=models.cellMapSummary.sort((a,b)=>a.zone.localeCompare(b.zone)||a.temp.localeCompare(b.temp)||a.rackType.localeCompare(b.rackType)).map(x=>`<tr><td>${x.zone}</td><td>${tempLabel(x.temp)}</td><td>${x.rackType}</td><td>${fmt(x.total)}</td><td>${fmt(x.assigned)}</td><td>${fmt(x.empty)}</td></tr>`).join('');
   $('#rackLoadSummary').innerHTML=models.rackLoad.sort((a,b)=>b.pcs-a.pcs).map(x=>`<tr><td>${tempLabel(x.temp)}</td><td>${x.rackType}</td><td>${fmt(x.skuPicked)}</td><td>${fmt(x.pcs)}</td></tr>`).join('');
   const boxInfo=boxMeta?`${boxMeta.fileName} / 시트: ${boxMeta.sheetName||'미탐지'}`:'-', cellInfo=cellMeta?`${cellMeta.fileName} / 시트: ${cellMeta.sheetName||'미탐지'}`:'-';
