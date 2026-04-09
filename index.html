@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>QPS RAW 대시보드 v8.3</title>
+<title>QPS RAW 대시보드 v8.3.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -39,7 +39,6 @@ th,td{border-bottom:1px solid #e5e7eb;padding:8px 10px;text-align:left;vertical-
 th{background:#f8fafc}
 .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:700}
 .pill.bad{background:#fef2f2;color:#b91c1c}
-.pill.warn{background:#fffbeb;color:#b45309}
 .map-grid{display:grid;grid-template-columns:repeat(2,minmax(320px,1fr));gap:16px}
 .mini-card{background:#fafafa;border:1px solid #e5e7eb;border-radius:12px;padding:12px}
 #loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.68);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:9999}
@@ -52,7 +51,7 @@ th{background:#f8fafc}
 <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
 
 <div class="card">
-  <div class="title">QPS RAW 대시보드 v8.3</div>
+  <div class="title">QPS RAW 대시보드 v8.3.1</div>
   <div class="subtitle">토트 기반 유입/완료/진척률 + 셀 이동 추천</div>
 </div>
 
@@ -116,16 +115,39 @@ th{background:#f8fafc}
 </div>
 
 <script>
-const zoneDefs={APS1:{label:'1호기',cols:[{zone:'A존',order:['APS1-01','APS1-02','APS1-03','APS1-04','APS1-05','APS1-06','APS1-07','APS1-08','APS1-09','APS1-10']},{zone:'B존',order:['APS1-20','APS1-19','APS1-18','APS1-17','APS1-16','APS1-15','APS1-14','APS1-13','APS1-12','APS1-11']}]},APS2:{label:'2호기',cols:[{zone:'C존',order:['APS2-01','APS2-02','APS2-03','APS2-04','APS2-05','APS2-06','APS2-07','APS2-08','APS2-09','APS2-10']},{zone:'D존',order:['APS2-20','APS2-19','APS2-18','APS2-17','APS2-16','APS2-15','APS2-14','APS2-13','APS2-12','APS2-11']}]},APS3:{label:'3호기',cols:[{zone:'E존',order:[null,'APS3-07','APS3-06','APS3-05','APS3-04',null,null,'APS3-03','APS3-02','APS3-01']},{zone:'F존',order:['APS3-08','APS3-09','APS3-10','APS3-11','APS3-12','APS3-13','APS3-14','APS3-15','APS3-16','APS3-17','APS3-18','APS3-19']}]}}; 
+const zoneDefs = {
+  APS1:{label:'1호기',cols:[
+    {zone:'A존',order:['APS1-01','APS1-02','APS1-03','APS1-04','APS1-05','APS1-06','APS1-07','APS1-08','APS1-09','APS1-10']},
+    {zone:'B존',order:['APS1-20','APS1-19','APS1-18','APS1-17','APS1-16','APS1-15','APS1-14','APS1-13','APS1-12','APS1-11']}
+  ]},
+  APS2:{label:'2호기',cols:[
+    {zone:'C존',order:['APS2-01','APS2-02','APS2-03','APS2-04','APS2-05','APS2-06','APS2-07','APS2-08','APS2-09','APS2-10']},
+    {zone:'D존',order:['APS2-20','APS2-19','APS2-18','APS2-17','APS2-16','APS2-15','APS2-14','APS2-13','APS2-12','APS2-11']}
+  ]},
+  APS3:{label:'3호기',cols:[
+    {zone:'E존',order:[null,'APS3-07','APS3-06','APS3-05','APS3-04',null,null,'APS3-03','APS3-02','APS3-01']},
+    {zone:'F존',order:['APS3-08','APS3-09','APS3-10','APS3-11','APS3-12','APS3-13','APS3-14','APS3-15','APS3-16','APS3-17','APS3-18','APS3-19']}
+  ]}
+};
 const machineList=['APS1','APS2','APS3'];
-let boxRows=null,cellRows=null,boxMeta=null,cellMeta=null;
+let boxRows=null, cellRows=null, boxMeta=null, cellMeta=null;
 const $=s=>document.querySelector(s);
 
 const COMPLETE_STATUS=['피킹완료','토트매핑완료','패킹완료','출고완료','출하완료','배송완료'];
 const INCOMPLETE_STATUS=['배송지시','배송지시완료','피킹지시'];
 const EXCLUDE_STATUS=['전체취소','전체결품','출고불가','취소대기'];
 
-const SLOT_RULES={chilled:{rackPriority:{'Gate Rack':1,'Flow Rack':2,'냉장평대':3,'냉장오픈다단':4,'Shelf Rack':5,'Shelf Rack (후순위)':6},idealRankByPercentile:[{minPct:0.90,rank:1},{minPct:0.65,rank:2},{minPct:0.45,rank:3},{minPct:0.25,rank:4},{minPct:0.00,rank:5}]},frozen:{rackPriority:{'냉동워크인':1,'냉동평대':2,'냉동리치인':3},idealRankByPercentile:[{minPct:0.80,rank:1},{minPct:0.40,rank:2},{minPct:0.00,rank:3}]}}
+const SLOT_RULES = {
+  chilled:{
+    rackPriority:{'Gate Rack':1,'Flow Rack':2,'냉장평대':3,'냉장오픈다단':4,'Shelf Rack':5,'Shelf Rack (후순위)':6},
+    idealRankByPercentile:[{minPct:0.90,rank:1},{minPct:0.65,rank:2},{minPct:0.45,rank:3},{minPct:0.25,rank:4},{minPct:0.00,rank:5}]
+  },
+  frozen:{
+    rackPriority:{'냉동워크인':1,'냉동평대':2,'냉동리치인':3},
+    idealRankByPercentile:[{minPct:0.80,rank:1},{minPct:0.40,rank:2},{minPct:0.00,rank:3}]
+  }
+};
+
 const INTRA_RACK_PRIORITY_RULES = [
   {zone:'A01', from:'A01-050101', to:'A01-050405', score:100},{zone:'A02', from:'A02-020101', to:'A02-020405', score:100},{zone:'A03', from:'A03-050101', to:'A03-050405', score:100},{zone:'A04', from:'A04-030101', to:'A04-030405', score:100},{zone:'A05', from:'A05-020101', to:'A05-020405', score:100},{zone:'A06', from:'A06-050101', to:'A06-050405', score:100},{zone:'A07', from:'A07-020101', to:'A07-020405', score:100},
   {zone:'B01', from:'B01-020101', to:'B01-020405', score:100},{zone:'B02', from:'B02-050101', to:'B02-050405', score:100},{zone:'B03', from:'B03-020101', to:'B03-020405', score:100},{zone:'B04', from:'B04-050101', to:'B04-050405', score:100},{zone:'B05', from:'B05-020101', to:'B05-020405', score:100},{zone:'B06', from:'B06-050101', to:'B06-050405', score:100},{zone:'B07', from:'B07-020101', to:'B07-020405', score:100},{zone:'B09', from:'B09-010202', to:'B09-020402', score:100},{zone:'B10', from:'B10-050101', to:'B10-050405', score:100},
@@ -135,32 +157,88 @@ const INTRA_RACK_PRIORITY_RULES = [
   {zone:'F01', from:'F01-030101', to:'F01-040506', score:100},{zone:'F02', from:'F02-030101', to:'F02-040506', score:100},{zone:'F03', from:'F03-030101', to:'F03-040506', score:100},{zone:'F04', from:'F04-030101', to:'F04-040506', score:100},{zone:'F05', from:'F05-030101', to:'F05-040506', score:100},{zone:'F06', from:'F06-030101', to:'F06-040506', score:100},{zone:'F07', from:'F07-030101', to:'F07-040506', score:100},{zone:'F08', from:'F08-030101', to:'F08-040506', score:100},{zone:'F09', from:'F09-030101', to:'F09-040506', score:100},{zone:'F10', from:'F10-020101', to:'F10-030506', score:100},{zone:'F11', from:'F11-020101', to:'F11-030506', score:100},{zone:'F12', from:'F12-020101', to:'F13-030506', score:100}
 ];
 
-function setStatus(msg,isError=false){const el=$('#status');el.textContent=msg;el.style.color=isError?'#b91c1c':'#6b7280';}
-function appendDebug(msg){const el=$('#debugLog');const time=new Date().toLocaleTimeString('ko-KR');el.textContent=`[${time}] ${msg}\n`+(el.textContent==='대기 중'?'':el.textContent);}
+function setStatus(msg,isError=false){
+  const el=$('#status');
+  el.textContent=msg;
+  el.style.color=isError?'#b91c1c':'#6b7280';
+}
+function appendDebug(msg){
+  const el=$('#debugLog');
+  const time=new Date().toLocaleTimeString('ko-KR');
+  el.textContent=`[${time}] ${msg}\n`+(el.textContent==='대기 중'?'':el.textContent);
+}
 function showLoading(on){$('#loadingOverlay').style.display=on?'flex':'none';}
 function fmt(n){return (n??0).toLocaleString('ko-KR');}
 function fmtPct(n){return `${(n*100).toFixed(1)}%`;}
-function toNumber(v){if(v==null||v==='') return 0;if(typeof v==='number') return isFinite(v)?v:0;const num=Number(String(v).replace(/,/g,'').trim());return isFinite(num)?num:0;}
-function normalizeWs(v){if(v==null) return null;const s=String(v).toUpperCase().replace(/\s+/g,'').replace(/_/g,'-');const m=s.match(/APS\s*([123])[- ]?(\d{1,2})/i);return m?`APS${m[1]}-${String(m[2]).padStart(2,'0')}`:null;}
+function toNumber(v){
+  if(v==null||v==='') return 0;
+  if(typeof v==='number') return isFinite(v)?v:0;
+  const num=Number(String(v).replace(/,/g,'').trim());
+  return isFinite(num)?num:0;
+}
+function normalizeWs(v){
+  if(v==null) return null;
+  const s=String(v).toUpperCase().replace(/\s+/g,'').replace(/_/g,'-');
+  const m=s.match(/APS\s*([123])[- ]?(\d{1,2})/i);
+  return m?`APS${m[1]}-${String(m[2]).padStart(2,'0')}`:null;
+}
 function normalizeSheetName(v){return String(v||'').replace(/\s+/g,'').toLowerCase();}
-function normalizeSku(v){if(v==null) return '';let s=String(v).trim();s=s.replace(/\.0+$/,'').replace(/[^\d]/g,'');if(!s) return '';return s.padStart(13,'0');}
-function normalizeTemp(code){const s=String(code||'').trim();if(s==='WET 냉동') return 'frozen';if(s==='WET 일반'||s==='WET 냉장') return 'chilled';return 'unknown';}
-function tempLabel(temp){if(temp==='frozen') return '냉동';if(temp==='chilled') return '냉장';return '기타';}
+function normalizeSku(v){
+  if(v==null) return '';
+  let s=String(v).trim();
+  s=s.replace(/\.0+$/,'').replace(/[^\d]/g,'');
+  if(!s) return '';
+  return s.padStart(13,'0');
+}
+function normalizeTemp(code){
+  const s=String(code||'').trim();
+  if(s==='WET 냉동') return 'frozen';
+  if(s==='WET 일반'||s==='WET 냉장') return 'chilled';
+  return 'unknown';
+}
+function tempLabel(temp){
+  if(temp==='frozen') return '냉동';
+  if(temp==='chilled') return '냉장';
+  return '기타';
+}
 function zoneFromLocation(loc){return String(loc||'').trim().slice(0,3);}
-function suffix6(loc){const m=String(loc||'').match(/(\d{6})$/); return m?m[1]:'';}
-function heatColor(value,min,max){if(value==null||isNaN(value)) return '#dbeafe';if(max===min) return 'hsl(8,85%,60%)';const t=Math.max(0,Math.min(1,(value-min)/(max-min)));const hue=220-(220*t);return `hsl(${hue},82%,${62-(t*10)}%)`;}
-function progressColor(rate){const t=Math.max(0,Math.min(1,rate||0)); const hue=0+(120*t); return `hsl(${hue},75%,45%)`;}
-function ensureXLSX(){if(typeof XLSX==='undefined') throw new Error('XLSX 라이브러리 로딩 실패');}
-function readSheetRows(workbook,sheetName){const ws=workbook.Sheets[sheetName];return XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});}
+function suffix6(loc){
+  const m=String(loc||'').match(/(\d{6})$/);
+  return m?m[1]:'';
+}
+function heatColor(value,min,max){
+  if(value==null||isNaN(value)) return '#dbeafe';
+  if(max===min) return 'hsl(8,85%,60%)';
+  const t=Math.max(0,Math.min(1,(value-min)/(max-min)));
+  const hue=220-(220*t);
+  return `hsl(${hue},82%,${62-(t*10)}%)`;
+}
+function progressColor(rate){
+  const t=Math.max(0,Math.min(1,rate||0));
+  const hue=0+(120*t);
+  return `hsl(${hue},75%,45%)`;
+}
+function ensureXLSX(){
+  if(typeof XLSX==='undefined') throw new Error('XLSX 라이브러리 로딩 실패');
+}
+function readSheetRows(workbook,sheetName){
+  const ws=workbook.Sheets[sheetName];
+  return XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+}
 function headersOfRows(rows){return rows&&rows.length?Object.keys(rows[0]):[];}
 function findStatusColumns(headers){
-  const candidates = headers.filter(h => String(h).includes('WMS배송진행상태'));
+  const candidates=headers.filter(h=>String(h).includes('WMS배송진행상태'));
   return {all:candidates, primary:candidates[candidates.length-1] || null};
 }
 function findBestSheet(workbook,type){
-  const required=type==='box'?['물류상품ID','피킹지시수량']:['작업대','물류상품ID','보관위치','랙유형','물류분류코드','현재고'];
-  const preferredNames=type==='box'?['박스상품상세정보']:['셀할당현황','셀할당 현황'];
+  const required=type==='box'
+    ? ['물류상품ID','피킹지시수량']
+    : ['작업대','물류상품ID','보관위치','랙유형','물류분류코드','현재고'];
+  const preferredNames=type==='box'
+    ? ['박스상품상세정보']
+    : ['셀할당현황','셀할당 현황'];
   let candidate=null;
+
   for(const name of workbook.SheetNames){
     const norm=normalizeSheetName(name);
     if(preferredNames.some(p=>norm.includes(normalizeSheetName(p)))){
@@ -170,6 +248,7 @@ function findBestSheet(workbook,type){
       candidate={sheetName:name,rows};
     }
   }
+
   for(const name of workbook.SheetNames){
     const rows=readSheetRows(workbook,name);
     const headers=headersOfRows(rows);
@@ -177,22 +256,63 @@ function findBestSheet(workbook,type){
   }
   return candidate;
 }
-async function readExcelRows(file,type){ensureXLSX();const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});const found=findBestSheet(wb,type);return {workbookSheetNames:wb.SheetNames,sheetName:found?found.sheetName:null,rows:found?found.rows:[]};}
+async function readExcelRows(file,type){
+  ensureXLSX();
+  const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+  const found=findBestSheet(wb,type);
+  return {
+    workbookSheetNames:wb.SheetNames,
+    sheetName:found?found.sheetName:null,
+    rows:found?found.rows:[]
+  };
+}
 function getProductName(row){return String(row['물류상품명']||row['상품명']||'').trim();}
 function isEgg(name){return name.includes('식용란')&&!name.includes('훈제란');}
 function isLivestock(name){return /축산|소고기|돼지고기|닭|계육|우육|돈육|목심|삼겹|갈비|차돌|불고기|양념육/.test(name);}
 function isSeafood(name){return /수산|생선|오징어|낙지|쭈꾸미|새우|연어|고등어|갈치|참치|조개|문어/.test(name);}
 function isMincedMeat(name){return /다짐육|민찌|간고기/.test(name);}
 function makeToteKey(row){
-  const d = String(row['배송번호']||'').trim();
-  const b = String(row['배송박스순번']||'').trim();
+  const d=String(row['배송번호']||'').trim();
+  const b=String(row['배송박스순번']||'').trim();
   if(!d || !b) return '';
   return `${d}__${b}`;
 }
-function classifyRack(cell){let rack=cell.rackType, loc=cell.location;if(rack==='Shelf Rack'){if(loc>='B08-050101'&&loc<='B08-080505') rack='Shelf Rack (후순위)';if(loc>='C05-050101'&&loc<='C05-060505') rack='Shelf Rack (후순위)';}return rack;}
-function isForbiddenCell(cell,productName){const loc=cell.location, zone=cell.zone, suf=suffix6(loc); if(zone==='A08'&&suf&&(suf[3]==='1'||suf[3]==='5')) return true; if(cell.rackType==='냉장평대'&&!(loc>='D02-010101'&&loc<='D02-020108')) return true; if(cell.rackType==='냉동평대'&&!(loc>='E04-070101'&&loc<='E04-080108')) return true; if(isEgg(productName)&&!(loc>='A06-010101'&&loc<='A09-010114')) return true; if(isLivestock(productName)){const allow=(loc>='D01-000000'&&loc<='D06-999999')||(loc>='D07-030101'&&loc<='D07-060505'); if(!allow) return true;} return false;}
-function shouldAvoidCell(cell,productName){const loc=cell.location; if(loc>='D01-000000'&&loc<='D02-999999'){if(!(isMincedMeat(productName)||isSeafood(productName))) return true;} return false;}
-function getIntraRackPriorityScore(cell){const loc=cell.location||''; for(const rule of INTRA_RACK_PRIORITY_RULES){if(cell.zone!==rule.zone) continue; if(loc>=rule.from&&loc<=rule.to) return rule.score;} return 0;}
+function classifyRack(cell){
+  let rack=cell.rackType;
+  const loc=cell.location;
+  if(rack==='Shelf Rack'){
+    if(loc>='B08-050101'&&loc<='B08-080505') rack='Shelf Rack (후순위)';
+    if(loc>='C05-050101'&&loc<='C05-060505') rack='Shelf Rack (후순위)';
+  }
+  return rack;
+}
+function isForbiddenCell(cell,productName){
+  const loc=cell.location, zone=cell.zone, suf=suffix6(loc);
+  if(zone==='A08'&&suf&&(suf[3]==='1'||suf[3]==='5')) return true;
+  if(cell.rackType==='냉장평대'&&!(loc>='D02-010101'&&loc<='D02-020108')) return true;
+  if(cell.rackType==='냉동평대'&&!(loc>='E04-070101'&&loc<='E04-080108')) return true;
+  if(isEgg(productName)&&!(loc>='A06-010101'&&loc<='A09-010114')) return true;
+  if(isLivestock(productName)){
+    const allow=(loc>='D01-000000'&&loc<='D06-999999')||(loc>='D07-030101'&&loc<='D07-060505');
+    if(!allow) return true;
+  }
+  return false;
+}
+function shouldAvoidCell(cell,productName){
+  const loc=cell.location;
+  if(loc>='D01-000000'&&loc<='D02-999999'){
+    if(!(isMincedMeat(productName)||isSeafood(productName))) return true;
+  }
+  return false;
+}
+function getIntraRackPriorityScore(cell){
+  const loc=cell.location||'';
+  for(const rule of INTRA_RACK_PRIORITY_RULES){
+    if(cell.zone!==rule.zone) continue;
+    if(loc>=rule.from&&loc<=rule.to) return rule.score;
+  }
+  return 0;
+}
 function summarizeToteStatus(statuses){
   let hasComplete=false, hasIncomplete=false;
   for(const s of statuses){
@@ -205,79 +325,116 @@ function summarizeToteStatus(statuses){
   if(hasComplete && hasIncomplete) return 'in_progress';
   return 'exclude';
 }
-function buildAllModels(boxRows,cellRows){
-  const boxHeaders = headersOfRows(boxRows);
-  const statusCols = findStatusColumns(boxHeaders);
-  const statusCol = statusCols.primary;
-  const skuToPcs=new Map(), skuMeta=new Map(), toteRowsMap=new Map();
+
+function buildAllData(boxRows,cellRows){
+  const boxHeaders=headersOfRows(boxRows);
+  const statusCols=findStatusColumns(boxHeaders);
+  const statusCol=statusCols.primary;
+
+  const skuToPcs=new Map();
+  const skuMeta=new Map();
+  const toteRowsMap=new Map();
+
   for(const row of boxRows){
-    const sku=normalizeSku(row['물류상품ID']); 
+    const sku=normalizeSku(row['물류상품ID']);
     if(sku) skuToPcs.set(sku,(skuToPcs.get(sku)||0)+toNumber(row['피킹지시수량']));
     if(sku && !skuMeta.has(sku)) skuMeta.set(sku,{name:getProductName(row)});
-    const toteKey = makeToteKey(row);
+
+    const toteKey=makeToteKey(row);
     if(toteKey){
-      if(!toteRowsMap.has(toteKey)) toteRowsMap.set(toteKey, []);
+      if(!toteRowsMap.has(toteKey)) toteRowsMap.set(toteKey,[]);
       toteRowsMap.get(toteKey).push(row);
     }
   }
 
-  const toteStatusMap = new Map();
-  const skuToToteCount = new Map();
-  for(const [toteKey, rows] of toteRowsMap.entries()){
-    const statuses = rows.map(r => String(statusCol ? r[statusCol] : '').trim()).filter(Boolean);
+  const toteStatusMap=new Map();
+  const skuToToteCount=new Map();
+
+  for(const [toteKey,rows] of toteRowsMap.entries()){
+    const statuses=rows.map(r=>String(statusCol ? r[statusCol] : '').trim()).filter(Boolean);
     toteStatusMap.set(toteKey, summarizeToteStatus(statuses));
 
-    const skuSetInTote = new Set();
+    const skuSetInTote=new Set();
     for(const row of rows){
-      const sku = normalizeSku(row['물류상품ID']);
+      const sku=normalizeSku(row['물류상품ID']);
       if(sku) skuSetInTote.add(sku);
     }
     for(const sku of skuSetInTote){
-      skuToToteCount.set(sku, (skuToToteCount.get(sku)||0) + 1);
+      skuToToteCount.set(sku,(skuToToteCount.get(sku)||0)+1);
     }
   }
 
-  const wsMetrics=new Map(), seenWsSku=new Set(), allocSkuSet=new Set(), pickedSkuSet=new Set(), cellMaster=[], emptyCells=[], assignedCells=[];
-  const skuToWsSet = new Map();
+  const wsMetrics=new Map();
+  const seenWsSku=new Set();
+  const allocSkuSet=new Set();
+  const pickedSkuSet=new Set();
+  const cellMaster=[];
+  const emptyCells=[];
+  const assignedCells=[];
+  const skuToWsSet=new Map();
+
   for(const row of cellRows){
-    const ws=normalizeWs(row['작업대']), sku=normalizeSku(row['물류상품ID']), location=String(row['보관위치']||'').trim(), zone=zoneFromLocation(location), rackType=String(row['랙유형']||'').trim(), temp=normalizeTemp(row['물류분류코드']), stock=toNumber(row['현재고']), productName=getProductName(row)||(skuMeta.get(sku)?.name||'');
-    const cell={ws,sku,location,zone,rackType,temp,stock,isEmpty:!sku,productName}; 
+    const ws=normalizeWs(row['작업대']);
+    const sku=normalizeSku(row['물류상품ID']);
+    const location=String(row['보관위치']||'').trim();
+    const zone=zoneFromLocation(location);
+    const rackType=String(row['랙유형']||'').trim();
+    const temp=normalizeTemp(row['물류분류코드']);
+    const stock=toNumber(row['현재고']);
+    const productName=getProductName(row)||(skuMeta.get(sku)?.name||'');
+
+    const cell={ws,sku,location,zone,rackType,temp,stock,isEmpty:!sku,productName};
     cellMaster.push(cell);
-    if(cell.isEmpty) {
+
+    if(cell.isEmpty){
       emptyCells.push(cell);
-    } else {
-      assignedCells.push(cell); 
+    }else{
+      assignedCells.push(cell);
       allocSkuSet.add(sku);
-      if(!skuToWsSet.has(sku)) skuToWsSet.set(sku, new Set());
+
+      if(!skuToWsSet.has(sku)) skuToWsSet.set(sku,new Set());
       if(ws) skuToWsSet.get(sku).add(ws);
-      if(!wsMetrics.has(ws)) wsMetrics.set(ws,{pcs:0,skuPicked:0,skuAllocated:0,inboundTotes:new Set(),completeTotes:new Set(),inProgressTotes:new Set(),notStartedTotes:new Set(),effectiveTotes:new Set()});
+
+      if(!wsMetrics.has(ws)){
+        wsMetrics.set(ws,{
+          pcs:0, skuPicked:0, skuAllocated:0,
+          inboundTotes:new Set(),
+          completeTotes:new Set(),
+          inProgressTotes:new Set(),
+          notStartedTotes:new Set(),
+          effectiveTotes:new Set()
+        });
+      }
+
       const pairKey=ws+'||'+sku;
       if(!seenWsSku.has(pairKey)){
         seenWsSku.add(pairKey);
-        const m=wsMetrics.get(ws); 
+        const m=wsMetrics.get(ws);
         m.skuAllocated += 1;
         const pcs=skuToPcs.get(sku)||0;
         if(pcs>0){
-          m.pcs += pcs; 
-          m.skuPicked += 1; 
+          m.pcs += pcs;
+          m.skuPicked += 1;
           pickedSkuSet.add(sku);
         }
       }
     }
   }
 
-  for(const [toteKey, rows] of toteRowsMap.entries()){
-    const wsSet = new Set();
+  for(const [toteKey,rows] of toteRowsMap.entries()){
+    const wsSet=new Set();
+
     for(const row of rows){
-      const sku = normalizeSku(row['물류상품ID']);
+      const sku=normalizeSku(row['물류상품ID']);
       if(!sku) continue;
-      const candidateWs = skuToWsSet.get(sku);
+      const candidateWs=skuToWsSet.get(sku);
       if(candidateWs) for(const ws of candidateWs) wsSet.add(ws);
     }
-    const toteStatus = toteStatusMap.get(toteKey) || 'exclude';
+
+    const toteStatus=toteStatusMap.get(toteKey)||'exclude';
     for(const ws of wsSet){
       if(!wsMetrics.has(ws)) continue;
-      const m = wsMetrics.get(ws);
+      const m=wsMetrics.get(ws);
       m.inboundTotes.add(toteKey);
       if(toteStatus !== 'exclude') m.effectiveTotes.add(toteKey);
       if(toteStatus === 'complete') m.completeTotes.add(toteKey);
@@ -289,7 +446,9 @@ function buildAllModels(boxRows,cellRows){
   const wsResult={};
   for(const [ws,m] of wsMetrics.entries()){
     wsResult[ws]={
-      pcs:m.pcs, skuPicked:m.skuPicked, skuAllocated:m.skuAllocated,
+      pcs:m.pcs,
+      skuPicked:m.skuPicked,
+      skuAllocated:m.skuAllocated,
       inboundToteCount:m.inboundTotes.size,
       completeToteCount:m.completeTotes.size,
       inProgressToteCount:m.inProgressTotes.size,
@@ -301,86 +460,153 @@ function buildAllModels(boxRows,cellRows){
 
   const rackLoad=new Map();
   for(const cell of assignedCells){
-    const pcs=modelsNotUsed=skuToPcs.get(cell.sku)||0, rack=classifyRack(cell), key=`${cell.temp}||${rack}`;
+    const pcs=skuToPcs.get(cell.sku)||0;
+    const rack=classifyRack(cell);
+    const key=`${cell.temp}||${rack}`;
     if(!rackLoad.has(key)) rackLoad.set(key,{temp:cell.temp,rackType:rack,pcs:0,skuSet:new Set()});
-    const obj=rackLoad.get(key); 
-    obj.pcs += pcs=modelsNotUsed; 
+    const obj=rackLoad.get(key);
+    obj.pcs += pcs;
     if(pcs>0) obj.skuSet.add(cell.sku);
   }
 
   const cellMapSummary=new Map();
   for(const cell of cellMaster){
-    const rack=classifyRack(cell), key=`${cell.zone}||${cell.temp}||${rack}`;
+    const rack=classifyRack(cell);
+    const key=`${cell.zone}||${cell.temp}||${rack}`;
     if(!cellMapSummary.has(key)) cellMapSummary.set(key,{zone:cell.zone,temp:cell.temp,rackType:rack,total:0,assigned:0,empty:0});
-    const obj=cellMapSummary.get(key); 
-    obj.total += 1; 
-    if(cell.isEmpty) obj.empty += 1; else obj.assigned += 1;
+    const obj=cellMapSummary.get(key);
+    obj.total += 1;
+    if(cell.isEmpty) obj.empty += 1;
+    else obj.assigned += 1;
   }
 
-  let totalDirectedTotes = 0, totalCompleteTotes = 0, totalEffectiveTotes = 0;
-  for(const [k,v] of toteStatusMap.entries()){
+  let totalDirectedTotes=0, totalCompleteTotes=0, totalEffectiveTotes=0;
+  for(const [,v] of toteStatusMap.entries()){
     if(v !== 'exclude') totalEffectiveTotes += 1;
     if(v === 'complete') totalCompleteTotes += 1;
     totalDirectedTotes += 1;
   }
 
   return {
-    skuToPcs, skuToToteCount, skuMeta, wsMetrics:wsResult,
-    allocSkuCount:allocSkuSet.size, pickedSkuCount:pickedSkuSet.size,
-    allocationRate:allocSkuSet.size?pickedSkuCount/allocSkuSet.size:0,
-    totalDirectedTotes, totalEffectiveTotes, totalCompleteTotes,
-    toteStatusColumn: statusCol, toteRowsMapSize: toteRowsMap.size,
-    cellMaster, emptyCells, assignedCells,
+    skuToPcs,
+    skuToToteCount,
+    skuMeta,
+    wsMetrics:wsResult,
+    allocSkuCount:allocSkuSet.size,
+    pickedSkuCount:pickedSkuSet.size,
+    allocationRate:allocSkuSet.size ? pickedSkuSet.size/allocSkuSet.size : 0,
+    totalDirectedTotes,
+    totalEffectiveTotes,
+    totalCompleteTotes,
+    toteStatusColumn:statusCol,
+    toteRowsMapSize:toteRowsMap.size,
+    cellMaster,
+    emptyCells,
+    assignedCells,
     rackLoad:Array.from(rackLoad.values()).map(x=>({temp:x.temp,rackType:x.rackType,pcs:x.pcs,skuPicked:x.skuSet.size})),
     cellMapSummary:Array.from(cellMapSummary.values())
   };
 }
+
 function computeZoneStats(wsMetrics){
   const res={};
   for(const machine of machineList){
-    const def=zoneDefs[machine]; let machineIn=0,machineComp=0,machineEff=0,machineCount=0;
+    const def=zoneDefs[machine];
+    let machineIn=0,machineComp=0,machineEff=0,machineCount=0;
     res[machine]={zones:{},inboundTotes:0,completeTotes:0,effectiveTotes:0,progressRate:0,count:0};
+
     for(const col of def.cols){
       let zIn=0,zComp=0,zEff=0,zCount=0;
       for(const ws of col.order){
         if(!ws) continue;
         const m=wsMetrics[ws]||{inboundToteCount:0,completeToteCount:0,effectiveToteCount:0};
-        zIn += m.inboundToteCount||0; zComp += m.completeToteCount||0; zEff += m.effectiveToteCount||0; zCount += 1;
-        machineIn += m.inboundToteCount||0; machineComp += m.completeToteCount||0; machineEff += m.effectiveToteCount||0; machineCount += 1;
+        zIn += m.inboundToteCount||0;
+        zComp += m.completeToteCount||0;
+        zEff += m.effectiveToteCount||0;
+        zCount += 1;
+
+        machineIn += m.inboundToteCount||0;
+        machineComp += m.completeToteCount||0;
+        machineEff += m.effectiveToteCount||0;
+        machineCount += 1;
       }
-      res[machine].zones[col.zone]={inboundTotes:zIn,completeTotes:zComp,effectiveTotes:zEff,progressRate:zEff?zComp/zEff:0,count:zCount};
+      res[machine].zones[col.zone]={
+        inboundTotes:zIn,
+        completeTotes:zComp,
+        effectiveTotes:zEff,
+        progressRate:zEff?zComp/zEff:0,
+        count:zCount
+      };
     }
-    res[machine].inboundTotes=machineIn; 
-    res[machine].completeTotes=machineComp; 
-    res[machine].effectiveTotes=machineEff; 
-    res[machine].progressRate=machineEff?machineComp/machineEff:0; 
+
+    res[machine].inboundTotes=machineIn;
+    res[machine].completeTotes=machineComp;
+    res[machine].effectiveTotes=machineEff;
+    res[machine].progressRate=machineEff?machineComp/machineEff:0;
     res[machine].count=machineCount;
   }
   return res;
 }
-function getRankForRack(temp,rackType){const rules=SLOT_RULES[temp]; if(!rules) return 999; return rules.rackPriority[rackType] ?? 999;}
-function percentileRank(pcs,sorted){if(!sorted.length) return 0;const idx=sorted.findIndex(v=>pcs>=v);const pos=idx===-1?sorted.length-1:idx;return 1-(pos/sorted.length);}
-function idealRankForPcs(temp,pcs,sorted){const rules=SLOT_RULES[temp]; if(!rules) return 999; const pct=percentileRank(pcs,sorted); for(const rule of rules.idealRankByPercentile){if(pct>=rule.minPct) return rule.rank;} return 999;}
-function scoreCandidateCell(cell,sourceCell){let score=0; if(cell.zone===sourceCell.zone) score+=30; else if(cell.location.slice(0,1)===sourceCell.location.slice(0,1)) score+=10; if(cell.ws===sourceCell.ws) score+=20; score -= getRankForRack(cell.temp,classifyRack(cell))*5; score += getIntraRackPriorityScore(cell); if(shouldAvoidCell(cell,sourceCell.productName)) score -= 50; return score;}
-function findCandidateCell(sourceCell,targetRank,allData){const candidates=allData.emptyCells.filter(c=>{if(c.temp!==sourceCell.temp) return false; const rack=classifyRack(c), rank=getRankForRack(c.temp,rack); if(rank!==targetRank) return false; if(isForbiddenCell(c,sourceCell.productName)) return false; return true;}).sort((a,b)=>scoreCandidateCell(b,sourceCell)-scoreCandidateCell(a,sourceCell)); return candidates[0]||null;}
+
+function getRankForRack(temp,rackType){
+  const rules=SLOT_RULES[temp];
+  if(!rules) return 999;
+  return rules.rackPriority[rackType] ?? 999;
+}
+function percentileRank(pcs,sorted){
+  if(!sorted.length) return 0;
+  const idx=sorted.findIndex(v=>pcs>=v);
+  const pos=idx===-1?sorted.length-1:idx;
+  return 1-(pos/sorted.length);
+}
+function idealRankForPcs(temp,pcs,sorted){
+  const rules=SLOT_RULES[temp];
+  if(!rules) return 999;
+  const pct=percentileRank(pcs,sorted);
+  for(const rule of rules.idealRankByPercentile){
+    if(pct>=rule.minPct) return rule.rank;
+  }
+  return 999;
+}
+function scoreCandidateCell(cell,sourceCell){
+  let score=0;
+  if(cell.zone===sourceCell.zone) score+=30;
+  else if(cell.location.slice(0,1)===sourceCell.location.slice(0,1)) score+=10;
+  if(cell.ws===sourceCell.ws) score+=20;
+  score -= getRankForRack(cell.temp,classifyRack(cell))*5;
+  score += getIntraRackPriorityScore(cell);
+  if(shouldAvoidCell(cell,sourceCell.productName)) score -= 50;
+  return score;
+}
+function findCandidateCell(sourceCell,targetRank,allData){
+  const candidates=allData.emptyCells.filter(c=>{
+    if(c.temp!==sourceCell.temp) return false;
+    const rack=classifyRack(c);
+    const rank=getRankForRack(c.temp,rack);
+    if(rank!==targetRank) return false;
+    if(isForbiddenCell(c,sourceCell.productName)) return false;
+    return true;
+  }).sort((a,b)=>scoreCandidateCell(b,sourceCell)-scoreCandidateCell(a,sourceCell));
+  return candidates[0]||null;
+}
 function buildRecommendations(allData){
-  const byTempPcs={chilled:[],frozen:[]}; 
+  const byTempPcs={chilled:[],frozen:[]};
   for(const cell of allData.assignedCells){
-    const pcs=allData.skuToPcs.get(cell.sku)||0; 
+    const pcs=allData.skuToPcs.get(cell.sku)||0;
     if(cell.temp==='chilled'||cell.temp==='frozen') byTempPcs[cell.temp].push(pcs);
   }
-  byTempPcs.chilled.sort((a,b)=>b-a); 
+  byTempPcs.chilled.sort((a,b)=>b-a);
   byTempPcs.frozen.sort((a,b)=>b-a);
 
   const recs=[], seenSku=new Set();
   for(const cell of allData.assignedCells){
-    const sku=cell.sku; 
-    if(!sku||seenSku.has(sku)) continue; 
+    const sku=cell.sku;
+    if(!sku||seenSku.has(sku)) continue;
     seenSku.add(sku);
 
     const pcs=allData.skuToPcs.get(sku)||0;
     const toteCount=allData.skuToToteCount.get(sku)||0;
-    const temp=cell.temp; 
+    const temp=cell.temp;
     if(pcs<=0||(temp!=='chilled'&&temp!=='frozen')) continue;
 
     const productName=cell.productName||allData.skuMeta.get(sku)?.name||'';
@@ -391,15 +617,11 @@ function buildRecommendations(allData){
     if(currentRank>idealRank){
       let targetCell=null;
       for(let rank=idealRank; rank<currentRank; rank++){
-        targetCell=findCandidateCell({...cell,productName},rank,allData); 
+        targetCell=findCandidateCell({...cell,productName},rank,allData);
         if(targetCell) break;
       }
       recs.push({
-        sku,
-        productName,
-        pcs,
-        toteCount,
-        temp,
+        sku, productName, pcs, toteCount, temp,
         currentCell:cell.location,
         currentRack,
         currentRank,
@@ -407,15 +629,11 @@ function buildRecommendations(allData){
         targetCell:targetCell?targetCell.location:'적정 공셀 없음',
         reason:'고출고 SKU가 상대적으로 낮은 우선순위 랙에 배치됨'
       });
-    } else if(currentRank<=2){
-      const pct=percentileRank(pcs,byTempPcs[temp]); 
+    }else if(currentRank<=2){
+      const pct=percentileRank(pcs,byTempPcs[temp]);
       if(pct<0.20){
         recs.push({
-          sku,
-          productName,
-          pcs,
-          toteCount,
-          temp,
+          sku, productName, pcs, toteCount, temp,
           currentCell:cell.location,
           currentRack,
           currentRank,
@@ -430,19 +648,24 @@ function buildRecommendations(allData){
   recs.sort((a,b)=>(b.toteCount-a.toteCount)||(b.pcs-a.pcs));
   return recs.slice(0,20);
 }
+
 function drawScreen(allData){
   const toteValues=Object.values(allData.wsMetrics).map(v=>v.inboundToteCount||0);
-  const min=toteValues.length?Math.min(...toteValues):0, max=toteValues.length?Math.max(...toteValues):0;
+  const min=toteValues.length?Math.min(...toteValues):0;
+  const max=toteValues.length?Math.max(...toteValues):0;
   const stats=computeZoneStats(allData.wsMetrics);
-  const totalInAll=machineList.reduce((acc,m)=>acc+stats[m].inboundTotes,0), totalCompAll=machineList.reduce((acc,m)=>acc+stats[m].completeTotes,0);
+  const totalInAll=machineList.reduce((acc,m)=>acc+stats[m].inboundTotes,0);
+  const totalCompAll=machineList.reduce((acc,m)=>acc+stats[m].completeTotes,0);
 
   $('#machineSummary').innerHTML=machineList.map(machine=>{
-    const st=stats[machine], inShare=totalInAll?st.inboundTotes/totalInAll:0, compShare=totalCompAll?st.completeTotes/totalCompAll:0; 
+    const st=stats[machine];
+    const inShare=totalInAll?st.inboundTotes/totalInAll:0;
+    const compShare=totalCompAll?st.completeTotes/totalCompAll:0;
     return `<div class="card machine-card"><div class="machine-name">${zoneDefs[machine].label}</div><div class="metrics"><div class="metric">유입 토트 수<b>${fmt(Math.round(st.inboundTotes))}</b><span class="share">비중 ${fmtPct(inShare)}</span></div><div class="metric">완료 토트 수<b>${fmt(Math.round(st.completeTotes))}</b><span class="share">비중 ${fmtPct(compShare)}</span></div><div class="metric">피킹 진척률<b>${fmtPct(st.progressRate)}</b></div><div class="metric">총 터치수<b>${fmt(Math.round(st.effectiveTotes))}</b></div></div></div>`;
   }).join('');
 
   $('#zonesArea').innerHTML=machineList.map(machine=>{
-    const def=zoneDefs[machine]; 
+    const def=zoneDefs[machine];
     return `<div class="card aps-block"><div class="aps-head"><div class="aps-title">${zoneDefs[machine].label}</div></div><div class="zone-columns">${
       def.cols.map(col=>`<div class="zone-col"><div class="zone-head"><span>${col.zone}</span></div><div class="spark-stack">${
         col.order.map(ws=>{
@@ -494,31 +717,37 @@ function drawScreen(allData){
   const boxInfo=boxMeta?`${boxMeta.fileName} / 시트: ${boxMeta.sheetName||'미탐지'}`:'-';
   const cellInfo=cellMeta?`${cellMeta.fileName} / 시트: ${cellMeta.sheetName||'미탐지'}`:'-';
   $('#footNote').textContent=`박스상품 상세정보: ${boxInfo} · 셀할당현황: ${cellInfo}`;
-  $('#emptyState').style.display='none'; 
+  $('#emptyState').style.display='none';
   $('#content').style.display='block';
 }
+
 function validateRows(rows,type){
   if(!rows||!rows.length) return `${type} 시트에 데이터가 없습니다.`;
   const headers=headersOfRows(rows);
   if(type==='박스상품 상세정보'){
-    for(const col of ['물류상품ID','피킹지시수량','배송번호','배송박스순번']) if(!headers.includes(col)) return `${type} 시트에 "${col}" 컬럼이 없습니다.`;
-    const st = findStatusColumns(headers);
+    for(const col of ['물류상품ID','피킹지시수량','배송번호','배송박스순번']){
+      if(!headers.includes(col)) return `${type} 시트에 "${col}" 컬럼이 없습니다.`;
+    }
+    const st=findStatusColumns(headers);
     if(!st.primary) return `${type} 시트에 "WMS배송진행상태" 컬럼을 찾지 못했습니다.`;
-  } else {
-    for(const col of ['작업대','물류상품ID','보관위치','랙유형','물류분류코드','현재고']) if(!headers.includes(col)) return `${type} 시트에 "${col}" 컬럼이 없습니다.`;
+  }else{
+    for(const col of ['작업대','물류상품ID','보관위치','랙유형','물류분류코드','현재고']){
+      if(!headers.includes(col)) return `${type} 시트에 "${col}" 컬럼이 없습니다.`;
+    }
   }
   return null;
 }
+
 async function tryBuild(){
-  if(!(boxRows&&cellRows)) return; 
+  if(!(boxRows&&cellRows)) return;
   showLoading(true);
   try{
-    const err1=validateRows(boxRows,'박스상품 상세정보'); 
+    const err1=validateRows(boxRows,'박스상품 상세정보');
     if(err1){setStatus(err1,true);appendDebug(err1);return;}
-    const err2=validateRows(cellRows,'셀할당현황'); 
+    const err2=validateRows(cellRows,'셀할당현황');
     if(err2){setStatus(err2,true);appendDebug(err2);return;}
 
-    const allData=buildAllModels(boxRows,cellRows);
+    const allData=buildAllData(boxRows,cellRows);
     appendDebug(`같은 랙 내 우선 셀 규칙 ${INTRA_RACK_PRIORITY_RULES.length}건 로드`);
     appendDebug(`토트 상태 컬럼: ${allData.toteStatusColumn}`);
     appendDebug(`총 지시 토트=${allData.totalDirectedTotes}, 유효 토트=${allData.totalEffectiveTotes}, 완료 토트=${allData.totalCompleteTotes}`);
@@ -526,16 +755,16 @@ async function tryBuild(){
     appendDebug(`cellMaster=${allData.cellMaster.length}, emptyCells=${allData.emptyCells.length}, assignedCells=${allData.assignedCells.length}`);
 
     if(!Object.keys(allData.wsMetrics).length){
-      const msg='매핑된 작업대 결과가 없습니다. 작업대 또는 SKU 형식을 확인해 주세요.'; 
-      setStatus(msg,true); 
-      appendDebug(msg); 
-      $('#content').style.display='none'; 
-      $('#emptyState').style.display='block'; 
+      const msg='매핑된 작업대 결과가 없습니다. 작업대 또는 SKU 형식을 확인해 주세요.';
+      setStatus(msg,true);
+      appendDebug(msg);
+      $('#content').style.display='none';
+      $('#emptyState').style.display='block';
       return;
     }
 
-    drawScreen(allData); 
-    setStatus('RAW 데이터 분석 완료'); 
+    drawScreen(allData);
+    setStatus('RAW 데이터 분석 완료');
     appendDebug('RAW 데이터 분석 완료');
   }catch(err){
     console.error(err);
@@ -548,56 +777,61 @@ async function tryBuild(){
     showLoading(false);
   }
 }
+
 document.addEventListener('DOMContentLoaded',()=>{
   if(typeof XLSX==='undefined'){
     setStatus('XLSX 라이브러리 로딩 실패',true);
     appendDebug('XLSX 라이브러리 로딩 실패');
-  } else appendDebug('XLSX 라이브러리 로딩 성공');
+  }else{
+    appendDebug('XLSX 라이브러리 로딩 성공');
+  }
 });
+
 $('#boxFile').addEventListener('change', async e=>{
-  const file=e.target.files[0]; 
-  if(!file) return; 
-  showLoading(true); 
+  const file=e.target.files[0];
+  if(!file) return;
+  showLoading(true);
   try{
-    appendDebug(`박스상품 상세정보 파일 선택: ${file.name}`); 
-    const result=await readExcelRows(file,'box'); 
-    boxRows=result.rows; 
-    boxMeta={fileName:file.name,sheetName:result.sheetName}; 
-    const msg=`박스상품 상세정보 업로드 완료 / 시트: ${result.sheetName||'미탐지'} / 시트목록: ${result.workbookSheetNames.join(', ')}`; 
-    setStatus(msg); 
+    appendDebug(`박스상품 상세정보 파일 선택: ${file.name}`);
+    const result=await readExcelRows(file,'box');
+    boxRows=result.rows;
+    boxMeta={fileName:file.name,sheetName:result.sheetName};
+    const msg=`박스상품 상세정보 업로드 완료 / 시트: ${result.sheetName||'미탐지'} / 시트목록: ${result.workbookSheetNames.join(', ')}`;
+    setStatus(msg);
     appendDebug(msg);
   }catch(err){
-    console.error(err); 
-    boxRows=null; 
-    const msg='박스상품 상세정보 파일 읽기에 실패했습니다: '+(err.message||err); 
-    setStatus(msg,true); 
+    console.error(err);
+    boxRows=null;
+    const msg='박스상품 상세정보 파일 읽기에 실패했습니다: '+(err.message||err);
+    setStatus(msg,true);
     appendDebug(msg);
-  } finally{
+  }finally{
     showLoading(false);
-  } 
+  }
   await tryBuild();
 });
+
 $('#cellFile').addEventListener('change', async e=>{
-  const file=e.target.files[0]; 
-  if(!file) return; 
-  showLoading(true); 
+  const file=e.target.files[0];
+  if(!file) return;
+  showLoading(true);
   try{
-    appendDebug(`셀할당현황 파일 선택: ${file.name}`); 
-    const result=await readExcelRows(file,'cell'); 
-    cellRows=result.rows; 
-    cellMeta={fileName:file.name,sheetName:result.sheetName}; 
-    const msg=`셀할당현황 업로드 완료 / 시트: ${result.sheetName||'미탐지'} / 시트목록: ${result.workbookSheetNames.join(', ')}`; 
-    setStatus(msg); 
+    appendDebug(`셀할당현황 파일 선택: ${file.name}`);
+    const result=await readExcelRows(file,'cell');
+    cellRows=result.rows;
+    cellMeta={fileName:file.name,sheetName:result.sheetName};
+    const msg=`셀할당현황 업로드 완료 / 시트: ${result.sheetName||'미탐지'} / 시트목록: ${result.workbookSheetNames.join(', ')}`;
+    setStatus(msg);
     appendDebug(msg);
   }catch(err){
-    console.error(err); 
-    cellRows=null; 
-    const msg='셀할당현황 파일 읽기에 실패했습니다: '+(err.message||err); 
-    setStatus(msg,true); 
+    console.error(err);
+    cellRows=null;
+    const msg='셀할당현황 파일 읽기에 실패했습니다: '+(err.message||err);
+    setStatus(msg,true);
     appendDebug(msg);
-  } finally{
+  }finally{
     showLoading(false);
-  } 
+  }
   await tryBuild();
 });
 </script>
