@@ -301,10 +301,10 @@ function buildAllModels(boxRows,cellRows){
 
   const rackLoad=new Map();
   for(const cell of assignedCells){
-    const pcs=skuToPcs.get(cell.sku)||0, rack=classifyRack(cell), key=`${cell.temp}||${rack}`;
+    const pcs=modelsNotUsed=skuToPcs.get(cell.sku)||0, rack=classifyRack(cell), key=`${cell.temp}||${rack}`;
     if(!rackLoad.has(key)) rackLoad.set(key,{temp:cell.temp,rackType:rack,pcs:0,skuSet:new Set()});
     const obj=rackLoad.get(key); 
-    obj.pcs += pcs; 
+    obj.pcs += pcs=modelsNotUsed; 
     if(pcs>0) obj.skuSet.add(cell.sku);
   }
 
@@ -327,7 +327,7 @@ function buildAllModels(boxRows,cellRows){
   return {
     skuToPcs, skuToToteCount, skuMeta, wsMetrics:wsResult,
     allocSkuCount:allocSkuSet.size, pickedSkuCount:pickedSkuSet.size,
-    allocationRate:allocSkuSet.size?pickedSkuSet.size/allocSkuSet.size:0,
+    allocationRate:allocSkuSet.size?pickedSkuCount/allocSkuSet.size:0,
     totalDirectedTotes, totalEffectiveTotes, totalCompleteTotes,
     toteStatusColumn: statusCol, toteRowsMapSize: toteRowsMap.size,
     cellMaster, emptyCells, assignedCells,
@@ -362,28 +362,28 @@ function getRankForRack(temp,rackType){const rules=SLOT_RULES[temp]; if(!rules) 
 function percentileRank(pcs,sorted){if(!sorted.length) return 0;const idx=sorted.findIndex(v=>pcs>=v);const pos=idx===-1?sorted.length-1:idx;return 1-(pos/sorted.length);}
 function idealRankForPcs(temp,pcs,sorted){const rules=SLOT_RULES[temp]; if(!rules) return 999; const pct=percentileRank(pcs,sorted); for(const rule of rules.idealRankByPercentile){if(pct>=rule.minPct) return rule.rank;} return 999;}
 function scoreCandidateCell(cell,sourceCell){let score=0; if(cell.zone===sourceCell.zone) score+=30; else if(cell.location.slice(0,1)===sourceCell.location.slice(0,1)) score+=10; if(cell.ws===sourceCell.ws) score+=20; score -= getRankForRack(cell.temp,classifyRack(cell))*5; score += getIntraRackPriorityScore(cell); if(shouldAvoidCell(cell,sourceCell.productName)) score -= 50; return score;}
-function findCandidateCell(sourceCell,targetRank,models){const candidates=models.emptyCells.filter(c=>{if(c.temp!==sourceCell.temp) return false; const rack=classifyRack(c), rank=getRankForRack(c.temp,rack); if(rank!==targetRank) return false; if(isForbiddenCell(c,sourceCell.productName)) return false; return true;}).sort((a,b)=>scoreCandidateCell(b,sourceCell)-scoreCandidateCell(a,sourceCell)); return candidates[0]||null;}
-function buildRecommendations(models){
+function findCandidateCell(sourceCell,targetRank,allData){const candidates=allData.emptyCells.filter(c=>{if(c.temp!==sourceCell.temp) return false; const rack=classifyRack(c), rank=getRankForRack(c.temp,rack); if(rank!==targetRank) return false; if(isForbiddenCell(c,sourceCell.productName)) return false; return true;}).sort((a,b)=>scoreCandidateCell(b,sourceCell)-scoreCandidateCell(a,sourceCell)); return candidates[0]||null;}
+function buildRecommendations(allData){
   const byTempPcs={chilled:[],frozen:[]}; 
-  for(const cell of models.assignedCells){
-    const pcs=models.skuToPcs.get(cell.sku)||0; 
+  for(const cell of allData.assignedCells){
+    const pcs=allData.skuToPcs.get(cell.sku)||0; 
     if(cell.temp==='chilled'||cell.temp==='frozen') byTempPcs[cell.temp].push(pcs);
   }
   byTempPcs.chilled.sort((a,b)=>b-a); 
   byTempPcs.frozen.sort((a,b)=>b-a);
 
   const recs=[], seenSku=new Set();
-  for(const cell of models.assignedCells){
+  for(const cell of allData.assignedCells){
     const sku=cell.sku; 
     if(!sku||seenSku.has(sku)) continue; 
     seenSku.add(sku);
 
-    const pcs=models.skuToPcs.get(sku)||0;
-    const toteCount=models.skuToToteCount.get(sku)||0;
+    const pcs=allData.skuToPcs.get(sku)||0;
+    const toteCount=allData.skuToToteCount.get(sku)||0;
     const temp=cell.temp; 
     if(pcs<=0||(temp!=='chilled'&&temp!=='frozen')) continue;
 
-    const productName=cell.productName||models.skuMeta.get(sku)?.name||'';
+    const productName=cell.productName||allData.skuMeta.get(sku)?.name||'';
     const currentRack=classifyRack(cell);
     const currentRank=getRankForRack(temp,currentRack);
     const idealRank=idealRankForPcs(temp,pcs,byTempPcs[temp]);
@@ -391,7 +391,7 @@ function buildRecommendations(models){
     if(currentRank>idealRank){
       let targetCell=null;
       for(let rank=idealRank; rank<currentRank; rank++){
-        targetCell=findCandidateCell({...cell,productName},rank,models); 
+        targetCell=findCandidateCell({...cell,productName},rank,allData); 
         if(targetCell) break;
       }
       recs.push({
@@ -430,15 +430,15 @@ function buildRecommendations(models){
   recs.sort((a,b)=>(b.toteCount-a.toteCount)||(b.pcs-a.pcs));
   return recs.slice(0,20);
 }
-function renderDashboard(models){
-  const toteValues=Object.values(models.wsMetrics).map(v=>v.inboundToteCount||0);
+function drawScreen(allData){
+  const toteValues=Object.values(allData.wsMetrics).map(v=>v.inboundToteCount||0);
   const min=toteValues.length?Math.min(...toteValues):0, max=toteValues.length?Math.max(...toteValues):0;
-  const stats=computeZoneStats(models.wsMetrics);
+  const stats=computeZoneStats(allData.wsMetrics);
   const totalInAll=machineList.reduce((acc,m)=>acc+stats[m].inboundTotes,0), totalCompAll=machineList.reduce((acc,m)=>acc+stats[m].completeTotes,0);
 
   $('#machineSummary').innerHTML=machineList.map(machine=>{
     const st=stats[machine], inShare=totalInAll?st.inboundTotes/totalInAll:0, compShare=totalCompAll?st.completeTotes/totalCompAll:0; 
-    return `<div class="card machine-card"><div class="machine-name">${zoneDefs[machine].label}</div><div class="metrics"><div class="metric">유입 토트 수<b>${fmt(Math.round(st.inboundTotes))}</b><span class="share">비중 ${fmtPct(inShare)}</span></div><div class="metric">완료 토트 수<b>${fmt(Math.round(st.completeTotes))}</b><span class="share">비중 ${fmtPct(compShare)}</span></div><div class="metric">피킹 진척률<b>${fmtPct(st.progressRate)}</b></div><div class="metric">유효 토트 수<b>${fmt(Math.round(st.effectiveTotes))}</b></div></div></div>`;
+    return `<div class="card machine-card"><div class="machine-name">${zoneDefs[machine].label}</div><div class="metrics"><div class="metric">유입 토트 수<b>${fmt(Math.round(st.inboundTotes))}</b><span class="share">비중 ${fmtPct(inShare)}</span></div><div class="metric">완료 토트 수<b>${fmt(Math.round(st.completeTotes))}</b><span class="share">비중 ${fmtPct(compShare)}</span></div><div class="metric">피킹 진척률<b>${fmtPct(st.progressRate)}</b></div><div class="metric">총 터치수<b>${fmt(Math.round(st.effectiveTotes))}</b></div></div></div>`;
   }).join('');
 
   $('#zonesArea').innerHTML=machineList.map(machine=>{
@@ -447,7 +447,7 @@ function renderDashboard(models){
       def.cols.map(col=>`<div class="zone-col"><div class="zone-head"><span>${col.zone}</span></div><div class="spark-stack">${
         col.order.map(ws=>{
           if(!ws) return `<div class="spark-row blank"></div>`;
-          const m=models.wsMetrics[ws]||{inboundToteCount:0,completeToteCount:0,progressRate:0};
+          const m=allData.wsMetrics[ws]||{inboundToteCount:0,completeToteCount:0,progressRate:0};
           const tote=m.inboundToteCount||0;
           const progress=m.progressRate||0;
           const toteWidth=max>0?Math.max(tote>0?3:0,(tote/max)*100):0;
@@ -476,17 +476,17 @@ function renderDashboard(models){
     }</div></div>`;
   }).join('');
 
-  const recs=buildRecommendations(models);
+  const recs=buildRecommendations(allData);
   $('#recommendBody').innerHTML=
     recs.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.pcs)}</td><td>${fmt(r.toteCount)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill ${r.currentRank<=2?'bad':''}">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td></tr>`).join('')
     || '<tr><td colspan="12">추천 결과 없음</td></tr>';
 
-  $('#cellMapSummary').innerHTML=models.cellMapSummary
+  $('#cellMapSummary').innerHTML=allData.cellMapSummary
     .sort((a,b)=>a.zone.localeCompare(b.zone)||a.temp.localeCompare(b.temp)||a.rackType.localeCompare(b.rackType))
     .map(x=>`<tr><td>${x.zone}</td><td>${tempLabel(x.temp)}</td><td>${x.rackType}</td><td>${fmt(x.total)}</td><td>${fmt(x.assigned)}</td><td>${fmt(x.empty)}</td></tr>`)
     .join('');
 
-  $('#rackLoadSummary').innerHTML=models.rackLoad
+  $('#rackLoadSummary').innerHTML=allData.rackLoad
     .sort((a,b)=>b.pcs-a.pcs)
     .map(x=>`<tr><td>${tempLabel(x.temp)}</td><td>${x.rackType}</td><td>${fmt(x.skuPicked)}</td><td>${fmt(x.pcs)}</td></tr>`)
     .join('');
@@ -518,14 +518,14 @@ async function tryBuild(){
     const err2=validateRows(cellRows,'셀할당현황'); 
     if(err2){setStatus(err2,true);appendDebug(err2);return;}
 
-    const models=buildAllModels(boxRows,cellRows);
+    const allData=buildAllModels(boxRows,cellRows);
     appendDebug(`같은 랙 내 우선 셀 규칙 ${INTRA_RACK_PRIORITY_RULES.length}건 로드`);
-    appendDebug(`토트 상태 컬럼: ${models.toteStatusColumn}`);
-    appendDebug(`총 지시 토트=${models.totalDirectedTotes}, 유효 토트=${models.totalEffectiveTotes}, 완료 토트=${models.totalCompleteTotes}`);
-    appendDebug(`allocSku=${models.allocSkuCount}, pickedSku=${models.pickedSkuCount}, allocationRate=${fmtPct(models.allocationRate)}`);
-    appendDebug(`cellMaster=${models.cellMaster.length}, emptyCells=${models.emptyCells.length}, assignedCells=${models.assignedCells.length}`);
+    appendDebug(`토트 상태 컬럼: ${allData.toteStatusColumn}`);
+    appendDebug(`총 지시 토트=${allData.totalDirectedTotes}, 유효 토트=${allData.totalEffectiveTotes}, 완료 토트=${allData.totalCompleteTotes}`);
+    appendDebug(`allocSku=${allData.allocSkuCount}, pickedSku=${allData.pickedSkuCount}, allocationRate=${fmtPct(allData.allocationRate)}`);
+    appendDebug(`cellMaster=${allData.cellMaster.length}, emptyCells=${allData.emptyCells.length}, assignedCells=${allData.assignedCells.length}`);
 
-    if(!Object.keys(models.wsMetrics).length){
+    if(!Object.keys(allData.wsMetrics).length){
       const msg='매핑된 작업대 결과가 없습니다. 작업대 또는 SKU 형식을 확인해 주세요.'; 
       setStatus(msg,true); 
       appendDebug(msg); 
@@ -534,7 +534,7 @@ async function tryBuild(){
       return;
     }
 
-    renderDashboard(models); 
+    drawScreen(allData); 
     setStatus('RAW 데이터 분석 완료'); 
     appendDebug('RAW 데이터 분석 완료');
   }catch(err){
