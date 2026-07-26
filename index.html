@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>QPS RAW 대시보드 v8.4.0</title>
+<title>QPS RAW 대시보드 v8.5.0</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -16,22 +16,22 @@ body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;backgrou
 .empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}
 .machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px}.machine-grid{margin-bottom:18px}
 .machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}
-.metrics{display:flex;gap:28px;flex-wrap:nowrap;justify-content:center;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}
-.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-width:100px}
+.metrics{display:flex;gap:20px;flex-wrap:nowrap;justify-content:center;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}
+.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-width:85px}
 .metric b{display:block;color:#1f2937;font-size:22px;margin-top:2px}
-.metric .share{display:block;font-size:12px;color:#6b7280;margin-top:4px}
+.metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}
 .aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}
 .zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}
 .spark-stack{display:grid;gap:10px}
-.spark-row{display:grid;grid-template-columns:78px 1fr 132px;gap:8px;align-items:center;min-height:54px}
+.spark-row{display:grid;grid-template-columns:72px 1fr 120px;gap:8px;align-items:center;min-height:64px}
 .spark-row.blank{display:none}
 .ws-label{font-size:13px;font-weight:700;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .spark-metrics{display:grid;gap:6px}
-.spark-item{display:grid;grid-template-columns:56px 1fr;gap:8px;align-items:center}
+.spark-item{display:grid;grid-template-columns:46px 1fr;gap:8px;align-items:center}
 .spark-item-label{font-size:11px;font-weight:700;color:#6b7280;white-space:nowrap}
 .spark-track{width:100%;height:14px;background:#eef2f7;border-radius:999px;overflow:hidden;border:1px solid #e2e8f0}
 .spark-fill{height:100%;border-radius:999px}
-.spark-value{text-align:right;font-size:12px;font-weight:800;color:#374151;white-space:nowrap;line-height:1.45}
+.spark-value{text-align:right;font-size:11px;font-weight:700;color:#475569;white-space:nowrap;line-height:1.45}
 .footer-note{margin-top:14px;font-size:12px;color:#6b7280}
 .subhead{font-size:18px;font-weight:800;margin-bottom:10px}
 table{width:100%;border-collapse:collapse;font-size:13px}
@@ -39,20 +39,18 @@ th,td{border-bottom:1px solid #e5e7eb;padding:8px 10px;text-align:left;vertical-
 th{background:#f8fafc}
 .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:700}
 .pill.bad{background:#fef2f2;color:#b91c1c}
-.map-grid{display:grid;grid-template-columns:repeat(2,minmax(320px,1fr));gap:16px}
-.mini-card{background:#fafafa;border:1px solid #e5e7eb;border-radius:12px;padding:12px}
 #loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.68);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:9999}
 .loader-box{width:120px;height:120px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.08);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
 .loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}.loader-text{font-size:13px;color:#6b7280;font-weight:700}@keyframes spin{to{transform:rotate(360deg)}}
-@media (max-width:1180px){.machine-grid,.zones,.map-grid{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}
+@media (max-width:1280px){.machine-grid,.zones{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}
 </style>
 </head>
 <body>
 <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
 
 <div class="card">
-  <div class="title">QPS RAW 대시보드 v8.4.0</div>
-  <div class="subtitle">토트 유입수(빈도) 기반 최적화 및 랙 추천 엔진 적용</div>
+  <div class="title">QPS RAW 대시보드 v8.5.0</div>
+  <div class="subtitle">노드 터치수(SKU) 최우선 기반 진척률 + 병목 모니터링 적용</div>
 </div>
 
 <div class="card">
@@ -66,7 +64,7 @@ th{background:#f8fafc}
       <input type="file" id="cellFile" accept=".xlsx,.xls">
     </div>
   </div>
-  <div class="status" id="status">두 파일을 모두 업로드하면 W/S별 유입 토트 수와 진척률을 계산합니다.</div>
+  <div class="status" id="status">두 파일을 모두 업로드하면 W/S별 터치수와 진척률을 계산합니다.</div>
 </div>
 
 <div id="emptyState" class="card empty">파일 2개를 모두 업로드해야 데이터가 표시됩니다.</div>
@@ -76,7 +74,7 @@ th{background:#f8fafc}
   <div class="zones" id="zonesArea"></div>
 
   <div class="card">
-    <div class="subhead">셀 이동 추천</div>
+    <div class="subhead">셀 이동 추천 (고빈도 우선)</div>
     <table>
       <thead>
         <tr>
@@ -114,28 +112,7 @@ let boxRows=null, cellRows=null, boxMeta=null, cellMeta=null;
 const $=s=>document.querySelector(s);
 
 const COMPLETE_STATUS=['피킹완료','토트매핑완료','패킹완료','출고완료','출하완료','배송완료'];
-const INCOMPLETE_STATUS=['배송지시','배송지시완료','피킹지시'];
 const EXCLUDE_STATUS=['전체취소','전체결품','출고불가','취소대기'];
-
-const SLOT_RULES = {
-  chilled:{
-    rackPriority:{'Gate Rack':1,'Flow Rack':2,'냉장평대':3,'냉장오픈다단':4,'Shelf Rack':5,'Shelf Rack (후순위)':6},
-    idealRankByPercentile:[{minPct:0.90,rank:1},{minPct:0.65,rank:2},{minPct:0.45,rank:3},{minPct:0.25,rank:4},{minPct:0.00,rank:5}]
-  },
-  frozen:{
-    rackPriority:{'냉동워크인':1,'냉동평대':2,'냉동리치인':3},
-    idealRankByPercentile:[{minPct:0.80,rank:1},{minPct:0.40,rank:2},{minPct:0.00,rank:3}]
-  }
-};
-
-const INTRA_RACK_PRIORITY_RULES = [
-  {zone:'A01', from:'A01-050101', to:'A01-050405', score:100},{zone:'A02', from:'A02-020101', to:'A02-020405', score:100},{zone:'A03', from:'A03-050101', to:'A03-050405', score:100},{zone:'A04', from:'A04-030101', to:'A04-030405', score:100},{zone:'A05', from:'A05-020101', to:'A05-020405', score:100},{zone:'A06', from:'A06-050101', to:'A06-050405', score:100},{zone:'A07', from:'A07-020101', to:'A07-020405', score:100},
-  {zone:'B01', from:'B01-020101', to:'B01-020405', score:100},{zone:'B02', from:'B02-050101', to:'B02-050405', score:100},{zone:'B03', from:'B03-020101', to:'B03-020405', score:100},{zone:'B04', from:'B04-050101', to:'B04-050405', score:100},{zone:'B05', from:'B05-020101', to:'B05-020405', score:100},{zone:'B06', from:'B06-050101', to:'B06-050405', score:100},{zone:'B07', from:'B07-020101', to:'B07-020405', score:100},{zone:'B09', from:'B09-010202', to:'B09-020402', score:100},{zone:'B10', from:'B10-050101', to:'B10-050405', score:100},
-  {zone:'C01', from:'C01-050101', to:'C01-050405', score:100},{zone:'C02', from:'C02-020101', to:'C02-020405', score:100},{zone:'C03', from:'C03-050101', to:'C03-050405', score:100},{zone:'C04', from:'C04-030101', to:'C04-030405', score:100},{zone:'C05', from:'C05-020101', to:'C05-020405', score:100},{zone:'C06', from:'C06-050101', to:'C06-050405', score:100},{zone:'C07', from:'C07-020101', to:'C07-020405', score:100},{zone:'C09', from:'C09-020101', to:'C09-030405', score:100},
-  {zone:'D01', from:'D01-030101', to:'D01-030507', score:100},{zone:'D01', from:'D01-050101', to:'D01-050507', score:100},{zone:'D02', from:'D02-010101', to:'D02-010107', score:100},{zone:'D02', from:'D02-030101', to:'D02-030507', score:100},{zone:'D02', from:'D02-050101', to:'D02-050507', score:100},{zone:'D03', from:'D03-020101', to:'D03-020405', score:100},{zone:'D04', from:'D04-050101', to:'D04-050405', score:100},{zone:'D05', from:'D05-010103', to:'D05-020404', score:100},{zone:'D06', from:'D06-050101', to:'D06-050405', score:100},{zone:'D07', from:'D07-010102', to:'D07-020403', score:100},
-  {zone:'E01', from:'E01-010101', to:'E01-020405', score:100},{zone:'E02', from:'E02-050101', to:'E01-020403', score:100},{zone:'E03', from:'E03-010201', to:'E03-010405', score:100},{zone:'E03', from:'E03-030201', to:'E03-030405', score:100},{zone:'E04', from:'E04-070101', to:'E04-070108', score:100},{zone:'E04', from:'E04-010101', to:'E04-010507', score:100},{zone:'E04', from:'E04-030101', to:'E04-030507', score:100},{zone:'E04', from:'E04-050101', to:'E04-050507', score:100},{zone:'E05', from:'E05-010101', to:'E05-010507', score:100},{zone:'E05', from:'E05-030101', to:'E05-030507', score:100},{zone:'E06', from:'E06-010101', to:'E06-010507', score:100},{zone:'E06', from:'E06-030101', to:'E06-030507', score:100},{zone:'E06', from:'E06-050101', to:'E06-050507', score:100},{zone:'E07', from:'E07-010101', to:'E07-010507', score:100},{zone:'E07', from:'E07-030101', to:'E07-030507', score:100},{zone:'E07', from:'E07-050101', to:'E07-050507', score:100},
-  {zone:'F01', from:'F01-030101', to:'F01-040506', score:100},{zone:'F02', from:'F02-030101', to:'F02-040506', score:100},{zone:'F03', from:'F03-030101', to:'F03-040506', score:100},{zone:'F04', from:'F04-030101', to:'F04-040506', score:100},{zone:'F05', from:'F05-030101', to:'F05-040506', score:100},{zone:'F06', from:'F06-030101', to:'F06-040506', score:100},{zone:'F07', from:'F07-030101', to:'F07-040506', score:100},{zone:'F08', from:'F08-030101', to:'F08-040506', score:100},{zone:'F09', from:'F09-030101', to:'F09-040506', score:100},{zone:'F10', from:'F10-020101', to:'F10-030506', score:100},{zone:'F11', from:'F11-020101', to:'F11-030506', score:100},{zone:'F12', from:'F12-020101', to:'F13-030506', score:100}
-];
 
 function setStatus(msg,isError=false){
   const el=$('#status');
@@ -180,11 +157,6 @@ function tempLabel(temp){
   if(temp==='frozen') return '냉동';
   if(temp==='chilled') return '냉장';
   return '기타';
-}
-function zoneFromLocation(loc){return String(loc||'').trim().slice(0,3);}
-function suffix6(loc){
-  const m=String(loc||'').match(/(\d{6})$/);
-  return m?m[1]:'';
 }
 function heatColor(value,min,max){
   if(value==null||isNaN(value)) return '#dbeafe';
@@ -247,63 +219,11 @@ async function readExcelRows(file,type){
   };
 }
 function getProductName(row){return String(row['물류상품명']||row['상품명']||'').trim();}
-function isEgg(name){return name.includes('식용란')&&!name.includes('훈제란');}
-function isLivestock(name){return /축산|소고기|돼지고기|닭|계육|우육|돈육|목심|삼겹|갈비|차돌|불고기|양념육/.test(name);}
-function isSeafood(name){return /수산|생선|오징어|낙지|쭈꾸미|새우|연어|고등어|갈치|참치|조개|문어/.test(name);}
-function isMincedMeat(name){return /다짐육|민찌|간고기/.test(name);}
 function makeToteKey(row){
   const d=String(row['배송번호']||'').trim();
   const b=String(row['배송박스순번']||'').trim();
   if(!d || !b) return '';
   return `${d}__${b}`;
-}
-function classifyRack(cell){
-  let rack=cell.rackType;
-  const loc=cell.location;
-  if(rack==='Shelf Rack'){
-    if(loc>='B08-050101'&&loc<='B08-080505') rack='Shelf Rack (후순위)';
-    if(loc>='C05-050101'&&loc<='C05-060505') rack='Shelf Rack (후순위)';
-  }
-  return rack;
-}
-function isForbiddenCell(cell,productName){
-  const loc=cell.location, zone=cell.zone, suf=suffix6(loc);
-  if(zone==='A08'&&suf&&(suf[3]==='1'||suf[3]==='5')) return true;
-  if(cell.rackType==='냉장평대'&&!(loc>='D02-010101'&&loc<='D02-020108')) return true;
-  if(cell.rackType==='냉동평대'&&!(loc>='E04-070101'&&loc<='E04-080108')) return true;
-  if(isEgg(productName)&&!(loc>='A06-010101'&&loc<='A09-010114')) return true;
-  if(isLivestock(productName)){
-    const allow=(loc>='D01-000000'&&loc<='D06-999999')||(loc>='D07-030101'&&loc<='D07-060505');
-    if(!allow) return true;
-  }
-  return false;
-}
-function shouldAvoidCell(cell,productName){
-  const loc=cell.location;
-  if(loc>='D01-000000'&&loc<='D02-999999'){
-    if(!(isMincedMeat(productName)||isSeafood(productName))) return true;
-  }
-  return false;
-}
-function getIntraRackPriorityScore(cell){
-  const loc=cell.location||'';
-  for(const rule of INTRA_RACK_PRIORITY_RULES){
-    if(cell.zone!==rule.zone) continue;
-    if(loc>=rule.from&&loc<=rule.to) return rule.score;
-  }
-  return 0;
-}
-function summarizeToteStatus(statuses){
-  let hasComplete=false, hasIncomplete=false;
-  for(const s of statuses){
-    if(EXCLUDE_STATUS.includes(s)) continue;
-    if(COMPLETE_STATUS.includes(s)) hasComplete=true;
-    if(INCOMPLETE_STATUS.includes(s)) hasIncomplete=true;
-  }
-  if(hasComplete && !hasIncomplete) return 'complete';
-  if(!hasComplete && hasIncomplete) return 'not_started';
-  if(hasComplete && hasIncomplete) return 'in_progress';
-  return 'exclude';
 }
 
 function buildAllData(boxRows,cellRows){
@@ -313,178 +233,121 @@ function buildAllData(boxRows,cellRows){
 
   const skuToPcs=new Map();
   const skuMeta=new Map();
-  const toteRowsMap=new Map();
-
-  for(const row of boxRows){
-    const sku=normalizeSku(row['물류상품ID']);
-    if(sku) skuToPcs.set(sku,(skuToPcs.get(sku)||0)+toNumber(row['피킹지시수량']));
-    if(sku && !skuMeta.has(sku)) skuMeta.set(sku,{name:getProductName(row)});
-
-    const toteKey=makeToteKey(row);
-    if(toteKey){
-      if(!toteRowsMap.has(toteKey)) toteRowsMap.set(toteKey,[]);
-      toteRowsMap.get(toteKey).push(row);
-    }
-  }
-
-  const toteStatusMap=new Map();
   const skuToToteCount=new Map();
 
-  for(const [toteKey,rows] of toteRowsMap.entries()){
-    const statuses=rows.map(r=>String(statusCol ? r[statusCol] : '').trim()).filter(Boolean);
-    toteStatusMap.set(toteKey, summarizeToteStatus(statuses));
-
-    const skuSetInTote=new Set();
-    for(const row of rows){
-      const sku=normalizeSku(row['물류상품ID']);
-      if(sku) skuSetInTote.add(sku);
-    }
-    for(const sku of skuSetInTote){
-      skuToToteCount.set(sku,(skuToToteCount.get(sku)||0)+1);
-    }
-  }
-
   const wsMetrics=new Map();
-  const seenWsSku=new Set();
-  const allocSkuSet=new Set();
-  const pickedSkuSet=new Set();
-  const cellMaster=[];
-  const emptyCells=[];
-  const assignedCells=[];
   const skuToWsSet=new Map();
-
+  const assignedCells=[];
+  const emptyCells=[];
+  
+  // 1. 셀할당현황 분석 및 W/S 맵핑
   for(const row of cellRows){
     const ws=normalizeWs(row['작업대']);
     const sku=normalizeSku(row['물류상품ID']);
     const location=String(row['보관위치']||'').trim();
-    const zone=zoneFromLocation(location);
+    const zone=String(location).slice(0,3);
     const rackType=String(row['랙유형']||'').trim();
     const temp=normalizeTemp(row['물류분류코드']);
     const stock=toNumber(row['현재고']);
-    const productName=getProductName(row)||(skuMeta.get(sku)?.name||'');
+    const productName=getProductName(row);
 
     const cell={ws,sku,location,zone,rackType,temp,stock,isEmpty:!sku,productName};
-    cellMaster.push(cell);
-
+    
     if(cell.isEmpty){
       emptyCells.push(cell);
     }else{
       assignedCells.push(cell);
-      allocSkuSet.add(sku);
-
       if(!skuToWsSet.has(sku)) skuToWsSet.set(sku,new Set());
       if(ws) skuToWsSet.get(sku).add(ws);
 
       if(!wsMetrics.has(ws)){
         wsMetrics.set(ws,{
-          pcs:0, skuPicked:0, skuAllocated:0,
-          inboundTotes:new Set(),
-          completeTotes:new Set(),
-          inProgressTotes:new Set(),
-          notStartedTotes:new Set(),
-          effectiveTotes:new Set()
+          inboundTotes: new Set(),
+          totalTouches: 0,
+          completeTouches: 0,
+          totalTouchPcs: 0
         });
-      }
-
-      const pairKey=ws+'||'+sku;
-      if(!seenWsSku.has(pairKey)){
-        seenWsSku.add(pairKey);
-        const m=wsMetrics.get(ws);
-        m.skuAllocated += 1;
-        const pcs=skuToPcs.get(sku)||0;
-        if(pcs>0){
-          m.pcs += pcs;
-          m.skuPicked += 1;
-          pickedSkuSet.add(sku);
-        }
       }
     }
   }
 
-  for(const [toteKey,rows] of toteRowsMap.entries()){
-    const wsSet=new Set();
+  // 2. 박스상품 데이터를 [토트+SKU] = '노드 터치' 단위로 압축
+  const touchMap = new Map();
+  for(const row of boxRows){
+    const sku=normalizeSku(row['물류상품ID']);
+    const toteKey=makeToteKey(row);
+    if(!sku || !toteKey) continue;
 
-    for(const row of rows){
-      const sku=normalizeSku(row['물류상품ID']);
-      if(!sku) continue;
-      const candidateWs=skuToWsSet.get(sku);
-      if(candidateWs) for(const ws of candidateWs) wsSet.add(ws);
+    const pcs=toNumber(row['피킹지시수량']);
+    const status=String(statusCol ? row[statusCol] : '').trim();
+    
+    // 취소 결품 데이터는 터치에서 제외
+    if(EXCLUDE_STATUS.includes(status)) continue;
+
+    if(!skuMeta.has(sku)) skuMeta.set(sku,{name:getProductName(row)});
+    skuToPcs.set(sku,(skuToPcs.get(sku)||0)+pcs);
+
+    const key = `${toteKey}||${sku}`;
+    if(!touchMap.has(key)) {
+      touchMap.set(key, { pcs: 0, isComplete: true, wsSet: new Set() });
+      skuToToteCount.set(sku, (skuToToteCount.get(sku)||0)+1);
     }
+    
+    const entry = touchMap.get(key);
+    entry.pcs += pcs;
+    
+    // 하나의 터치(주문) 안에서 일부 수량이라도 피킹 완료가 안되었다면 미완료 처리
+    if(!COMPLETE_STATUS.includes(status)) {
+      entry.isComplete = false;
+    }
+    
+    const candidateWs = skuToWsSet.get(sku);
+    if(candidateWs) {
+      for(const ws of candidateWs) entry.wsSet.add(ws);
+    }
+  }
 
-    const toteStatus=toteStatusMap.get(toteKey)||'exclude';
-    for(const ws of wsSet){
+  // 3. W/S별 터치 지표 산출
+  let totalDirectedTouches = 0, totalCompleteTouches = 0;
+  for(const [key, entry] of touchMap.entries()){
+    const [toteKey] = key.split('||');
+    for(const ws of entry.wsSet){
       if(!wsMetrics.has(ws)) continue;
-      const m=wsMetrics.get(ws);
+      const m = wsMetrics.get(ws);
+      
       m.inboundTotes.add(toteKey);
-      if(toteStatus !== 'exclude') m.effectiveTotes.add(toteKey);
-      if(toteStatus === 'complete') m.completeTotes.add(toteKey);
-      else if(toteStatus === 'in_progress') m.inProgressTotes.add(toteKey);
-      else if(toteStatus === 'not_started') m.notStartedTotes.add(toteKey);
+      m.totalTouches += 1;
+      m.totalTouchPcs += entry.pcs;
+      totalDirectedTouches += 1;
+      
+      if(entry.isComplete){
+        m.completeTouches += 1;
+        totalCompleteTouches += 1;
+      }
     }
   }
 
   const wsResult={};
   for(const [ws,m] of wsMetrics.entries()){
     wsResult[ws]={
-      pcs:m.pcs,
-      skuPicked:m.skuPicked,
-      skuAllocated:m.skuAllocated,
-      inboundToteCount:m.inboundTotes.size,
-      completeToteCount:m.completeTotes.size,
-      inProgressToteCount:m.inProgressTotes.size,
-      notStartedToteCount:m.notStartedTotes.size,
-      effectiveToteCount:m.effectiveTotes.size,
-      progressRate:m.effectiveTotes.size ? (m.completeTotes.size / m.effectiveTotes.size) : 0
+      inboundToteCount: m.inboundTotes.size,
+      totalTouches: m.totalTouches,
+      completeTouches: m.completeTouches,
+      totalTouchPcs: m.totalTouchPcs,
+      progressRate: m.totalTouches ? (m.completeTouches / m.totalTouches) : 0,
+      pcsPerTouch: m.totalTouches ? (m.totalTouchPcs / m.totalTouches) : 0
     };
-  }
-
-  const rackLoad=new Map();
-  for(const cell of assignedCells){
-    const pcs=skuToPcs.get(cell.sku)||0;
-    const rack=classifyRack(cell);
-    const key=`${cell.temp}||${rack}`;
-    if(!rackLoad.has(key)) rackLoad.set(key,{temp:cell.temp,rackType:rack,pcs:0,skuSet:new Set()});
-    const obj=rackLoad.get(key);
-    obj.pcs += pcs;
-    if(pcs>0) obj.skuSet.add(cell.sku);
-  }
-
-  const cellMapSummary=new Map();
-  for(const cell of cellMaster){
-    const rack=classifyRack(cell);
-    const key=`${cell.zone}||${cell.temp}||${rack}`;
-    if(!cellMapSummary.has(key)) cellMapSummary.set(key,{zone:cell.zone,temp:cell.temp,rackType:rack,total:0,assigned:0,empty:0});
-    const obj=cellMapSummary.get(key);
-    obj.total += 1;
-    if(cell.isEmpty) obj.empty += 1;
-    else obj.assigned += 1;
-  }
-
-  let totalDirectedTotes=0, totalCompleteTotes=0, totalEffectiveTotes=0;
-  for(const [,v] of toteStatusMap.entries()){
-    if(v !== 'exclude') totalEffectiveTotes += 1;
-    if(v === 'complete') totalCompleteTotes += 1;
-    totalDirectedTotes += 1;
   }
 
   return {
     skuToPcs,
     skuToToteCount,
     skuMeta,
-    wsMetrics:wsResult,
-    allocSkuCount:allocSkuSet.size,
-    pickedSkuCount:pickedSkuSet.size,
-    allocationRate:allocSkuSet.size ? pickedSkuSet.size/allocSkuSet.size : 0,
-    totalDirectedTotes,
-    totalEffectiveTotes,
-    totalCompleteTotes,
-    toteStatusColumn:statusCol,
-    toteRowsMapSize:toteRowsMap.size,
-    cellMaster,
+    wsMetrics: wsResult,
     emptyCells,
     assignedCells,
-    rackLoad:Array.from(rackLoad.values()).map(x=>({temp:x.temp,rackType:x.rackType,pcs:x.pcs,skuPicked:x.skuSet.size})),
-    cellMapSummary:Array.from(cellMapSummary.values())
+    totalDirectedTouches,
+    totalCompleteTouches
   };
 }
 
@@ -492,168 +355,62 @@ function computeZoneStats(wsMetrics){
   const res={};
   for(const machine of machineList){
     const def=zoneDefs[machine];
-    let machineIn=0,machineComp=0,machineEff=0,machineCount=0;
-    res[machine]={zones:{},inboundTotes:0,completeTotes:0,effectiveTotes:0,progressRate:0,count:0};
+    let machineInTotes=0, machineTouches=0, machineCompTouches=0, machinePcs=0;
+    res[machine]={zones:{}, inboundTotes:0, totalTouches:0, completeTouches:0, progressRate:0, pcsPerTouch:0};
 
     for(const col of def.cols){
-      let zIn=0,zComp=0,zEff=0,zCount=0;
+      let zInTotes=0, zTouches=0, zCompTouches=0, zPcs=0;
       for(const ws of col.order){
         if(!ws) continue;
-        const m=wsMetrics[ws]||{inboundToteCount:0,completeToteCount:0,effectiveToteCount:0};
-        zIn += m.inboundToteCount||0;
-        zComp += m.completeToteCount||0;
-        zEff += m.effectiveToteCount||0;
-        zCount += 1;
+        const m=wsMetrics[ws] || {inboundToteCount:0, totalTouches:0, completeTouches:0, totalTouchPcs:0};
+        
+        zInTotes += m.inboundToteCount||0;
+        zTouches += m.totalTouches||0;
+        zCompTouches += m.completeTouches||0;
+        zPcs += m.totalTouchPcs||0;
 
-        machineIn += m.inboundToteCount||0;
-        machineComp += m.completeToteCount||0;
-        machineEff += m.effectiveToteCount||0;
-        machineCount += 1;
+        machineInTotes += m.inboundToteCount||0;
+        machineTouches += m.totalTouches||0;
+        machineCompTouches += m.completeTouches||0;
+        machinePcs += m.totalTouchPcs||0;
       }
       res[machine].zones[col.zone]={
-        inboundTotes:zIn,
-        completeTotes:zComp,
-        effectiveTotes:zEff,
-        progressRate:zEff?zComp/zEff:0,
-        count:zCount
+        inboundTotes: zInTotes,
+        totalTouches: zTouches,
+        completeTouches: zCompTouches,
+        progressRate: zTouches ? zCompTouches/zTouches : 0,
+        pcsPerTouch: zTouches ? zPcs/zTouches : 0
       };
     }
 
-    res[machine].inboundTotes=machineIn;
-    res[machine].completeTotes=machineComp;
-    res[machine].effectiveTotes=machineEff;
-    res[machine].progressRate=machineEff?machineComp/machineEff:0;
-    res[machine].count=machineCount;
+    res[machine].inboundTotes=machineInTotes;
+    res[machine].totalTouches=machineTouches;
+    res[machine].completeTouches=machineCompTouches;
+    res[machine].progressRate=machineTouches ? machineCompTouches/machineTouches : 0;
+    res[machine].pcsPerTouch=machineTouches ? machinePcs/machineTouches : 0;
   }
   return res;
 }
 
-function getRankForRack(temp,rackType){
-  const rules=SLOT_RULES[temp];
-  if(!rules) return 999;
-  return rules.rackPriority[rackType] ?? 999;
-}
-function percentileRank(value,sorted){
-  if(!sorted.length) return 0;
-  const idx=sorted.findIndex(v=>value>=v);
-  const pos=idx===-1?sorted.length-1:idx;
-  return 1-(pos/sorted.length);
-}
-function idealRankForValue(temp,value,sorted){
-  const rules=SLOT_RULES[temp];
-  if(!rules) return 999;
-  const pct=percentileRank(value,sorted);
-  for(const rule of rules.idealRankByPercentile){
-    if(pct>=rule.minPct) return rule.rank;
-  }
-  return 999;
-}
-function scoreCandidateCell(cell,sourceCell){
-  let score=0;
-  if(cell.zone===sourceCell.zone) score+=30;
-  else if(cell.location.slice(0,1)===sourceCell.location.slice(0,1)) score+=10;
-  if(cell.ws===sourceCell.ws) score+=20;
-  score -= getRankForRack(cell.temp,classifyRack(cell))*5;
-  score += getIntraRackPriorityScore(cell);
-  if(shouldAvoidCell(cell,sourceCell.productName)) score -= 50;
-  return score;
-}
-function findCandidateCell(sourceCell,targetRank,allData){
-  const candidates=allData.emptyCells.filter(c=>{
-    if(c.temp!==sourceCell.temp) return false;
-    const rack=classifyRack(c);
-    const rank=getRankForRack(c.temp,rack);
-    if(rank!==targetRank) return false;
-    if(isForbiddenCell(c,sourceCell.productName)) return false;
-    return true;
-  }).sort((a,b)=>scoreCandidateCell(b,sourceCell)-scoreCandidateCell(a,sourceCell));
-  return candidates[0]||null;
-}
-
-/* 
- * [고도화 반영] : 피킹 수량(PCS)이 아닌 토트 유입수(Hit Rate/빈도)를 
- * 기준으로 상품의 백분위를 산정하고 추천 랙을 결정합니다.
- */
-function buildRecommendations(allData){
-  const byTempTotes={chilled:[],frozen:[]};
-  
-  for(const cell of allData.assignedCells){
-    const totes=allData.skuToToteCount.get(cell.sku)||0;
-    if(cell.temp==='chilled'||cell.temp==='frozen') byTempTotes[cell.temp].push(totes);
-  }
-  // 토트 유입수 기준 내림차순 정렬
-  byTempTotes.chilled.sort((a,b)=>b-a);
-  byTempTotes.frozen.sort((a,b)=>b-a);
-
-  const recs=[], seenSku=new Set();
-  for(const cell of allData.assignedCells){
-    const sku=cell.sku;
-    if(!sku||seenSku.has(sku)) continue;
-    seenSku.add(sku);
-
-    const pcs=allData.skuToPcs.get(sku)||0;
-    const toteCount=allData.skuToToteCount.get(sku)||0;
-    const temp=cell.temp;
-    
-    // 유입 토트가 없으면 추천 대상에서 제외
-    if(toteCount<=0||(temp!=='chilled'&&temp!=='frozen')) continue;
-
-    const productName=cell.productName||allData.skuMeta.get(sku)?.name||'';
-    const currentRack=classifyRack(cell);
-    const currentRank=getRankForRack(temp,currentRack);
-    
-    // 토트 유입수 기반으로 이상적인 우선순위 랙 산정
-    const idealRank=idealRankForValue(temp,toteCount,byTempTotes[temp]);
-
-    if(currentRank>idealRank){
-      let targetCell=null;
-      for(let rank=idealRank; rank<currentRank; rank++){
-        targetCell=findCandidateCell({...cell,productName},rank,allData);
-        if(targetCell) break;
-      }
-      recs.push({
-        sku, productName, pcs, toteCount, temp,
-        currentCell:cell.location,
-        currentRack,
-        currentRank,
-        targetRack:targetCell?classifyRack(targetCell):`우선순위 ${idealRank} 랙`,
-        targetCell:targetCell?targetCell.location:'적정 공셀 없음',
-        reason:'고빈도(토트 유입 상위) SKU가 낮은 우선순위 랙에 배치됨'
-      });
-    }else if(currentRank<=2){
-      const pct=percentileRank(toteCount,byTempTotes[temp]);
-      if(pct<0.20){
-        recs.push({
-          sku, productName, pcs, toteCount, temp,
-          currentCell:cell.location,
-          currentRack,
-          currentRank,
-          targetRack:'하위 우선 랙 검토',
-          targetCell:'-',
-          reason:'저빈도 SKU가 상위 우선 랙을 점유 중'
-        });
-      }
-    }
-  }
-
-  // 노출 순서: 1순위(토트 유입수 많은 순), 2순위(PCS 많은 순)
-  recs.sort((a,b)=>(b.toteCount-a.toteCount)||(b.pcs-a.pcs));
-  return recs.slice(0,20);
-}
-
 function drawScreen(allData){
-  const toteValues=Object.values(allData.wsMetrics).map(v=>v.inboundToteCount||0);
-  const min=toteValues.length?Math.min(...toteValues):0;
-  const max=toteValues.length?Math.max(...toteValues):0;
+  const touchValues=Object.values(allData.wsMetrics).map(v=>v.totalTouches||0);
+  const min=touchValues.length?Math.min(...touchValues):0;
+  const max=touchValues.length?Math.max(...touchValues):0;
   const stats=computeZoneStats(allData.wsMetrics);
-  const totalInAll=machineList.reduce((acc,m)=>acc+stats[m].inboundTotes,0);
-  const totalCompAll=machineList.reduce((acc,m)=>acc+stats[m].completeTotes,0);
 
   $('#machineSummary').innerHTML=machineList.map(machine=>{
     const st=stats[machine];
-    const inShare=totalInAll?st.inboundTotes/totalInAll:0;
-    const compShare=totalCompAll?st.completeTotes/totalCompAll:0;
-    return `<div class="card machine-card"><div class="machine-name">${zoneDefs[machine].label}</div><div class="metrics"><div class="metric">유입 토트 수<b>${fmt(Math.round(st.inboundTotes))}</b><span class="share">비중 ${fmtPct(inShare)}</span></div><div class="metric">완료 토트 수<b>${fmt(Math.round(st.completeTotes))}</b><span class="share">비중 ${fmtPct(compShare)}</span></div><div class="metric">피킹 진척률<b>${fmtPct(st.progressRate)}</b></div><div class="metric">총 터치수<b>${fmt(Math.round(st.effectiveTotes))}</b></div></div></div>`;
+    return `
+      <div class="card machine-card">
+        <div class="machine-name">${zoneDefs[machine].label}</div>
+        <div class="metrics">
+          <div class="metric">지시 터치수<b>${fmt(st.totalTouches)}</b><span class="share">메인 공수 지표</span></div>
+          <div class="metric">완료 터치수<b>${fmt(st.completeTouches)}</b><span class="share">실시간 처리량</span></div>
+          <div class="metric">진척률 (Touch)<b>${fmtPct(st.progressRate)}</b></div>
+          <div class="metric">유입 토트수<b>${fmt(st.inboundTotes)}</b><span class="share">버퍼 모니터링</span></div>
+          <div class="metric">터치당 PCS<b style="color:#ef4444">${st.pcsPerTouch.toFixed(1)}</b><span class="share">다건 병목</span></div>
+        </div>
+      </div>`;
   }).join('');
 
   $('#zonesArea').innerHTML=machineList.map(machine=>{
@@ -662,12 +419,15 @@ function drawScreen(allData){
       def.cols.map(col=>`<div class="zone-col"><div class="zone-head"><span>${col.zone}</span></div><div class="spark-stack">${
         col.order.map(ws=>{
           if(!ws) return `<div class="spark-row blank"></div>`;
-          const m=allData.wsMetrics[ws]||{inboundToteCount:0,completeToteCount:0,progressRate:0};
+          const m=allData.wsMetrics[ws]||{inboundToteCount:0,totalTouches:0,completeTouches:0,progressRate:0,pcsPerTouch:0};
+          const touch=m.totalTouches||0;
           const tote=m.inboundToteCount||0;
           const progress=m.progressRate||0;
-          const toteWidth=max>0?Math.max(tote>0?3:0,(tote/max)*100):0;
+          const pcsPT=m.pcsPerTouch||0;
+          
+          const touchWidth=max>0?Math.max(touch>0?3:0,(touch/max)*100):0;
           const progressWidth=Math.max(progress>0?3:0,progress*100);
-          const toteBarColor=heatColor(tote,min,max);
+          const touchBarColor=heatColor(touch,min,max);
           const progBarColor=progressColor(progress);
 
           return `
@@ -675,15 +435,15 @@ function drawScreen(allData){
               <div class="ws-label">${ws}</div>
               <div class="spark-metrics">
                 <div class="spark-item">
-                  <div class="spark-item-label">유입토트</div>
-                  <div class="spark-track"><div class="spark-fill" style="width:${toteWidth}%;background:${toteBarColor};"></div></div>
+                  <div class="spark-item-label">터치수</div>
+                  <div class="spark-track"><div class="spark-fill" style="width:${touchWidth}%;background:${touchBarColor};"></div></div>
                 </div>
                 <div class="spark-item">
                   <div class="spark-item-label">진척률</div>
                   <div class="spark-track"><div class="spark-fill" style="width:${progressWidth}%;background:${progBarColor};"></div></div>
                 </div>
               </div>
-              <div class="spark-value">토트 ${fmt(tote)}<br>완료율 ${fmtPct(progress)}</div>
+              <div class="spark-value">터치 ${fmt(touch)}<br>토트 ${fmt(tote)}<br><span style="color:#ef4444">${pcsPT.toFixed(1)} pcs/t</span></div>
             </div>
           `;
         }).join('')
@@ -730,11 +490,7 @@ async function tryBuild(){
     if(err2){setStatus(err2,true);appendDebug(err2);return;}
 
     const allData=buildAllData(boxRows,cellRows);
-    appendDebug(`같은 랙 내 우선 셀 규칙 ${INTRA_RACK_PRIORITY_RULES.length}건 로드`);
-    appendDebug(`토트 상태 컬럼: ${allData.toteStatusColumn}`);
-    appendDebug(`총 지시 토트=${allData.totalDirectedTotes}, 유효 토트=${allData.totalEffectiveTotes}, 완료 토트=${allData.totalCompleteTotes}`);
-    appendDebug(`allocSku=${allData.allocSkuCount}, pickedSku=${allData.pickedSkuCount}, allocationRate=${fmtPct(allData.allocationRate)}`);
-    appendDebug(`cellMaster=${allData.cellMaster.length}, emptyCells=${allData.emptyCells.length}, assignedCells=${allData.assignedCells.length}`);
+    appendDebug(`총 지시 터치수=${allData.totalDirectedTouches}, 완료 터치수=${allData.totalCompleteTouches}`);
 
     if(!Object.keys(allData.wsMetrics).length){
       const msg='매핑된 작업대 결과가 없습니다. 작업대 또는 SKU 형식을 확인해 주세요.';
