@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.2 - Universal Soft Rules & Thermal Fix)
+ * QPS cell-allocation rule engine (V2.3 - E04-E06 Frozen & E07 IceCream Exclusive Rule)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -57,8 +57,7 @@
     const declared = text(cell && cell.temp);
     if (declared === 'chilled' || declared === 'frozen') return declared;
     const zone = text(cell && cell.zone);
-    // E07 등 냉장/냉동이 혼용될 수 있는 구역은 선언된 온도나 데이터 우선 반영
-    if (/^F(?:0[1-9]|1[0-2])$/.test(zone) || ['E04', 'E05', 'E06'].includes(zone)) return 'frozen';
+    if (/^F(?:0[1-9]|1[0-2])$/.test(zone) || ['E04', 'E05', 'E06', 'E07'].includes(zone)) return 'frozen';
     if (/^[A-D](?:0[1-9]|10)$/.test(zone) || zone === 'E03') return 'chilled';
     return 'chilled';
   }
@@ -274,17 +273,21 @@
     return (inRange(loc, 'D01-010101', 'D06-060505') || inRange(loc, 'D07-030101', 'D07-060505'));
   }
 
-  // ✨ 엄격한 전용 셀 제한을 모두 해제하고, 오직 필수(계란, 축산 법정 구역, 0~5도 등)만 최소한으로 유지합니다.
+  // ✨ E04~E06은 일반 냉동, E07은 오직 아이스크림 전용으로 엄격하게 분리합니다.
   function categoryZoneAllowed(cell, profile) {
     const zone = text(cell.zone), c = profile.category;
+    
     if (profile.temp === 'frozen' && !isFrozenDedicated(zone)) return { ok: false, reason: '냉동 상품은 냉동 전용 구역에 배치 필요' };
     if (profile.temp !== 'frozen' && isFrozenDedicated(zone)) return { ok: false, reason: '냉장/상온 상품은 냉동 전용 구역 제외' };
     
+    // E07 전용 규칙: 아이스크림은 E07에만, 반대로 일반 냉동 상품은 E07에 들어올 수 없음
+    if (c.iceCream && zone !== 'E07') return { ok: false, reason: '아이스크림류는 E07 전용 구역 배치 필요' };
+    if (!c.iceCream && zone === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 구역이므로 일반 냉동 상품 불가' };
+
     if (c.egg) return eggCellAllowed(cell, profile) ? { ok: true } : { ok: false, reason: '계란은 A08 전용 구역의 2~4단(행사 시 A09 예외)' };
     if (c.zeroToFive && !isChilledDedicated(zone)) return { ok: false, reason: '0~5℃ 보관 필요 품목은 D01~D02 권장' };
     if (c.livestock && !livestockCellAllowed(cell)) return { ok: false, reason: '축산물 법정 허가 구역 외' };
 
-    // 그 외 두부, 김치, 채소 등의 강제 전용 락(Lock)을 모두 제거하여 불필요한 이동 추천을 원천 차단합니다.
     return { ok: true };
   }
 
@@ -422,6 +425,11 @@
     
     if (rackFamily(candidate) === 'gate' && profile.outboundPcs < 100) return { ok: false, reason: '게이트랙은 출고 100pcs 이상 전용' };
 
+    // E07 전용 격리 평가
+    const c = profile.category;
+    if (c.iceCream && text(candidate.zone) !== 'E07') return { ok: false, reason: '아이스크림은 E07 전용' };
+    if (!c.iceCream && text(candidate.zone) === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 셀' };
+
     return { ok: true };
   }
 
@@ -429,6 +437,7 @@
     const reasons = sourceViolations.slice();
     const preferred = context.preferredFamilies;
     if (preferred.includes(rackFamily(target))) reasons.push(`${rackFamily(target) === 'gate' ? '게이트랙' : rackFamily(target) === 'flow' || rackFamily(target) === 'flat' ? '플로우랙' : '선반랙'} 권장 배치`);
+    if (profile.category.iceCream) reasons.push('E07 아이스크림 전용 구역 유지');
     if (profile.category.egg) reasons.push('계란 전용 A08 2~4단 및 규격별 구역');
     if (profile.category.zeroToFive) reasons.push('0~5℃ 보관 권장 품목');
     if (profile.vendor && vendorClusterScore(target, profile, context.vendorCounts) > 0) reasons.push('동일 업체 인접 구역 군집화');
@@ -550,6 +559,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.4.4-universal-fix' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.4.5-e07-exclusive' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
