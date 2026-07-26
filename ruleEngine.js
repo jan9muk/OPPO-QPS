@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.1 - 0~5C Refinement & B06-B10 Soft Rule Fix)
+ * QPS cell-allocation rule engine (V2.2 - Universal Soft Rules & Thermal Fix)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -52,14 +52,17 @@
   }
   function location(cell) { return text(cell && cell.location); }
   function inRange(value, from, to) { return value >= from && value <= to; }
+  
   function thermalClass(cell) {
     const declared = text(cell && cell.temp);
     if (declared === 'chilled' || declared === 'frozen') return declared;
     const zone = text(cell && cell.zone);
-    if (/^F(?:0[1-9]|1[0-2])$/.test(zone) || ['E04', 'E05', 'E06', 'E07'].includes(zone)) return 'frozen';
+    // E07 등 냉장/냉동이 혼용될 수 있는 구역은 선언된 온도나 데이터 우선 반영
+    if (/^F(?:0[1-9]|1[0-2])$/.test(zone) || ['E04', 'E05', 'E06'].includes(zone)) return 'frozen';
     if (/^[A-D](?:0[1-9]|10)$/.test(zone) || zone === 'E03') return 'chilled';
-    return 'unknown';
+    return 'chilled';
   }
+
   function levelOf(cell) {
     const suffix = location(cell).match(/(\d{6})$/);
     return suffix ? Number(suffix[1][3]) : null; 
@@ -92,10 +95,10 @@
       iceCream: matches(/아이스|빙과|빙수|파인트|샤베트|셔벗|젤라또|하드/),
       seafood: matches(/수산|생선|연어|고등어|갈치|참치|새우|오징어|문어|조개|전복|게|꽃게/),
       mincedMeat: matches(/다짐육|민찌|간고기|분쇄육/),
-      poultry: matches(/계육|닭고기|닭다리|닭가슴|오리고기|오리육|토종닭|치킨스테이크|안심|정육/), // 닭고기(계육) 정규식 정밀화
+      poultry: matches(/계육|닭고기|닭다리|닭가슴|오리고기|오리육|토종닭|치킨스테이크|안심|정육/),
       dairy: matches(/유제품|우유|치즈|요거트|요구르트|버터|생크림/),
       organic: matches(/유기농|친환경|올가닉|organic/),
-      produce: matches(/과일|채소|야채|사과|배|감귤|포도|딸기|토마토|오이|호박|양파|감자|고구마|상추|버섯|브로콜리|파프리카|대파|마늘/),
+      produce: matches(/과일|채소|야채|사과|배|감귤|포도|딸기|토마토|오이|호박|양파|감자|고구마|상추|버섯|브로콜리|파프리카|대파|마늘|파채/),
       dry: matches(/건식|상온|dry/),
       processedMeat: matches(/양념육|훈제|햄|소시지|베이컨/),
       deli: matches(/델리|디저트|반찬|즉석/),
@@ -105,7 +108,6 @@
     };
     category.livestock = category.mincedMeat || category.poultry || matches(/축산|소고기|돼지고기|한우|돈육|우육|갈비|목살|삼겹|육류/);
     
-    // ✨ 실무 기준 0~5℃ 보관 대상 재정의: 계육, 수산물, 다짐육, 혹은 '0~5℃ 이하'가 명시된 버터
     const isButterZeroToFive = matches(/버터/) && matches(/0\s*~\s*5|0~5도|0~5℃|이하\s*보관/);
     category.zeroToFive = category.poultry || category.seafood || category.mincedMeat || isButterZeroToFive;
 
@@ -272,38 +274,17 @@
     return (inRange(loc, 'D01-010101', 'D06-060505') || inRange(loc, 'D07-030101', 'D07-060505'));
   }
 
+  // ✨ 엄격한 전용 셀 제한을 모두 해제하고, 오직 필수(계란, 축산 법정 구역, 0~5도 등)만 최소한으로 유지합니다.
   function categoryZoneAllowed(cell, profile) {
     const zone = text(cell.zone), c = profile.category;
-    if (profile.temp === 'frozen' && !isFrozenDedicated(zone)) return { ok: false, reason: '냉동 상품은 E04~E07 또는 F존에만 배치' };
+    if (profile.temp === 'frozen' && !isFrozenDedicated(zone)) return { ok: false, reason: '냉동 상품은 냉동 전용 구역에 배치 필요' };
     if (profile.temp !== 'frozen' && isFrozenDedicated(zone)) return { ok: false, reason: '냉장/상온 상품은 냉동 전용 구역 제외' };
+    
     if (c.egg) return eggCellAllowed(cell, profile) ? { ok: true } : { ok: false, reason: '계란은 A08 전용 구역의 2~4단(행사 시 A09 예외)' };
-    
-    // ✨ 0~5도 보관 필요 품목은 D01~D02 전용 유지[cite: 2]
-    if (c.zeroToFive && !isChilledDedicated(zone)) return { ok: false, reason: '0~5℃ 보관 필요 품목(계육·수산·다짐육 등)은 D01~D02 전용' };
-    
-    if (c.tofu && zone !== 'C01') return { ok: false, reason: '두부류는 C01 전용' };
-    if (c.kimchi && zone !== 'C09') return { ok: false, reason: '김치류는 C09 플로우랙 전용' };
-    if (c.condiment && zone !== 'C08') return { ok: false, reason: '양념류는 C08 전용' };
-    if (c.mealKit && zone !== 'E03') return { ok: false, reason: '밀키트류는 E03 전용' };
-    if (c.iceCream && zone !== 'E07') return { ok: false, reason: '아이스크림류는 E07 전용' };
-    if (c.dry && zone !== 'A01') return { ok: false, reason: '건식품은 A01 전용' };
-    if (c.produce && !(CONFIG.productZones.produceA.has(zone) || CONFIG.productZones.produceB.has(zone) || zone === 'D10')) return { ok: false, reason: '과일·채소 허용 구역 외' };
-    
-    // ✨ B06~B10 구역은 전용 셀이 아니므로 하드 룰 규제(ok: false)를 제거하고 프리하게 풀어줍니다[cite: 2].
+    if (c.zeroToFive && !isChilledDedicated(zone)) return { ok: false, reason: '0~5℃ 보관 필요 품목은 D01~D02 권장' };
+    if (c.livestock && !livestockCellAllowed(cell)) return { ok: false, reason: '축산물 법정 허가 구역 외' };
 
-    if (CONFIG.productZones.produceA.has(zone) && !c.produce) return { ok: false, reason: 'A02~A07은 과일·채소 전용' };
-    // B06~B10 전용 제한 해제 (신규 상품 우선 검토 구역으로만 활용)
-    if (['D07', 'D08', 'D09'].includes(zone) && !(c.processedMeat || c.deli || c.wetBakery)) return { ok: false, reason: 'D07~D09는 양념·훈제육, 델리·반찬, WET 베이커리 전용' };
-    if (zone === 'D10' && !(c.produce || c.wetBakery)) return { ok: false, reason: 'D10은 지정 대량 출고 품목·WET 냉장 베이커리 전용' };
-
-    if (zone === 'A01' && !c.dry) return { ok: false, reason: 'A01은 건식품 전용' };
-    if (zone === 'A08') return { ok: false, reason: 'A08은 계란 전용' };
-    if (zone === 'C01' && !c.tofu) return { ok: false, reason: 'C01은 두부류 전용' };
-    if (zone === 'C08' && !c.condiment) return { ok: false, reason: 'C08은 양념류 전용' };
-    if (zone === 'C09' && !c.kimchi) return { ok: false, reason: 'C09은 김치류 전용' };
-    if (zone === 'E03' && !c.mealKit) return { ok: false, reason: 'E03은 밀키트류 전용' };
-    if (zone === 'E07' && !c.iceCream) return { ok: false, reason: 'E07은 아이스크림류 전용' };
-    if (isChilledDedicated(zone) && !c.zeroToFive) return { ok: false, reason: 'D01~D02는 0~5℃ 보관 필요 품목 전용' };
+    // 그 외 두부, 김치, 채소 등의 강제 전용 락(Lock)을 모두 제거하여 불필요한 이동 추천을 원천 차단합니다.
     return { ok: true };
   }
 
@@ -314,23 +295,10 @@
     const loc = location(cell), zone = text(cell.zone), level = levelOf(cell), family = rackFamily(cell);
     if (zone === 'A10' && CONFIG.a10OddCellsOnly && /[02468]$/.test(loc)) return { ok: false, reason: 'A10은 끝자리가 홀수인 셀만 사용' };
     if (zone === 'A10' && !a10Eligible(profile, profile.touch, profile.stock)) return { ok: false, reason: 'A10은 대량 출고·대량 재고 품목 우선' };
-    if (zone === 'C09' && family !== 'flow') return { ok: false, reason: 'C09는 플로우랙 전용' };
-    if (zone === 'C10' && family !== 'flow') return { ok: false, reason: 'C10은 플로우랙 전용' };
-    if (zone === 'C10' && !a10Eligible(profile, profile.touch, profile.stock)) return { ok: false, reason: 'C10은 상시 대량 출고 품목 우선' };
-    if (isFZone(zone) && family !== 'flow') return { ok: false, reason: 'F존은 냉동 플로우랙 전용' };
-    if (zone === 'D01' && family !== 'showcase') return { ok: false, reason: 'D01은 냉장쇼케이스 전용' };
-    if (zone === 'D02' && !((inRange(loc, 'D02-010101', 'D02-020108') && family === 'flat') || (inRange(loc, 'D02-030101', 'D02-060507') && family === 'showcase'))) return { ok: false, reason: 'D02 랙 구성 범위와 불일치' };
-    if (zone === 'E04' && !((inRange(loc, 'E04-010101', 'E04-060507') && family === 'showcase') || (inRange(loc, 'E04-070101', 'E04-080108') && family === 'flat'))) return { ok: false, reason: 'E04 랙 구성 범위와 불일치' };
-    if (['E05', 'E06', 'E07'].includes(zone) && family !== 'showcase') return { ok: false, reason: `${zone}은 냉동쇼케이스 전용` };
-    if (zone === 'B08' && family !== 'shelf') return { ok: false, reason: 'B08은 선반랙 전용' };
-    if (zone === 'C08' && family !== 'shelf') return { ok: false, reason: 'C08은 선반랙 전용' };
-    if (['D08', 'D09', 'D10'].includes(zone) && family !== 'shelf') return { ok: false, reason: `${zone}은 선반랙 전용` };
 
     if (profile.fragile && profile.category.frozenMeat && level !== 1) return { ok: false, reason: '낙손 우려 냉동 육류는 1단 배치' };
     if (!profile.fragile && profile.boxWeightG >= 7000 && profile.stock >= 50 && (family !== 'flow' || level !== 2)) return { ok: false, reason: '7kg 이상·재고 50PCS 이상은 플로우랙 2단' };
     if (!profile.fragile && profile.itemWeightG >= 500 && !(level === 1 || level === 2)) return { ok: false, reason: '500g 이상 낱개 상품은 1~2단' };
-    if (profile.isNew && profile.incomingBoxes >= 10 && !hasFamily(cell, ['flow', 'flat'])) return { ok: false, reason: '신규·입고 10Box 이상은 플로우랙' };
-    if (profile.isNew && profile.incomingBoxes > 0 && profile.incomingBoxes < 10 && !hasFamily(cell, ['shelf', 'showcase'])) return { ok: false, reason: '신규·입고 10Box 미만은 선반랙' };
     return { ok: true };
   }
 
@@ -347,10 +315,9 @@
   function violationReasons(cell, profile) {
     const a10MustMove = cell.zone === 'A10' && profile.touch < 100 && profile.stock <= 100 && profile.hasIncomingPlan && profile.noIncomingInTwoWeeks;
     if (a10MustMove) return ['A10 이동 기준 충족: 일 출고 100건 미만·재고 100PCS 이하·2주 입고 예정 없음'];
+    
     const category = categoryZoneAllowed(cell, profile);
     if (!category.ok) return [category.reason];
-    const physical = physicalCellAllowed(cell, profile);
-    if (!physical.ok) return [physical.reason];
     
     if (rackFamily(cell) === 'gate' && profile.outboundPcs < 100) return ['게이트랙 부적합 (일 출고 100pcs 미만)'];
 
@@ -367,8 +334,6 @@
   function desiredFamilies(profile, statistics) {
     if (profile.fragile && profile.category.frozenMeat) return ['shelf', 'showcase', 'flow'];
     if (profile.boxWeightG >= 7000 && profile.stock >= 50) return ['flow', 'flat'];
-    if (profile.isNew && profile.incomingBoxes >= 10) return ['flow', 'flat'];
-    if (profile.isNew && profile.incomingBoxes > 0 && profile.incomingBoxes < 10) return ['shelf', 'showcase'];
     if (profile.category.kimchi || profile.temp === 'frozen' && /^F/.test(profile.sourceZone || '')) return ['flow', 'flat'];
     
     const demand = percentile(profile.touch, statistics.touches);
@@ -377,7 +342,7 @@
     
     if (priority >= 0.75 && profile.outboundPcs >= 100) return ['gate'];
     if (priority >= 0.40) return ['flow', 'flat'];
-    return ['shelf', 'showcase'];
+    return ['shelf', 'showcase', 'flow'];
   }
 
   function familyScore(cell, preferred) {
@@ -433,7 +398,6 @@
     if (fNearWorkstation(candidate)) score += 55;
     if (isFZone(candidate.zone)) score += fTieOrder(candidate) * 2; 
     
-    // ✨ B06~B10 구역은 신규 상품 등의 우선 검토 구역으로 소프트 가점 부여[cite: 2]
     if (CONFIG.productZones.produceB.has(candidate.zone) && profile.isNew) {
       score += 40; 
     }
@@ -446,10 +410,6 @@
     const categoryCheck = categoryZoneAllowed(candidate, profile);
     if (!categoryCheck.ok) {
         score -= 200; 
-    }
-    const physicalCheck = physicalCellAllowed(candidate, profile);
-    if (!physicalCheck.ok) {
-        score -= 100; 
     }
 
     return { score, balance };
@@ -468,10 +428,9 @@
   function recommendationReasons(source, target, profile, context, sourceViolations, scoreInfo) {
     const reasons = sourceViolations.slice();
     const preferred = context.preferredFamilies;
-    if (preferred.includes(rackFamily(target))) reasons.push(`${rackFamily(target) === 'gate' ? '게이트랙' : rackFamily(target) === 'flow' || rackFamily(target) === 'flat' ? '플로우랙' : '선반랙'} 우선 배치`);
+    if (preferred.includes(rackFamily(target))) reasons.push(`${rackFamily(target) === 'gate' ? '게이트랙' : rackFamily(target) === 'flow' || rackFamily(target) === 'flat' ? '플로우랙' : '선반랙'} 권장 배치`);
     if (profile.category.egg) reasons.push('계란 전용 A08 2~4단 및 규격별 구역');
-    if (profile.category.zeroToFive) reasons.push('0~5℃ 보관 필요 품목(계육·수산·다짐육)');
-    if (profile.category.livestock) reasons.push('축산물 법정 허가 구역');
+    if (profile.category.zeroToFive) reasons.push('0~5℃ 보관 권장 품목');
     if (profile.vendor && vendorClusterScore(target, profile, context.vendorCounts) > 0) reasons.push('동일 업체 인접 구역 군집화');
     if (scoreInfo.balance.score > 1) reasons.push('W/S 터치수 편차 완화');
     if (fNearWorkstation(target)) reasons.push('F존 W/S 인접 셀 우선');
@@ -576,7 +535,7 @@
         currentCell: location(source),
         currentRack: text(source.rackType) || rackFamily(source),
         currentRank: FAMILY_RANK[rackFamily(source)] || 9,
-        targetRack: target ? (text(target.rackType) || rackFamily(target)) : '적합 공셀 없음',
+        targetRack: target ? (text(target.rackType) || rackFamily(source)) : '적합 공셀 없음',
         targetCell: target ? location(target) : '-',
         reason: target
           ? recommendationReasons(source, target, profile, context, sourceViolations, best.scoreInfo)
@@ -591,6 +550,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.4.3-poultry-fix' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.4.4-universal-fix' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
