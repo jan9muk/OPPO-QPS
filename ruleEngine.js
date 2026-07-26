@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (Soft-Rule + Performance Optimized)
+ * QPS cell-allocation rule engine (Soft-Rule + Ultra Performance Optimized)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -331,7 +331,6 @@
     return Math.max(-80, 35 - Math.abs((FAMILY_RANK[family] || 9) - preferredRank) * 45);
   }
 
-  // ✨ 최적화 1: 객체 배열을 사용하지 않고 사전 계산된 인덱스 기반으로 밸런스 연산 O(N) 최적화
   function balanceStats(context, sourceWs, targetWs, touch) {
     if (!context.wsCount || !sourceWs || !targetWs || sourceWs === targetWs) return { before: 0, after: 0, score: 0, compliant: true };
     let maxBefore = 0, maxAfter = 0;
@@ -363,7 +362,6 @@
     return result;
   }
 
-  // ✨ 최적화 2: 1만 개 배열을 순회하던 로직을 O(1) 캐시 조회로 변경
   function vendorClusterScore(candidate, profile, vendorCounts) {
     if (!profile.vendor || !vendorCounts[profile.vendor]) return 0;
     const count = vendorCounts[profile.vendor][candidate.zone] || 0;
@@ -379,7 +377,7 @@
     if (fNearWorkstation(candidate)) score += 55;
     if (isFZone(candidate.zone)) score += fTieOrder(candidate) * 2; 
     
-    score += vendorClusterScore(candidate, profile, context.vendorCounts); // 최적화된 캐시 적용
+    score += vendorClusterScore(candidate, profile, context.vendorCounts);
     
     const balance = balanceStats(context, source.ws, candidate.ws, profile.touch);
     score += balance.score;
@@ -396,7 +394,6 @@
     return { score, balance };
   }
 
-  // 하드 룰 (절대 조건) 필터링
   function candidateEvaluation(candidate, source, profile) {
     if (thermalClass(candidate) !== thermalClass(source)) return { ok: false, reason: '온도대 불일치' };
     if (CONFIG.disabledZones.has(text(candidate.zone))) return { ok: false, reason: 'E01~E02는 셀 할당 금지 구역' };
@@ -417,15 +414,42 @@
     return Array.from(new Set(reasons)).join(' · ');
   }
 
+  // ✨ 핵심 최적화 함수: 수천 개의 동일한 속성을 가진 빈 셀들을 1개로 압축합니다.
+  function getRepresentativeEmptyCells(emptyCells) {
+    const reps = [];
+    const sigSet = new Set();
+    for (let i = 0; i < emptyCells.length; i++) {
+      const cell = emptyCells[i];
+      const family = rackFamily(cell);
+      const level = levelOf(cell);
+      const isBack = isBackSpaceLimited(cell);
+      const isRemote = isRemoteShelf(cell);
+      const fNear = fNearWorkstation(cell);
+      const fTie = fTieOrder(cell);
+      
+      // 점수에 영향을 미치는 모든 속성으로 '고유 서명(Signature)' 생성
+      const sig = `${cell.zone}|${cell.ws || 'none'}|${family}|${level}|${isBack}|${isRemote}|${fNear}|${fTie}`;
+      
+      if (!sigSet.has(sig)) {
+        sigSet.add(sig);
+        reps.push(cell); // 중복되지 않는 대표 셀만 배열에 추가
+      }
+    }
+    return reps;
+  }
+
   function recommend(allData) {
     if (!allData || !Array.isArray(allData.assignedCells) || !Array.isArray(allData.emptyCells)) return [];
+    
+    // ✨ 수만 개의 빈 셀 대신 수백 개의 '대표 빈 셀'만 순회하도록 변경
+    const representativeEmptyCells = getRepresentativeEmptyCells(allData.emptyCells);
+    
     const profiles = buildProfiles(allData);
     const statistics = {
       touches: allData.assignedCells.map((cell) => allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0),
       stocks: allData.assignedCells.map((cell) => number(cell.stock))
     };
     
-    // ✨ 작업대 및 업체 사전 캐싱 처리 (퍼포먼스 향상의 핵심)
     const wsTouchMetrics = buildWsTouchMetrics(allData);
     const wsMetricsArray = Object.entries(wsTouchMetrics || {}).filter(([ws]) => ws).map(([ws, m]) => ({ ws, pcs: number(m.pcs) }));
     let wsTotalPcs = 0;
@@ -444,6 +468,7 @@
 
     const recommendations = [];
     const seen = new Set();
+    const activeSources = [];
 
     for (const source of allData.assignedCells) {
       if (!source.sku || seen.has(source.sku) || !['chilled', 'frozen'].includes(thermalClass(source))) continue;
@@ -451,6 +476,14 @@
       const profile = productProfileFor(source, profiles, allData);
       if (profile.touch <= 0 && profile.outboundPcs <= 0) continue;
       profile.sourceZone = source.zone;
+      activeSources.push({ source, profile });
+    }
+
+    // ✨ 핵심 최적화 로직: 터치수 순으로 정렬 후 상위 1,500개만 필터링하여 연산 부하 극적 감소
+    activeSources.sort((a, b) => b.profile.touch - a.profile.touch);
+    const sourcesToProcess = activeSources.slice(0, 1500);
+
+    for (const { source, profile } of sourcesToProcess) {
       const preferredFamilies = desiredFamilies(profile, statistics);
       const sourceViolations = violationReasons(source, profile);
       
@@ -458,7 +491,8 @@
       const sourceScore = targetScore(source, source, profile, context).score;
       const candidates = [];
 
-      for (const candidate of allData.emptyCells) {
+      // 기존 allData.emptyCells 대신 수백 개로 압축된 representativeEmptyCells 사용
+      for (const candidate of representativeEmptyCells) {
         const evaluation = candidateEvaluation(candidate, source, profile);
         if (!evaluation.ok) continue; 
         const scoreInfo = targetScore(candidate, source, profile, context);
@@ -493,11 +527,12 @@
         improvement: best ? best.scoreInfo.score - sourceScore : -999
       });
     }
+    
     return recommendations
       .sort((a, b) => (b.mandatory - a.mandatory) || (b.improvement - a.improvement) || (b.toteCount - a.toteCount) || (b.pcs - a.pcs))
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.2.0-optimized' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.3.0-ultra-fast' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
