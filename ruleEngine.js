@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2 - MetaData Caching + Ultra Fast + Hard Rules + IceCream Fix)
+ * QPS cell-allocation rule engine (V2.1 - 0~5C Refinement & B06-B10 Soft Rule Fix)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -80,8 +80,7 @@
   }
 
   function categorize(profile) {
-    // 상품명과 중분류(group) 컬럼을 하나로 합쳐서 검사합니다.
-    const source = `${profile.name} ${profile.group}`.toLowerCase();
+    const source = `${profile.name} ${profile.group} ${profile.storage}`.toLowerCase();
     const matches = (regexp) => regexp.test(source);
     
     const category = {
@@ -90,11 +89,10 @@
       kimchi: matches(/김치/),
       condiment: matches(/된장|쌈장|고추장|양념장|소스|드레싱/),
       mealKit: matches(/밀키트|meal\s*kit/),
-      // ✨ 아이스크림 판별 사전(정규식) 대폭 확장 ✨
       iceCream: matches(/아이스|빙과|빙수|파인트|샤베트|셔벗|젤라또|하드/),
       seafood: matches(/수산|생선|연어|고등어|갈치|참치|새우|오징어|문어|조개|전복|게|꽃게/),
       mincedMeat: matches(/다짐육|민찌|간고기|분쇄육/),
-      poultry: matches(/계육|닭고기|닭다리|닭가슴|오리고기|오리육/),
+      poultry: matches(/계육|닭고기|닭다리|닭가슴|오리고기|오리육|토종닭|치킨스테이크|안심|정육/), // 닭고기(계육) 정규식 정밀화
       dairy: matches(/유제품|우유|치즈|요거트|요구르트|버터|생크림/),
       organic: matches(/유기농|친환경|올가닉|organic/),
       produce: matches(/과일|채소|야채|사과|배|감귤|포도|딸기|토마토|오이|호박|양파|감자|고구마|상추|버섯|브로콜리|파프리카|대파|마늘/),
@@ -106,7 +104,11 @@
       seasonal: matches(/시즌|명절|행사|대량/)
     };
     category.livestock = category.mincedMeat || category.poultry || matches(/축산|소고기|돼지고기|한우|돈육|우육|갈비|목살|삼겹|육류/);
-    category.zeroToFive = category.seafood || category.mincedMeat || category.poultry || (category.dairy && /0\s*[~〜-]\s*5|0to5/.test(source));
+    
+    // ✨ 실무 기준 0~5℃ 보관 대상 재정의: 계육, 수산물, 다짐육, 혹은 '0~5℃ 이하'가 명시된 버터
+    const isButterZeroToFive = matches(/버터/) && matches(/0\s*~\s*5|0~5도|0~5℃|이하\s*보관/);
+    category.zeroToFive = category.poultry || category.seafood || category.mincedMeat || isButterZeroToFive;
+
     return category;
   }
 
@@ -118,7 +120,7 @@
       sku: ['물류상품ID', 'SKU', '상품ID', 'productid'],
       name: ['물류상품명', '상품명', '품명', 'productname'],
       vendor: OPTIONAL_FIELDS.vendor,
-      group: OPTIONAL_FIELDS.group, // 엑셀의 '중분류' 컬럼을 여기서 매핑합니다.
+      group: OPTIONAL_FIELDS.group,
       boxWeight: OPTIONAL_FIELDS.boxWeight,
       itemWeight: OPTIONAL_FIELDS.itemWeight,
       incomingBoxes: OPTIONAL_FIELDS.incomingBoxes,
@@ -275,7 +277,10 @@
     if (profile.temp === 'frozen' && !isFrozenDedicated(zone)) return { ok: false, reason: '냉동 상품은 E04~E07 또는 F존에만 배치' };
     if (profile.temp !== 'frozen' && isFrozenDedicated(zone)) return { ok: false, reason: '냉장/상온 상품은 냉동 전용 구역 제외' };
     if (c.egg) return eggCellAllowed(cell, profile) ? { ok: true } : { ok: false, reason: '계란은 A08 전용 구역의 2~4단(행사 시 A09 예외)' };
-    if (c.zeroToFive && !isChilledDedicated(zone)) return { ok: false, reason: '0~5℃ 보관 필요 품목은 D01~D02' };
+    
+    // ✨ 0~5도 보관 필요 품목은 D01~D02 전용 유지[cite: 2]
+    if (c.zeroToFive && !isChilledDedicated(zone)) return { ok: false, reason: '0~5℃ 보관 필요 품목(계육·수산·다짐육 등)은 D01~D02 전용' };
+    
     if (c.tofu && zone !== 'C01') return { ok: false, reason: '두부류는 C01 전용' };
     if (c.kimchi && zone !== 'C09') return { ok: false, reason: '김치류는 C09 플로우랙 전용' };
     if (c.condiment && zone !== 'C08') return { ok: false, reason: '양념류는 C08 전용' };
@@ -283,10 +288,11 @@
     if (c.iceCream && zone !== 'E07') return { ok: false, reason: '아이스크림류는 E07 전용' };
     if (c.dry && zone !== 'A01') return { ok: false, reason: '건식품은 A01 전용' };
     if (c.produce && !(CONFIG.productZones.produceA.has(zone) || CONFIG.productZones.produceB.has(zone) || zone === 'D10')) return { ok: false, reason: '과일·채소 허용 구역 외' };
-    if ((c.dairy || c.organic) && !CONFIG.productZones.produceB.has(zone) && !c.zeroToFive) return { ok: false, reason: '유제품·친환경 상품은 B06~B10 우선 구역' };
+    
+    // ✨ B06~B10 구역은 전용 셀이 아니므로 하드 룰 규제(ok: false)를 제거하고 프리하게 풀어줍니다[cite: 2].
 
     if (CONFIG.productZones.produceA.has(zone) && !c.produce) return { ok: false, reason: 'A02~A07은 과일·채소 전용' };
-    if (CONFIG.productZones.produceB.has(zone) && !(c.produce || c.dairy || c.organic)) return { ok: false, reason: 'B06~B10은 채소·유제품·친환경 상품 전용' };
+    // B06~B10 전용 제한 해제 (신규 상품 우선 검토 구역으로만 활용)
     if (['D07', 'D08', 'D09'].includes(zone) && !(c.processedMeat || c.deli || c.wetBakery)) return { ok: false, reason: 'D07~D09는 양념·훈제육, 델리·반찬, WET 베이커리 전용' };
     if (zone === 'D10' && !(c.produce || c.wetBakery)) return { ok: false, reason: 'D10은 지정 대량 출고 품목·WET 냉장 베이커리 전용' };
 
@@ -427,6 +433,11 @@
     if (fNearWorkstation(candidate)) score += 55;
     if (isFZone(candidate.zone)) score += fTieOrder(candidate) * 2; 
     
+    // ✨ B06~B10 구역은 신규 상품 등의 우선 검토 구역으로 소프트 가점 부여[cite: 2]
+    if (CONFIG.productZones.produceB.has(candidate.zone) && profile.isNew) {
+      score += 40; 
+    }
+
     score += vendorClusterScore(candidate, profile, context.vendorCounts);
     
     const balance = balanceStats(context, source.ws, candidate.ws, profile.touch);
@@ -459,7 +470,7 @@
     const preferred = context.preferredFamilies;
     if (preferred.includes(rackFamily(target))) reasons.push(`${rackFamily(target) === 'gate' ? '게이트랙' : rackFamily(target) === 'flow' || rackFamily(target) === 'flat' ? '플로우랙' : '선반랙'} 우선 배치`);
     if (profile.category.egg) reasons.push('계란 전용 A08 2~4단 및 규격별 구역');
-    if (profile.category.zeroToFive) reasons.push('0~5℃ 보관 필요 품목 D01~D02');
+    if (profile.category.zeroToFive) reasons.push('0~5℃ 보관 필요 품목(계육·수산·다짐육)');
     if (profile.category.livestock) reasons.push('축산물 법정 허가 구역');
     if (profile.vendor && vendorClusterScore(target, profile, context.vendorCounts) > 0) reasons.push('동일 업체 인접 구역 군집화');
     if (scoreInfo.balance.score > 1) reasons.push('W/S 터치수 편차 완화');
@@ -580,6 +591,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.4.2-icecream-fix' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.4.3-poultry-fix' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
