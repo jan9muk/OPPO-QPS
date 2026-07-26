@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>QPS RAW 대시보드 v8.5.0</title>
+<title>QPS RAW 대시보드 v8.5.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -23,7 +23,7 @@ body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;backgrou
 .aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}
 .zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}
 .spark-stack{display:grid;gap:10px}
-.spark-row{display:grid;grid-template-columns:72px 1fr 120px;gap:8px;align-items:center;min-height:64px}
+.spark-row{display:grid;grid-template-columns:72px 1fr 100px;gap:8px;align-items:center;min-height:64px}
 .spark-row.blank{display:none}
 .ws-label{font-size:13px;font-weight:700;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .spark-metrics{display:grid;gap:6px}
@@ -49,7 +49,7 @@ th{background:#f8fafc}
 <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
 
 <div class="card">
-  <div class="title">QPS RAW 대시보드 v8.5.0</div>
+  <div class="title">QPS RAW 대시보드 v8.5.1</div>
   <div class="subtitle">노드 터치수(SKU) 최우선 기반 진척률 + 병목 모니터링 적용</div>
 </div>
 
@@ -74,7 +74,7 @@ th{background:#f8fafc}
   <div class="zones" id="zonesArea"></div>
 
   <div class="card">
-    <div class="subhead">셀 이동 추천 (고빈도 우선)</div>
+    <div class="subhead">셀 이동 추천</div>
     <table>
       <thead>
         <tr>
@@ -240,7 +240,6 @@ function buildAllData(boxRows,cellRows){
   const assignedCells=[];
   const emptyCells=[];
   
-  // 1. 셀할당현황 분석 및 W/S 맵핑
   for(const row of cellRows){
     const ws=normalizeWs(row['작업대']);
     const sku=normalizeSku(row['물류상품ID']);
@@ -271,7 +270,6 @@ function buildAllData(boxRows,cellRows){
     }
   }
 
-  // 2. 박스상품 데이터를 [토트+SKU] = '노드 터치' 단위로 압축
   const touchMap = new Map();
   for(const row of boxRows){
     const sku=normalizeSku(row['물류상품ID']);
@@ -281,7 +279,6 @@ function buildAllData(boxRows,cellRows){
     const pcs=toNumber(row['피킹지시수량']);
     const status=String(statusCol ? row[statusCol] : '').trim();
     
-    // 취소 결품 데이터는 터치에서 제외
     if(EXCLUDE_STATUS.includes(status)) continue;
 
     if(!skuMeta.has(sku)) skuMeta.set(sku,{name:getProductName(row)});
@@ -296,7 +293,6 @@ function buildAllData(boxRows,cellRows){
     const entry = touchMap.get(key);
     entry.pcs += pcs;
     
-    // 하나의 터치(주문) 안에서 일부 수량이라도 피킹 완료가 안되었다면 미완료 처리
     if(!COMPLETE_STATUS.includes(status)) {
       entry.isComplete = false;
     }
@@ -307,7 +303,6 @@ function buildAllData(boxRows,cellRows){
     }
   }
 
-  // 3. W/S별 터치 지표 산출
   let totalDirectedTouches = 0, totalCompleteTouches = 0;
   for(const [key, entry] of touchMap.entries()){
     const [toteKey] = key.split('||');
@@ -443,7 +438,7 @@ function drawScreen(allData){
                   <div class="spark-track"><div class="spark-fill" style="width:${progressWidth}%;background:${progBarColor};"></div></div>
                 </div>
               </div>
-              <div class="spark-value">터치 ${fmt(touch)}<br>토트 ${fmt(tote)}<br><span style="color:#ef4444">${pcsPT.toFixed(1)} pcs/t</span></div>
+              <div class="spark-value">터치 ${fmt(touch)}<br>진척 <b style="color:#2563eb">${fmtPct(progress)}</b><br><span style="color:#ef4444">${pcsPT.toFixed(1)} pcs/t</span></div>
             </div>
           `;
         }).join('')
