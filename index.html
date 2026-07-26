@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>QPS RAW 대시보드 v8.5.2</title>
+<title>QPS RAW 대시보드 v8.5.3</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -53,7 +53,7 @@ th{background:#f8fafc}
 <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
 
 <div class="card">
-  <div class="title">QPS RAW 대시보드 v8.5.2</div>
+  <div class="title">QPS RAW 대시보드 v8.5.3</div>
   <div class="subtitle">노드 터치수(SKU) 최우선 기반 진척률 + 병목 모니터링 적용</div>
 </div>
 
@@ -85,7 +85,7 @@ th{background:#f8fafc}
     <table>
       <thead>
         <tr>
-          <th>순번</th><th>SKU</th><th>상품명</th><th>PCS</th><th>토트 유입수</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>현재 우선순위</th><th>권장 랙</th><th>추천 셀</th><th>사유</th><th>관리</th>
+          <th>순번</th><th>SKU</th><th>상품명</th><th>PCS</th><th>현 재고</th><th>토트 유입수</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>현재 우선순위</th><th>권장 랙</th><th>추천 셀</th><th>사유</th><th>관리</th>
         </tr>
       </thead>
       <tbody id="recommendBody"></tbody>
@@ -470,12 +470,12 @@ function drawScreen(allData){
   const recs=buildRecommendations(allData);
   const ignoredSkus = new Set(JSON.parse(localStorage.getItem('qps_ignored_skus') || '[]'));
   
-  // 패스된 항목은 필터링하고 최대 20개만 테이블에 렌더링
   const displayRecs = recs.filter(r => !ignoredSkus.has(r.sku)).slice(0, 20);
 
+  // ✨ 테이블 컬럼에 현 재고량(stock) 렌더링 추가
   $('#recommendBody').innerHTML=
-    displayRecs.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.pcs)}</td><td>${fmt(r.toteCount)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill ${r.currentRank<=2?'bad':''}">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('')
-    || '<tr><td colspan="13">추천 결과 없음</td></tr>';
+    displayRecs.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.pcs)}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill ${r.currentRank<=2?'bad':''}">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('')
+    || '<tr><td colspan="14">추천 결과 없음</td></tr>';
 
   const boxInfo=boxMeta?`${boxMeta.fileName} / 시트: ${boxMeta.sheetName||'미탐지'}`:'-';
   const cellInfo=cellMeta?`${cellMeta.fileName} / 시트: ${cellMeta.sheetName||'미탐지'}`:'-';
@@ -511,7 +511,7 @@ async function tryBuild(){
     if(err2){setStatus(err2,true);appendDebug(err2);return;}
 
     const allData=buildAllData(boxRows,cellRows);
-    window.qpsAllData = allData; // 전역 객체에 저장
+    window.qpsAllData = allData; 
     appendDebug(`총 지시 터치수=${allData.totalDirectedTouches}, 완료 터치수=${allData.totalCompleteTouches}`);
 
     if(!Object.keys(allData.wsMetrics).length){
