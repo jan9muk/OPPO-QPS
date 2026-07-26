@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.3 - E04-E06 Frozen & E07 IceCream Exclusive Rule)
+ * QPS cell-allocation rule engine (V2.5 - Metadata Merge Fix & Strict Regex)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -91,10 +91,11 @@
       kimchi: matches(/김치/),
       condiment: matches(/된장|쌈장|고추장|양념장|소스|드레싱/),
       mealKit: matches(/밀키트|meal\s*kit/),
-      iceCream: matches(/아이스|빙과|빙수|파인트|샤베트|셔벗|젤라또|하드/),
+      iceCream: matches(/아이스|빙과|빙수|파인트|샤베트|셔벗|젤라또|하드|빠삐코|스크류바|메로나|돼지바|싸만코|설레임|셀렉션|월드콘|죠스바|요맘때|비비빅|티코|구구|라라스윗|멀티바|더위사냥|투게더|붕어싸만코|빵빠레|초코퍼지|쿠앤크|엔초|옥동자|와일드바디|누가바|탱크보이|폴라포|끌레도르/),
       seafood: matches(/수산|생선|연어|고등어|갈치|참치|새우|오징어|문어|조개|전복|게|꽃게/),
       mincedMeat: matches(/다짐육|민찌|간고기|분쇄육/),
-      poultry: matches(/계육|닭고기|닭다리|닭가슴|오리고기|오리육|토종닭|치킨스테이크|안심|정육/),
+      // ✨ 가공식품(치킨까스 등)과 소고기(안심)가 걸리지 않도록 순수 날생육(계육)만 타겟팅
+      poultry: matches(/계육|닭고기|닭다리|닭가슴|오리고기|오리육|토종닭|생닭|절단육/),
       dairy: matches(/유제품|우유|치즈|요거트|요구르트|버터|생크림/),
       organic: matches(/유기농|친환경|올가닉|organic/),
       produce: matches(/과일|채소|야채|사과|배|감귤|포도|딸기|토마토|오이|호박|양파|감자|고구마|상추|버섯|브로콜리|파프리카|대파|마늘|파채/),
@@ -160,6 +161,7 @@
     
     const skuProfileData = new Map();
 
+    // ✨ 데이터 병합(Merge) 버그 완벽 수정: 기존 데이터가 있으면 보존하면서 없는 데이터만 채워넣음
     function extractMetadata(rows, map) {
       if (!map.sku) return;
       for (let i = 0; i < rows.length; i++) {
@@ -167,21 +169,20 @@
         const sku = skuId(row[map.sku]);
         if (!sku) continue;
         
-        if (!skuProfileData.has(sku)) {
-          skuProfileData.set(sku, {
-            name: text(row[map.name]),
-            group: text(row[map.group]),
-            vendor: text(row[map.vendor]),
-            boxWeightRaw: text(row[map.boxWeight]),
-            itemWeightRaw: text(row[map.itemWeight]),
-            incomingBoxes: number(row[map.incomingBoxes]),
-            incomingPlan: text(row[map.incomingPlan]),
-            isNew: yes(row[map.isNew]),
-            fragile: yes(row[map.fragile]),
-            event: yes(row[map.event]),
-            storage: text(row[map.storage])
-          });
-        }
+        const existing = skuProfileData.get(sku) || {};
+        skuProfileData.set(sku, {
+          name: text(row[map.name]) || existing.name,
+          group: text(row[map.group]) || existing.group,
+          vendor: text(row[map.vendor]) || existing.vendor,
+          boxWeightRaw: text(row[map.boxWeight]) || existing.boxWeightRaw,
+          itemWeightRaw: text(row[map.itemWeight]) || existing.itemWeightRaw,
+          incomingBoxes: number(row[map.incomingBoxes]) || existing.incomingBoxes,
+          incomingPlan: text(row[map.incomingPlan]) || existing.incomingPlan,
+          isNew: yes(row[map.isNew]) || existing.isNew,
+          fragile: yes(row[map.fragile]) || existing.fragile,
+          event: yes(row[map.event]) || existing.event,
+          storage: text(row[map.storage]) || existing.storage
+        });
       }
     }
 
@@ -273,14 +274,12 @@
     return (inRange(loc, 'D01-010101', 'D06-060505') || inRange(loc, 'D07-030101', 'D07-060505'));
   }
 
-  // ✨ E04~E06은 일반 냉동, E07은 오직 아이스크림 전용으로 엄격하게 분리합니다.
   function categoryZoneAllowed(cell, profile) {
     const zone = text(cell.zone), c = profile.category;
     
     if (profile.temp === 'frozen' && !isFrozenDedicated(zone)) return { ok: false, reason: '냉동 상품은 냉동 전용 구역에 배치 필요' };
     if (profile.temp !== 'frozen' && isFrozenDedicated(zone)) return { ok: false, reason: '냉장/상온 상품은 냉동 전용 구역 제외' };
     
-    // E07 전용 규칙: 아이스크림은 E07에만, 반대로 일반 냉동 상품은 E07에 들어올 수 없음
     if (c.iceCream && zone !== 'E07') return { ok: false, reason: '아이스크림류는 E07 전용 구역 배치 필요' };
     if (!c.iceCream && zone === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 구역이므로 일반 냉동 상품 불가' };
 
@@ -425,7 +424,6 @@
     
     if (rackFamily(candidate) === 'gate' && profile.outboundPcs < 100) return { ok: false, reason: '게이트랙은 출고 100pcs 이상 전용' };
 
-    // E07 전용 격리 평가
     const c = profile.category;
     if (c.iceCream && text(candidate.zone) !== 'E07') return { ok: false, reason: '아이스크림은 E07 전용' };
     if (!c.iceCream && text(candidate.zone) === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 셀' };
@@ -559,6 +557,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.4.5-e07-exclusive' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.5.0-cache-buster' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
