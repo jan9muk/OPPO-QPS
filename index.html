@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>QPS RAW 대시보드 v8.3.1</title>
+<title>QPS RAW 대시보드 v8.4.0</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -51,8 +51,8 @@ th{background:#f8fafc}
 <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
 
 <div class="card">
-  <div class="title">QPS RAW 대시보드 v8.3.1</div>
-  <div class="subtitle">토트 기반 유입/완료/진척률 + 셀 이동 추천</div>
+  <div class="title">QPS RAW 대시보드 v8.4.0</div>
+  <div class="subtitle">토트 유입수(빈도) 기반 최적화 및 랙 추천 엔진 적용</div>
 </div>
 
 <div class="card">
@@ -76,7 +76,7 @@ th{background:#f8fafc}
   <div class="zones" id="zonesArea"></div>
 
   <div class="card">
-    <div class="subhead">셀 이동 추천</div>
+    <div class="subhead">셀 이동 추천 (고빈도 우선)</div>
     <table>
       <thead>
         <tr>
@@ -553,16 +553,16 @@ function getRankForRack(temp,rackType){
   if(!rules) return 999;
   return rules.rackPriority[rackType] ?? 999;
 }
-function percentileRank(pcs,sorted){
+function percentileRank(value,sorted){
   if(!sorted.length) return 0;
-  const idx=sorted.findIndex(v=>pcs>=v);
+  const idx=sorted.findIndex(v=>value>=v);
   const pos=idx===-1?sorted.length-1:idx;
   return 1-(pos/sorted.length);
 }
-function idealRankForPcs(temp,pcs,sorted){
+function idealRankForValue(temp,value,sorted){
   const rules=SLOT_RULES[temp];
   if(!rules) return 999;
-  const pct=percentileRank(pcs,sorted);
+  const pct=percentileRank(value,sorted);
   for(const rule of rules.idealRankByPercentile){
     if(pct>=rule.minPct) return rule.rank;
   }
@@ -589,14 +589,21 @@ function findCandidateCell(sourceCell,targetRank,allData){
   }).sort((a,b)=>scoreCandidateCell(b,sourceCell)-scoreCandidateCell(a,sourceCell));
   return candidates[0]||null;
 }
+
+/* 
+ * [고도화 반영] : 피킹 수량(PCS)이 아닌 토트 유입수(Hit Rate/빈도)를 
+ * 기준으로 상품의 백분위를 산정하고 추천 랙을 결정합니다.
+ */
 function buildRecommendations(allData){
-  const byTempPcs={chilled:[],frozen:[]};
+  const byTempTotes={chilled:[],frozen:[]};
+  
   for(const cell of allData.assignedCells){
-    const pcs=allData.skuToPcs.get(cell.sku)||0;
-    if(cell.temp==='chilled'||cell.temp==='frozen') byTempPcs[cell.temp].push(pcs);
+    const totes=allData.skuToToteCount.get(cell.sku)||0;
+    if(cell.temp==='chilled'||cell.temp==='frozen') byTempTotes[cell.temp].push(totes);
   }
-  byTempPcs.chilled.sort((a,b)=>b-a);
-  byTempPcs.frozen.sort((a,b)=>b-a);
+  // 토트 유입수 기준 내림차순 정렬
+  byTempTotes.chilled.sort((a,b)=>b-a);
+  byTempTotes.frozen.sort((a,b)=>b-a);
 
   const recs=[], seenSku=new Set();
   for(const cell of allData.assignedCells){
@@ -607,12 +614,16 @@ function buildRecommendations(allData){
     const pcs=allData.skuToPcs.get(sku)||0;
     const toteCount=allData.skuToToteCount.get(sku)||0;
     const temp=cell.temp;
-    if(pcs<=0||(temp!=='chilled'&&temp!=='frozen')) continue;
+    
+    // 유입 토트가 없으면 추천 대상에서 제외
+    if(toteCount<=0||(temp!=='chilled'&&temp!=='frozen')) continue;
 
     const productName=cell.productName||allData.skuMeta.get(sku)?.name||'';
     const currentRack=classifyRack(cell);
     const currentRank=getRankForRack(temp,currentRack);
-    const idealRank=idealRankForPcs(temp,pcs,byTempPcs[temp]);
+    
+    // 토트 유입수 기반으로 이상적인 우선순위 랙 산정
+    const idealRank=idealRankForValue(temp,toteCount,byTempTotes[temp]);
 
     if(currentRank>idealRank){
       let targetCell=null;
@@ -627,10 +638,10 @@ function buildRecommendations(allData){
         currentRank,
         targetRack:targetCell?classifyRack(targetCell):`우선순위 ${idealRank} 랙`,
         targetCell:targetCell?targetCell.location:'적정 공셀 없음',
-        reason:'고출고 SKU가 상대적으로 낮은 우선순위 랙에 배치됨'
+        reason:'고빈도(토트 유입 상위) SKU가 낮은 우선순위 랙에 배치됨'
       });
     }else if(currentRank<=2){
-      const pct=percentileRank(pcs,byTempPcs[temp]);
+      const pct=percentileRank(toteCount,byTempTotes[temp]);
       if(pct<0.20){
         recs.push({
           sku, productName, pcs, toteCount, temp,
@@ -639,12 +650,13 @@ function buildRecommendations(allData){
           currentRank,
           targetRack:'하위 우선 랙 검토',
           targetCell:'-',
-          reason:'저출고 SKU가 상위 우선 랙을 점유 중'
+          reason:'저빈도 SKU가 상위 우선 랙을 점유 중'
         });
       }
     }
   }
 
+  // 노출 순서: 1순위(토트 유입수 많은 순), 2순위(PCS 많은 순)
   recs.sort((a,b)=>(b.toteCount-a.toteCount)||(b.pcs-a.pcs));
   return recs.slice(0,20);
 }
