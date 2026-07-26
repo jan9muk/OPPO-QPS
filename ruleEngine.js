@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.6 - Strict Middle Category & Exact Group Matching)
+ * QPS cell-allocation rule engine (V2.7 - Frozen Exception & Wording)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -9,7 +9,7 @@
 
   const CONFIG = {
     wsDeviation: 0.10,
-    maxRecommendations: 20,
+    maxRecommendations: 100, // 패스 기능을 고려하여 엔진이 넉넉히 100개를 추출하도록 상향
     disabledZones: new Set(['E01', 'E02']),
     a10OddCellsOnly: true,
     priorityPenalty: 70,
@@ -24,7 +24,6 @@
 
   const OPTIONAL_FIELDS = {
     vendor: ['업체코드', '업체명', '공급업체', '공급사', '거래처', 'vendor', 'supplier'],
-    // ✨ 중분류를 최우선으로 찾도록 배열 순서 변경
     group: ['중분류', '소분류', '대분류', '카테고리', '상품분류', '상품군', 'productgroup', 'category'],
     boxWeight: ['p박스당중량', 'pbox중량', '박스당중량', '박스중량', 'boxweight', 'caseweight'],
     itemWeight: ['낱개중량', '개당중량', '단품중량', '상품중량', 'itemweight', 'unitweight'],
@@ -82,18 +81,16 @@
     return normalized === '0' || ['없음', '무', 'no', 'n', '미정'].includes(normalized);
   }
 
-  // ✨ 추측성 정규식을 완전히 제거하고 '중분류' 텍스트에 100% 의존하도록 개편
   function categorize(profile) {
-    const group = text(profile.group); // 엑셀의 '중분류' 값
-    const name = text(profile.name);   // 상품명
+    const group = text(profile.group); 
+    const name = text(profile.name);   
 
     const category = {
       egg: group === '계란',
-      iceCream: group === '아이스크림', // 이름 무시, 오직 중분류가 '아이스크림'인 것만
-      livestock: ['수입육', '우육', '돈육', '계육', '양념육', '훈제육'].includes(group) // 순수 축산 생육만 지정
+      iceCream: group === '아이스크림', 
+      livestock: ['수입육', '우육', '돈육', '계육', '양념육', '훈제육'].includes(group)
     };
     
-    // 0~5℃ 기준 엄격 적용 (수산물, 계육, 또는 다짐육 명시된 육류)
     const isSeafoodOrPoultry = ['계육', '대중선어', '구색선어', '생선회', '갑각류', '패류', '연체류'].includes(group);
     const isMincedMeat = ['수입육', '우육', '돈육'].includes(group) && name.includes('다짐육');
     
@@ -271,7 +268,10 @@
     if (!c.iceCream && zone === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 구역이므로 일반 냉동 상품 불가' };
 
     if (c.egg) return eggCellAllowed(cell, profile) ? { ok: true } : { ok: false, reason: '계란은 A08 전용 구역의 2~4단(행사 시 A09 예외)' };
-    if (c.zeroToFive && !isChilledDedicated(zone)) return { ok: false, reason: '0~5℃ 보관 필요 품목은 D01~D02 권장' };
+    
+    // ✨ 냉동 상품은 0~5℃ 보관 권장 룰에서 원천 배제
+    if (c.zeroToFive && profile.temp !== 'frozen' && !isChilledDedicated(zone)) return { ok: false, reason: '0~5℃ 보관 필요 품목은 D01~D02 권장' };
+    
     if (c.livestock && !livestockCellAllowed(cell)) return { ok: false, reason: '축산물 법정 허가 구역 외' };
 
     return { ok: true };
@@ -387,10 +387,6 @@
     if (fNearWorkstation(candidate)) score += 55;
     if (isFZone(candidate.zone)) score += fTieOrder(candidate) * 2; 
     
-    if (CONFIG.productZones.produceB.has(candidate.zone) && profile.isNew) {
-      score += 40; 
-    }
-
     score += vendorClusterScore(candidate, profile, context.vendorCounts);
     
     const balance = balanceStats(context, source.ws, candidate.ws, profile.touch);
@@ -421,10 +417,12 @@
   function recommendationReasons(source, target, profile, context, sourceViolations, scoreInfo) {
     const reasons = sourceViolations.slice();
     const preferred = context.preferredFamilies;
-    if (preferred.includes(rackFamily(target))) reasons.push(`${rackFamily(target) === 'gate' ? '게이트랙' : rackFamily(target) === 'flow' || rackFamily(target) === 'flat' ? '플로우랙' : '선반랙'} 권장 배치`);
+    // ✨ "플로우랙 배치 권장" 텍스트 수정
+    if (preferred.includes(rackFamily(target))) reasons.push(`${rackFamily(target) === 'gate' ? '게이트랙' : rackFamily(target) === 'flow' || rackFamily(target) === 'flat' ? '플로우랙' : '선반랙'} 배치 권장`);
     if (profile.category.iceCream) reasons.push('E07 아이스크림 전용 구역 유지');
     if (profile.category.egg) reasons.push('계란 전용 A08 2~4단 및 규격별 구역');
-    if (profile.category.zeroToFive) reasons.push('0~5℃ 보관 품목(계육·수산·다짐육)');
+    // ✨ 냉동 상품은 0~5℃ 보관 권장 텍스트 노출 차단
+    if (profile.category.zeroToFive && profile.temp !== 'frozen') reasons.push('0~5℃ 보관 품목(계육·수산·다짐육)');
     if (profile.vendor && vendorClusterScore(target, profile, context.vendorCounts) > 0) reasons.push('동일 업체 인접 구역 군집화');
     if (scoreInfo.balance.score > 1) reasons.push('W/S 터치수 편차 완화');
     if (fNearWorkstation(target)) reasons.push('F존 W/S 인접 셀 우선');
@@ -544,6 +542,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.6.0-strict-category' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.7.0-pass-feature' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
