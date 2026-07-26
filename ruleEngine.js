@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (Soft-Rule + Ultra Performance Optimized)
+ * QPS cell-allocation rule engine (V2 - MetaData Caching + Ultra Fast)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -68,34 +68,6 @@
     const match = text(zone).match(/^[A-Z](\d{2})$/);
     return match ? Number(match[1]) : -1;
   }
-  function field(row, aliases) {
-    if (!row || typeof row !== 'object') return '';
-    const headers = Object.keys(row);
-    for (const alias of aliases) {
-      const wanted = key(alias);
-      const header = headers.find((candidate) => key(candidate) === wanted);
-      if (header != null && text(row[header]) !== '') return row[header];
-    }
-    for (const alias of aliases) {
-      const wanted = key(alias);
-      const header = headers.find((candidate) => key(candidate).includes(wanted) || wanted.includes(key(candidate)));
-      if (header != null && text(row[header]) !== '') return row[header];
-    }
-    return '';
-  }
-  function rawRows() {
-    const boxes = typeof boxRows !== 'undefined' && Array.isArray(boxRows) ? boxRows : [];
-    const cells = typeof cellRows !== 'undefined' && Array.isArray(cellRows) ? cellRows : [];
-    return boxes.concat(cells);
-  }
-
-  function firstValue(rows, aliases) {
-    for (const row of rows) {
-      const value = field(row, aliases);
-      if (text(value) !== '') return value;
-    }
-    return '';
-  }
   function weightInGrams(value, headerHint) {
     const n = number(value);
     if (!n) return 0;
@@ -135,38 +107,107 @@
     return category;
   }
 
-  function buildProfiles(allData) {
-    const rowsBySku = new Map();
-    for (const row of rawRows()) {
-      const sku = skuId(field(row, ['물류상품ID', 'SKU', '상품ID', 'productid']));
-      if (!sku) continue;
-      if (!rowsBySku.has(sku)) rowsBySku.set(sku, []);
-      rowsBySku.get(sku).push(row);
+  // ✨ 최적화 1: 엑셀 파일 헤더를 단 한 번만 캐싱하여 파싱 속도를 수천 배 향상
+  function mapHeaders(rows) {
+    if (!rows || !rows.length) return {};
+    const map = {};
+    const headers = Object.keys(rows[0]);
+    const allFields = {
+      sku: ['물류상품ID', 'SKU', '상품ID', 'productid'],
+      name: ['물류상품명', '상품명', '품명', 'productname'],
+      vendor: OPTIONAL_FIELDS.vendor,
+      group: OPTIONAL_FIELDS.group,
+      boxWeight: OPTIONAL_FIELDS.boxWeight,
+      itemWeight: OPTIONAL_FIELDS.itemWeight,
+      incomingBoxes: OPTIONAL_FIELDS.incomingBoxes,
+      incomingPlan: OPTIONAL_FIELDS.incomingPlan,
+      isNew: OPTIONAL_FIELDS.isNew,
+      fragile: OPTIONAL_FIELDS.fragile,
+      event: OPTIONAL_FIELDS.event,
+      storage: OPTIONAL_FIELDS.storage
+    };
+
+    for (const [keyName, aliases] of Object.entries(allFields)) {
+      let matched = null;
+      for (const alias of aliases) {
+        const wanted = key(alias);
+        matched = headers.find(h => key(h) === wanted);
+        if (matched) break;
+      }
+      if (!matched) {
+        for (const alias of aliases) {
+          const wanted = key(alias);
+          matched = headers.find(h => key(h).includes(wanted) || wanted.includes(key(h)));
+          if (matched) break;
+        }
+      }
+      map[keyName] = matched;
     }
+    return map;
+  }
+
+  // ✨ 최적화 2: 무한 반복문(O(N*M))을 O(N)으로 압축하여 메타데이터 추출 속도 극대화
+  function buildProfiles(allData) {
+    const bRows = typeof boxRows !== 'undefined' && Array.isArray(boxRows) ? boxRows : [];
+    const cRows = typeof cellRows !== 'undefined' && Array.isArray(cellRows) ? cellRows : [];
+    
+    const boxHeaderMap = mapHeaders(bRows);
+    const cellHeaderMap = mapHeaders(cRows);
+    
+    const skuProfileData = new Map();
+
+    function extractMetadata(rows, map) {
+      if (!map.sku) return;
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const sku = skuId(row[map.sku]);
+        if (!sku) continue;
+        
+        if (!skuProfileData.has(sku)) {
+          skuProfileData.set(sku, {
+            name: text(row[map.name]),
+            group: text(row[map.group]),
+            vendor: text(row[map.vendor]),
+            boxWeightRaw: text(row[map.boxWeight]),
+            itemWeightRaw: text(row[map.itemWeight]),
+            incomingBoxes: number(row[map.incomingBoxes]),
+            incomingPlan: text(row[map.incomingPlan]),
+            isNew: yes(row[map.isNew]),
+            fragile: yes(row[map.fragile]),
+            event: yes(row[map.event]),
+            storage: text(row[map.storage])
+          });
+        }
+      }
+    }
+
+    extractMetadata(cRows, cellHeaderMap); // 셀할당현황부터 먼저 분석
+    extractMetadata(bRows, boxHeaderMap); // 나머지 상품 정보 수집
+
     const profiles = new Map();
     for (const cell of allData.assignedCells) {
       if (!cell.sku || profiles.has(cell.sku)) continue;
-      const rows = rowsBySku.get(cell.sku) || [];
-      const name = text(cell.productName || (allData.skuMeta.get(cell.sku) || {}).name || firstValue(rows, ['물류상품명', '상품명']));
-      const group = text(firstValue(rows, OPTIONAL_FIELDS.group));
-      const boxWeightRaw = firstValue(rows, OPTIONAL_FIELDS.boxWeight);
-      const itemWeightRaw = firstValue(rows, OPTIONAL_FIELDS.itemWeight);
-      const incomingRaw = firstValue(rows, OPTIONAL_FIELDS.incomingPlan);
+      
+      const rawP = skuProfileData.get(cell.sku) || {};
+      const name = text(cell.productName || (allData.skuMeta.get(cell.sku) || {}).name || rawP.name);
+      const group = rawP.group || '';
+      
       const profile = {
         sku: cell.sku,
         name,
         group,
-        vendor: text(firstValue(rows, OPTIONAL_FIELDS.vendor)),
-        boxWeightG: weightInGrams(boxWeightRaw, OPTIONAL_FIELDS.boxWeight.join(' ')),
-        itemWeightG: weightInGrams(itemWeightRaw, OPTIONAL_FIELDS.itemWeight.join(' ')),
-        incomingBoxes: number(firstValue(rows, OPTIONAL_FIELDS.incomingBoxes)),
-        hasIncomingPlan: text(incomingRaw) !== '',
-        noIncomingInTwoWeeks: text(incomingRaw) !== '' && hasExplicitNoInbound(incomingRaw),
-        isNew: yes(firstValue(rows, OPTIONAL_FIELDS.isNew)),
-        fragile: yes(firstValue(rows, OPTIONAL_FIELDS.fragile)),
-        event: yes(firstValue(rows, OPTIONAL_FIELDS.event)),
-        storage: text(firstValue(rows, OPTIONAL_FIELDS.storage))
+        vendor: rawP.vendor || '',
+        boxWeightG: weightInGrams(rawP.boxWeightRaw, 'box'),
+        itemWeightG: weightInGrams(rawP.itemWeightRaw, 'ea'),
+        incomingBoxes: rawP.incomingBoxes || 0,
+        hasIncomingPlan: rawP.incomingPlan !== undefined && rawP.incomingPlan !== '',
+        noIncomingInTwoWeeks: rawP.incomingPlan !== undefined && rawP.incomingPlan !== '' && hasExplicitNoInbound(rawP.incomingPlan),
+        isNew: rawP.isNew || false,
+        fragile: rawP.fragile || false,
+        event: rawP.event || false,
+        storage: rawP.storage || ''
       };
+      
       profile.category = categorize(profile);
       const eggSize = `${name} ${group}`.match(/(?:^|\D)(10|15|20|30)\s*구/);
       profile.eggSize = eggSize ? Number(eggSize[1]) : null;
@@ -414,7 +455,6 @@
     return Array.from(new Set(reasons)).join(' · ');
   }
 
-  // ✨ 핵심 최적화 함수: 수천 개의 동일한 속성을 가진 빈 셀들을 1개로 압축합니다.
   function getRepresentativeEmptyCells(emptyCells) {
     const reps = [];
     const sigSet = new Set();
@@ -427,12 +467,11 @@
       const fNear = fNearWorkstation(cell);
       const fTie = fTieOrder(cell);
       
-      // 점수에 영향을 미치는 모든 속성으로 '고유 서명(Signature)' 생성
       const sig = `${cell.zone}|${cell.ws || 'none'}|${family}|${level}|${isBack}|${isRemote}|${fNear}|${fTie}`;
       
       if (!sigSet.has(sig)) {
         sigSet.add(sig);
-        reps.push(cell); // 중복되지 않는 대표 셀만 배열에 추가
+        reps.push(cell); 
       }
     }
     return reps;
@@ -441,9 +480,7 @@
   function recommend(allData) {
     if (!allData || !Array.isArray(allData.assignedCells) || !Array.isArray(allData.emptyCells)) return [];
     
-    // ✨ 수만 개의 빈 셀 대신 수백 개의 '대표 빈 셀'만 순회하도록 변경
     const representativeEmptyCells = getRepresentativeEmptyCells(allData.emptyCells);
-    
     const profiles = buildProfiles(allData);
     const statistics = {
       touches: allData.assignedCells.map((cell) => allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0),
@@ -479,7 +516,6 @@
       activeSources.push({ source, profile });
     }
 
-    // ✨ 핵심 최적화 로직: 터치수 순으로 정렬 후 상위 1,500개만 필터링하여 연산 부하 극적 감소
     activeSources.sort((a, b) => b.profile.touch - a.profile.touch);
     const sourcesToProcess = activeSources.slice(0, 1500);
 
@@ -491,7 +527,6 @@
       const sourceScore = targetScore(source, source, profile, context).score;
       const candidates = [];
 
-      // 기존 allData.emptyCells 대신 수백 개로 압축된 representativeEmptyCells 사용
       for (const candidate of representativeEmptyCells) {
         const evaluation = candidateEvaluation(candidate, source, profile);
         if (!evaluation.ok) continue; 
@@ -533,6 +568,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.3.0-ultra-fast' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.4.0-final' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
