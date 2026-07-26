@@ -1,11 +1,8 @@
 /*
- * QPS cell-allocation rule engine (Soft-Rule Applied Version)
+ * QPS cell-allocation rule engine (Soft-Rule + Performance Optimized)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
- * Optional RAW columns are detected by their header name.  Rules whose source
- * facts are absent (weight, inbound plan, vendor, event, fragile flag) are not
- * guessed and therefore do not generate a false recommendation.
  */
 (function (global) {
   'use strict';
@@ -23,10 +20,7 @@
     }
   };
 
-  // Article 5: common priority.  Flat racks inherit Flow Rack priority and
-  // showcases inherit Shelf Rack priority where the article says so.
   const FAMILY_RANK = { gate: 1, flow: 2, flat: 2, shelf: 3, showcase: 3, other: 9 };
-  const SPECIAL_ZONES = new Set(['A01', 'A08', 'A10', 'C01', 'C08', 'C09', 'C10', 'D01', 'D02', 'D07', 'D08', 'D09', 'D10', 'E03', 'E04', 'E05', 'E06', 'E07']);
 
   const OPTIONAL_FIELDS = {
     vendor: ['업체코드', '업체명', '공급업체', '공급사', '거래처', 'vendor', 'supplier'],
@@ -88,9 +82,6 @@
       if (header != null && text(row[header]) !== '') return row[header];
     }
     return '';
-  }
-  function nameFromRow(row) {
-    return text(field(row, ['물류상품명', '상품명', '품명', 'productname']));
   }
   function rawRows() {
     const boxes = typeof boxRows !== 'undefined' && Array.isArray(boxRows) ? boxRows : [];
@@ -203,16 +194,11 @@
   function isFrozenDedicated(zone) { return CONFIG.productZones.frozen.has(zone); }
   function isBackSpaceLimited(cell) {
     const loc = location(cell);
-    return inRange(loc, 'A02-030101', 'A02-040505') ||
-      inRange(loc, 'C05-050101', 'C05-060505') ||
-      inRange(loc, 'D03-030101', 'D03-040505');
+    return inRange(loc, 'A02-030101', 'A02-040505') || inRange(loc, 'C05-050101', 'C05-060505') || inRange(loc, 'D03-030101', 'D03-040505');
   }
   function isRemoteShelf(cell) {
     const loc = location(cell);
-    return inRange(loc, 'B08-050101', 'B08-080505') ||
-      inRange(loc, 'D08-090101', 'D08-120505') ||
-      inRange(loc, 'D09-090101', 'D09-120505') ||
-      inRange(loc, 'D10-090101', 'D10-120505');
+    return inRange(loc, 'B08-050101', 'B08-080505') || inRange(loc, 'D08-090101', 'D08-120505') || inRange(loc, 'D09-090101', 'D09-120505') || inRange(loc, 'D10-090101', 'D10-120505');
   }
   function fNearWorkstation(cell) {
     const loc = location(cell), zone = text(cell.zone);
@@ -345,16 +331,24 @@
     return Math.max(-80, 35 - Math.abs((FAMILY_RANK[family] || 9) - preferredRank) * 45);
   }
 
-  function balanceStats(metrics, sourceWs, targetWs, touch) {
-    const values = Object.entries(metrics || {}).filter(([ws]) => ws).map(([ws, metric]) => ({ ws, pcs: number(metric.pcs) }));
-    if (!values.length || !sourceWs || !targetWs || sourceWs === targetWs) return { before: 0, after: 0, score: 0, compliant: true };
-    const average = values.reduce((sum, item) => sum + item.pcs, 0) / values.length;
-    if (!average) return { before: 0, after: 0, score: 0, compliant: true };
-    const deviation = (adjust) => Math.max(...values.map((item) => Math.abs(((item.pcs + (adjust[item.ws] || 0)) - average) / average)));
-    const before = deviation({});
-    const after = deviation({ [sourceWs]: -touch, [targetWs]: touch });
-    return { before, after, score: (before - after) * 200, compliant: after <= CONFIG.wsDeviation || after <= before };
+  // ✨ 최적화 1: 객체 배열을 사용하지 않고 사전 계산된 인덱스 기반으로 밸런스 연산 O(N) 최적화
+  function balanceStats(context, sourceWs, targetWs, touch) {
+    if (!context.wsCount || !sourceWs || !targetWs || sourceWs === targetWs) return { before: 0, after: 0, score: 0, compliant: true };
+    let maxBefore = 0, maxAfter = 0;
+    for (let i = 0; i < context.wsCount; i++) {
+      const item = context.wsMetricsArray[i];
+      let pcsAfter = item.pcs;
+      if (item.ws === sourceWs) pcsAfter -= touch;
+      else if (item.ws === targetWs) pcsAfter += touch;
+
+      const devBefore = Math.abs((item.pcs - context.wsAverage) / context.wsAverage);
+      const devAfter = Math.abs((pcsAfter - context.wsAverage) / context.wsAverage);
+      if (devBefore > maxBefore) maxBefore = devBefore;
+      if (devAfter > maxAfter) maxAfter = devAfter;
+    }
+    return { before: maxBefore, after: maxAfter, score: (maxBefore - maxAfter) * 200, compliant: maxAfter <= CONFIG.wsDeviation || maxAfter <= maxBefore };
   }
+
   function buildWsTouchMetrics(allData) {
     const result = {};
     const seen = new Set();
@@ -368,10 +362,11 @@
     }
     return result;
   }
-  function vendorClusterScore(cell, profile, assignedProfiles) {
-    if (!profile.vendor) return 0;
-    let count = 0;
-    for (const item of assignedProfiles) if (item.zone === cell.zone && item.vendor === profile.vendor) count += 1;
+
+  // ✨ 최적화 2: 1만 개 배열을 순회하던 로직을 O(1) 캐시 조회로 변경
+  function vendorClusterScore(candidate, profile, vendorCounts) {
+    if (!profile.vendor || !vendorCounts[profile.vendor]) return 0;
+    const count = vendorCounts[profile.vendor][candidate.zone] || 0;
     return Math.min(40, count * 8);
   }
 
@@ -383,33 +378,29 @@
     if (isBackSpaceLimited(candidate) || isRemoteShelf(candidate)) score -= CONFIG.priorityPenalty;
     if (fNearWorkstation(candidate)) score += 55;
     if (isFZone(candidate.zone)) score += fTieOrder(candidate) * 2; 
-    score += vendorClusterScore(candidate, profile, context.assignedProfiles);
-    const balance = balanceStats(context.wsTouchMetrics, source.ws, candidate.ws, profile.touch);
+    
+    score += vendorClusterScore(candidate, profile, context.vendorCounts); // 최적화된 캐시 적용
+    
+    const balance = balanceStats(context, source.ws, candidate.ws, profile.touch);
     score += balance.score;
 
-    // [소프트 룰 페널티 로직]
     const categoryCheck = categoryZoneAllowed(candidate, profile);
     if (!categoryCheck.ok) {
-        score -= 200; // 전용 구역 등 제약 위반 시 강력한 감점 처리
+        score -= 200; 
     }
     const physicalCheck = physicalCellAllowed(candidate, profile);
     if (!physicalCheck.ok) {
-        score -= 100; // 물리적 제약 (단수 등) 위반 시 감점 처리
+        score -= 100; 
     }
 
     return { score, balance };
   }
 
-  // ✨ 하드 룰 (절대 조건) 필터링 영역 ✨
+  // 하드 룰 (절대 조건) 필터링
   function candidateEvaluation(candidate, source, profile) {
-    // 1. 온도대(냉장/냉동) 불일치는 절대 타협 불가
     if (thermalClass(candidate) !== thermalClass(source)) return { ok: false, reason: '온도대 불일치' };
-    // 2. 물리적 사용 금지 구역 배제
     if (CONFIG.disabledZones.has(text(candidate.zone))) return { ok: false, reason: 'E01~E02는 셀 할당 금지 구역' };
-    // 3. 축산물 법정 허가 구역 외 배치 불가 (절대 타협 불가)
     if (profile.category.livestock && !livestockCellAllowed(candidate)) return { ok: false, reason: '축산물 법정 허가 구역 외' };
-    
-    // 나머지 조건은 targetScore 함수의 소프트 룰(감점)로 처리됨
     return { ok: true };
   }
 
@@ -420,7 +411,7 @@
     if (profile.category.egg) reasons.push('계란 전용 A08 2~4단 및 규격별 구역');
     if (profile.category.zeroToFive) reasons.push('0~5℃ 보관 필요 품목 D01~D02');
     if (profile.category.livestock) reasons.push('축산물 법정 허가 구역');
-    if (profile.vendor && vendorClusterScore(target, profile, context.assignedProfiles) > 0) reasons.push('동일 업체 인접 구역 군집화');
+    if (profile.vendor && vendorClusterScore(target, profile, context.vendorCounts) > 0) reasons.push('동일 업체 인접 구역 군집화');
     if (scoreInfo.balance.score > 1) reasons.push('W/S 터치수 편차 완화');
     if (fNearWorkstation(target)) reasons.push('F존 W/S 인접 셀 우선');
     return Array.from(new Set(reasons)).join(' · ');
@@ -433,11 +424,24 @@
       touches: allData.assignedCells.map((cell) => allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0),
       stocks: allData.assignedCells.map((cell) => number(cell.stock))
     };
+    
+    // ✨ 작업대 및 업체 사전 캐싱 처리 (퍼포먼스 향상의 핵심)
     const wsTouchMetrics = buildWsTouchMetrics(allData);
-    const assignedProfiles = allData.assignedCells.map((cell) => {
+    const wsMetricsArray = Object.entries(wsTouchMetrics || {}).filter(([ws]) => ws).map(([ws, m]) => ({ ws, pcs: number(m.pcs) }));
+    let wsTotalPcs = 0;
+    for (let i = 0; i < wsMetricsArray.length; i++) wsTotalPcs += wsMetricsArray[i].pcs;
+    const wsCount = wsMetricsArray.length;
+    const wsAverage = wsCount ? wsTotalPcs / wsCount : 0;
+
+    const vendorCounts = {};
+    for (const cell of allData.assignedCells) {
       const profile = productProfileFor(cell, profiles, allData);
-      return { zone: cell.zone, vendor: profile.vendor };
-    });
+      if (profile.vendor) {
+        if (!vendorCounts[profile.vendor]) vendorCounts[profile.vendor] = {};
+        vendorCounts[profile.vendor][cell.zone] = (vendorCounts[profile.vendor][cell.zone] || 0) + 1;
+      }
+    }
+
     const recommendations = [];
     const seen = new Set();
 
@@ -449,13 +453,14 @@
       profile.sourceZone = source.zone;
       const preferredFamilies = desiredFamilies(profile, statistics);
       const sourceViolations = violationReasons(source, profile);
-      const context = { allData, preferredFamilies, assignedProfiles, wsTouchMetrics };
+      
+      const context = { allData, preferredFamilies, vendorCounts, wsMetricsArray, wsCount, wsAverage };
       const sourceScore = targetScore(source, source, profile, context).score;
       const candidates = [];
 
       for (const candidate of allData.emptyCells) {
         const evaluation = candidateEvaluation(candidate, source, profile);
-        if (!evaluation.ok) continue; // 하드 룰 통과 실패 시에만 필터링
+        if (!evaluation.ok) continue; 
         const scoreInfo = targetScore(candidate, source, profile, context);
         
         const articleFiveOverride = preferredFamilies.includes(rackFamily(candidate));
@@ -493,6 +498,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.1.0' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.2.0-optimized' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
