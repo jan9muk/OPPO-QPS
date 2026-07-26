@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>QPS RAW 대시보드 v8.5.1</title>
+<title>QPS RAW 대시보드 v8.5.2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -43,13 +43,17 @@ th{background:#f8fafc}
 .loader-box{width:120px;height:120px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.08);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
 .loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}.loader-text{font-size:13px;color:#6b7280;font-weight:700}@keyframes spin{to{transform:rotate(360deg)}}
 @media (max-width:1280px){.machine-grid,.zones{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}
+.btn-pass{background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}
+.btn-pass:hover{background:#fee2e2}
+.btn-reset{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;color:#475569;font-weight:bold;transition:0.2s}
+.btn-reset:hover{background:#e2e8f0}
 </style>
 </head>
 <body>
 <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
 
 <div class="card">
-  <div class="title">QPS RAW 대시보드 v8.5.1</div>
+  <div class="title">QPS RAW 대시보드 v8.5.2</div>
   <div class="subtitle">노드 터치수(SKU) 최우선 기반 진척률 + 병목 모니터링 적용</div>
 </div>
 
@@ -74,11 +78,14 @@ th{background:#f8fafc}
   <div class="zones" id="zonesArea"></div>
 
   <div class="card">
-    <div class="subhead">셀 이동 추천</div>
+    <div class="subhead" style="display:flex; justify-content:space-between; align-items:center;">
+      <span>셀 이동 추천</span>
+      <button class="btn-reset" onclick="resetIgnored()">패스 목록 초기화</button>
+    </div>
     <table>
       <thead>
         <tr>
-          <th>순번</th><th>SKU</th><th>상품명</th><th>PCS</th><th>토트 유입수</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>현재 우선순위</th><th>권장 랙</th><th>추천 셀</th><th>사유</th>
+          <th>순번</th><th>SKU</th><th>상품명</th><th>PCS</th><th>토트 유입수</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>현재 우선순위</th><th>권장 랙</th><th>추천 셀</th><th>사유</th><th>관리</th>
         </tr>
       </thead>
       <tbody id="recommendBody"></tbody>
@@ -109,6 +116,7 @@ const zoneDefs = {
 };
 const machineList=['APS1','APS2','APS3'];
 let boxRows=null, cellRows=null, boxMeta=null, cellMeta=null;
+window.qpsAllData = null; // 패스 기능 사용 시 재렌더링을 위한 글로벌 변수
 const $=s=>document.querySelector(s);
 
 const COMPLETE_STATUS=['피킹완료','토트매핑완료','패킹완료','출고완료','출하완료','배송완료'];
@@ -387,6 +395,19 @@ function computeZoneStats(wsMetrics){
   return res;
 }
 
+// 패스(제외) 기능을 위한 함수
+window.ignoreSku = function(sku) {
+  const ignored = new Set(JSON.parse(localStorage.getItem('qps_ignored_skus') || '[]'));
+  ignored.add(sku);
+  localStorage.setItem('qps_ignored_skus', JSON.stringify([...ignored]));
+  if(window.qpsAllData) drawScreen(window.qpsAllData);
+};
+
+window.resetIgnored = function() {
+  localStorage.removeItem('qps_ignored_skus');
+  if(window.qpsAllData) drawScreen(window.qpsAllData);
+};
+
 function drawScreen(allData){
   const touchValues=Object.values(allData.wsMetrics).map(v=>v.totalTouches||0);
   const min=touchValues.length?Math.min(...touchValues):0;
@@ -447,9 +468,14 @@ function drawScreen(allData){
   }).join('');
 
   const recs=buildRecommendations(allData);
+  const ignoredSkus = new Set(JSON.parse(localStorage.getItem('qps_ignored_skus') || '[]'));
+  
+  // 패스된 항목은 필터링하고 최대 20개만 테이블에 렌더링
+  const displayRecs = recs.filter(r => !ignoredSkus.has(r.sku)).slice(0, 20);
+
   $('#recommendBody').innerHTML=
-    recs.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.pcs)}</td><td>${fmt(r.toteCount)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill ${r.currentRank<=2?'bad':''}">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td></tr>`).join('')
-    || '<tr><td colspan="12">추천 결과 없음</td></tr>';
+    displayRecs.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.pcs)}</td><td>${fmt(r.toteCount)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill ${r.currentRank<=2?'bad':''}">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('')
+    || '<tr><td colspan="13">추천 결과 없음</td></tr>';
 
   const boxInfo=boxMeta?`${boxMeta.fileName} / 시트: ${boxMeta.sheetName||'미탐지'}`:'-';
   const cellInfo=cellMeta?`${cellMeta.fileName} / 시트: ${cellMeta.sheetName||'미탐지'}`:'-';
@@ -485,6 +511,7 @@ async function tryBuild(){
     if(err2){setStatus(err2,true);appendDebug(err2);return;}
 
     const allData=buildAllData(boxRows,cellRows);
+    window.qpsAllData = allData; // 전역 객체에 저장
     appendDebug(`총 지시 터치수=${allData.totalDirectedTouches}, 완료 터치수=${allData.totalCompleteTouches}`);
 
     if(!Object.keys(allData.wsMetrics).length){
@@ -568,9 +595,8 @@ $('#cellFile').addEventListener('change', async e=>{
   await tryBuild();
 });
 </script>
-<!-- Recommendation logic is intentionally isolated from this dashboard UI. -->
+<!-- 브라우저 캐시 강제 우회를 위한 자동 꼬리표 로직 -->
 <script>
-  // 매 접속 시 현재 시간(밀리초)을 생성하여 브라우저 캐시를 영구적으로 자동 차단합니다.
   const script = document.createElement('script');
   script.src = 'ruleEngine.js?v=' + new Date().getTime();
   document.body.appendChild(script);
