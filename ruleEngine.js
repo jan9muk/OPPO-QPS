@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.7 - Frozen Exception & Wording)
+ * QPS cell-allocation rule engine (V2.8 - Duplicate Fix, Egg Hard Rule & Stock Filter)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -9,7 +9,7 @@
 
   const CONFIG = {
     wsDeviation: 0.10,
-    maxRecommendations: 100, // 패스 기능을 고려하여 엔진이 넉넉히 100개를 추출하도록 상향
+    maxRecommendations: 100, 
     disabledZones: new Set(['E01', 'E02']),
     a10OddCellsOnly: true,
     priorityPenalty: 70,
@@ -260,18 +260,16 @@
 
   function categoryZoneAllowed(cell, profile) {
     const zone = text(cell.zone), c = profile.category;
-    
     if (profile.temp === 'frozen' && !isFrozenDedicated(zone)) return { ok: false, reason: '냉동 상품은 냉동 전용 구역에 배치 필요' };
     if (profile.temp !== 'frozen' && isFrozenDedicated(zone)) return { ok: false, reason: '냉장/상온 상품은 냉동 전용 구역 제외' };
+    
+    // ✨ 계란은 A08 (또는 A09) 이외의 구역에서는 추천되지 않도록 엄격히 통제합니다.
+    if (c.egg && !eggCellAllowed(cell, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09) 및 규격별 단수 제한' };
     
     if (c.iceCream && zone !== 'E07') return { ok: false, reason: '아이스크림류는 E07 전용 구역 배치 필요' };
     if (!c.iceCream && zone === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 구역이므로 일반 냉동 상품 불가' };
 
-    if (c.egg) return eggCellAllowed(cell, profile) ? { ok: true } : { ok: false, reason: '계란은 A08 전용 구역의 2~4단(행사 시 A09 예외)' };
-    
-    // ✨ 냉동 상품은 0~5℃ 보관 권장 룰에서 원천 배제
     if (c.zeroToFive && profile.temp !== 'frozen' && !isChilledDedicated(zone)) return { ok: false, reason: '0~5℃ 보관 필요 품목은 D01~D02 권장' };
-    
     if (c.livestock && !livestockCellAllowed(cell)) return { ok: false, reason: '축산물 법정 허가 구역 외' };
 
     return { ok: true };
@@ -308,7 +306,10 @@
     const category = categoryZoneAllowed(cell, profile);
     if (!category.ok) return [category.reason];
     
-    if (rackFamily(cell) === 'gate' && profile.outboundPcs < 100) return ['게이트랙 부적합 (일 출고 100pcs 미만)'];
+    // ✨ 게이트랙 방 빼기 조건 완화: 출고량 100 미만이고 동시에 '현 재고도 50 미만'일 때만 쫓아냄
+    if (rackFamily(cell) === 'gate' && profile.outboundPcs < 100 && profile.stock < 50) {
+      return ['게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)'];
+    }
 
     return [];
   }
@@ -387,6 +388,10 @@
     if (fNearWorkstation(candidate)) score += 55;
     if (isFZone(candidate.zone)) score += fTieOrder(candidate) * 2; 
     
+    if (CONFIG.productZones.produceB.has(candidate.zone) && profile.isNew) {
+      score += 40; 
+    }
+
     score += vendorClusterScore(candidate, profile, context.vendorCounts);
     
     const balance = balanceStats(context, source.ws, candidate.ws, profile.touch);
@@ -400,16 +405,21 @@
     return { score, balance };
   }
 
+  // ✨ 대상 공셀이 하드 룰을 어기면 후보군에서 원천 차단합니다.
   function candidateEvaluation(candidate, source, profile) {
     if (thermalClass(candidate) !== thermalClass(source)) return { ok: false, reason: '온도대 불일치' };
     if (CONFIG.disabledZones.has(text(candidate.zone))) return { ok: false, reason: 'E01~E02는 셀 할당 금지 구역' };
     if (profile.category.livestock && !livestockCellAllowed(candidate)) return { ok: false, reason: '축산물 법정 허가 구역 외' };
     
+    // 게이트랙에는 100PCS 이상만 들어갈 수 있습니다.
     if (rackFamily(candidate) === 'gate' && profile.outboundPcs < 100) return { ok: false, reason: '게이트랙은 출고 100pcs 이상 전용' };
 
     const c = profile.category;
     if (c.iceCream && text(candidate.zone) !== 'E07') return { ok: false, reason: '아이스크림은 E07 전용' };
     if (!c.iceCream && text(candidate.zone) === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 셀' };
+
+    // ✨ 계란은 A08 (행사시 A09) 외의 곳으로는 이동을 절대 허용하지 않는 하드 룰 적용 (A01 추천 방지)
+    if (c.egg && !eggCellAllowed(candidate, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09) 및 규격별 단수 제한' };
 
     return { ok: true };
   }
@@ -417,44 +427,26 @@
   function recommendationReasons(source, target, profile, context, sourceViolations, scoreInfo) {
     const reasons = sourceViolations.slice();
     const preferred = context.preferredFamilies;
-    // ✨ "플로우랙 배치 권장" 텍스트 수정
-    if (preferred.includes(rackFamily(target))) reasons.push(`${rackFamily(target) === 'gate' ? '게이트랙' : rackFamily(target) === 'flow' || rackFamily(target) === 'flat' ? '플로우랙' : '선반랙'} 배치 권장`);
+    
+    // ✨ 텍스트 수정 적용
+    if (preferred.includes(rackFamily(target))) {
+        let rName = rackFamily(target) === 'gate' ? '게이트랙' : rackFamily(target) === 'flow' || rackFamily(target) === 'flat' ? '플로우랙' : '선반랙';
+        reasons.push(`${rName} 배치 권장`);
+    }
+    
     if (profile.category.iceCream) reasons.push('E07 아이스크림 전용 구역 유지');
     if (profile.category.egg) reasons.push('계란 전용 A08 2~4단 및 규격별 구역');
-    // ✨ 냉동 상품은 0~5℃ 보관 권장 텍스트 노출 차단
-    if (profile.category.zeroToFive && profile.temp !== 'frozen') reasons.push('0~5℃ 보관 품목(계육·수산·다짐육)');
+    if (profile.category.zeroToFive && profile.temp !== 'frozen') reasons.push('0~5℃ 보관 권장 품목');
     if (profile.vendor && vendorClusterScore(target, profile, context.vendorCounts) > 0) reasons.push('동일 업체 인접 구역 군집화');
     if (scoreInfo.balance.score > 1) reasons.push('W/S 터치수 편차 완화');
     if (fNearWorkstation(target)) reasons.push('F존 W/S 인접 셀 우선');
     return Array.from(new Set(reasons)).join(' · ');
   }
 
-  function getRepresentativeEmptyCells(emptyCells) {
-    const reps = [];
-    const sigSet = new Set();
-    for (let i = 0; i < emptyCells.length; i++) {
-      const cell = emptyCells[i];
-      const family = rackFamily(cell);
-      const level = levelOf(cell);
-      const isBack = isBackSpaceLimited(cell);
-      const isRemote = isRemoteShelf(cell);
-      const fNear = fNearWorkstation(cell);
-      const fTie = fTieOrder(cell);
-      
-      const sig = `${cell.zone}|${cell.ws || 'none'}|${family}|${level}|${isBack}|${isRemote}|${fNear}|${fTie}`;
-      
-      if (!sigSet.has(sig)) {
-        sigSet.add(sig);
-        reps.push(cell); 
-      }
-    }
-    return reps;
-  }
-
   function recommend(allData) {
     if (!allData || !Array.isArray(allData.assignedCells) || !Array.isArray(allData.emptyCells)) return [];
     
-    const representativeEmptyCells = getRepresentativeEmptyCells(allData.emptyCells);
+    // ✨ 공셀 클러스터링(일부만 사용)을 폐지하고, 존재하는 모든 공셀을 활용하여 중복 추천 방지 로직 적용
     const profiles = buildProfiles(allData);
     const statistics = {
       touches: allData.assignedCells.map((cell) => allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0),
@@ -492,6 +484,9 @@
 
     activeSources.sort((a, b) => b.profile.touch - a.profile.touch);
     const sourcesToProcess = activeSources.slice(0, 1500);
+    
+    // ✨ 한 번 추천된 셀을 기록하여 다른 상품에 중복 배정되지 않도록 하는 예약 장부
+    const usedTargetCells = new Set();
 
     for (const { source, profile } of sourcesToProcess) {
       const preferredFamilies = desiredFamilies(profile, statistics);
@@ -501,27 +496,40 @@
       const sourceScore = targetScore(source, source, profile, context).score;
       const candidates = [];
 
-      for (const candidate of representativeEmptyCells) {
+      for (const candidate of allData.emptyCells) {
+        // 이미 다른 상품에게 추천된 공셀은 패스합니다.
+        if (usedTargetCells.has(location(candidate))) continue;
+
         const evaluation = candidateEvaluation(candidate, source, profile);
         if (!evaluation.ok) continue; 
-        const scoreInfo = targetScore(candidate, source, profile, context);
         
+        const scoreInfo = targetScore(candidate, source, profile, context);
         const articleFiveOverride = preferredFamilies.includes(rackFamily(candidate));
         if (!scoreInfo.balance.compliant && !articleFiveOverride && !sourceViolations.length) continue;
+        
         candidates.push({ cell: candidate, scoreInfo });
       }
+      
       candidates.sort((a, b) => b.scoreInfo.score - a.scoreInfo.score || location(a.cell).localeCompare(location(b.cell)));
       const best = candidates[0];
       const mandatory = sourceViolations.length > 0;
       const materiallyBetter = best && best.scoreInfo.score >= sourceScore + 25;
+      
       if (!best && !mandatory) continue;
       if (!mandatory && !materiallyBetter) continue;
 
       const target = best && best.cell;
+      
+      // 타겟이 확정되었으면 예약 장부에 등록합니다.
+      if (target) {
+          usedTargetCells.add(location(target));
+      }
+
       recommendations.push({
         sku: source.sku,
         productName: profile.name || source.productName || '',
         pcs: profile.outboundPcs,
+        stock: profile.stock, // ✨ 재고량 데이터 연동
         toteCount: profile.touch,
         temp: thermalClass(source),
         currentCell: location(source),
@@ -542,6 +550,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.7.0-pass-feature' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.8.0-final-fixes' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
