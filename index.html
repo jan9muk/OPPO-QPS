@@ -696,16 +696,6 @@ function drawScreen(allData){
     recs.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.pcs)}</td><td>${fmt(r.toteCount)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill ${r.currentRank<=2?'bad':''}">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td></tr>`).join('')
     || '<tr><td colspan="12">추천 결과 없음</td></tr>';
 
-  $('#cellMapSummary').innerHTML=allData.cellMapSummary
-    .sort((a,b)=>a.zone.localeCompare(b.zone)||a.temp.localeCompare(b.temp)||a.rackType.localeCompare(b.rackType))
-    .map(x=>`<tr><td>${x.zone}</td><td>${tempLabel(x.temp)}</td><td>${x.rackType}</td><td>${fmt(x.total)}</td><td>${fmt(x.assigned)}</td><td>${fmt(x.empty)}</td></tr>`)
-    .join('');
-
-  $('#rackLoadSummary').innerHTML=allData.rackLoad
-    .sort((a,b)=>b.pcs-a.pcs)
-    .map(x=>`<tr><td>${tempLabel(x.temp)}</td><td>${x.rackType}</td><td>${fmt(x.skuPicked)}</td><td>${fmt(x.pcs)}</td></tr>`)
-    .join('');
-
   const boxInfo=boxMeta?`${boxMeta.fileName} / 시트: ${boxMeta.sheetName||'미탐지'}`:'-';
   const cellInfo=cellMeta?`${cellMeta.fileName} / 시트: ${cellMeta.sheetName||'미탐지'}`:'-';
   $('#footNote').textContent=`박스상품 상세정보: ${boxInfo} · 셀할당현황: ${cellInfo}`;
