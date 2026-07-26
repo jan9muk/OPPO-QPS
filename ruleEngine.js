@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.5 - Metadata Merge Fix & Strict Regex)
+ * QPS cell-allocation rule engine (V2.6 - Strict Middle Category & Exact Group Matching)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -24,7 +24,8 @@
 
   const OPTIONAL_FIELDS = {
     vendor: ['업체코드', '업체명', '공급업체', '공급사', '거래처', 'vendor', 'supplier'],
-    group: ['상품군', '상품분류', '카테고리', '대분류', '중분류', '소분류', 'productgroup', 'category'],
+    // ✨ 중분류를 최우선으로 찾도록 배열 순서 변경
+    group: ['중분류', '소분류', '대분류', '카테고리', '상품분류', '상품군', 'productgroup', 'category'],
     boxWeight: ['p박스당중량', 'pbox중량', '박스당중량', '박스중량', 'boxweight', 'caseweight'],
     itemWeight: ['낱개중량', '개당중량', '단품중량', '상품중량', 'itemweight', 'unitweight'],
     incomingBoxes: ['입고량box', '입고박스수', '입고예정box', '입고수량box', 'inboundboxes', 'incomingboxes'],
@@ -81,35 +82,22 @@
     return normalized === '0' || ['없음', '무', 'no', 'n', '미정'].includes(normalized);
   }
 
+  // ✨ 추측성 정규식을 완전히 제거하고 '중분류' 텍스트에 100% 의존하도록 개편
   function categorize(profile) {
-    const source = `${profile.name} ${profile.group} ${profile.storage}`.toLowerCase();
-    const matches = (regexp) => regexp.test(source);
-    
+    const group = text(profile.group); // 엑셀의 '중분류' 값
+    const name = text(profile.name);   // 상품명
+
     const category = {
-      egg: matches(/계란|식용란/),
-      tofu: matches(/두부|연두부|순두부/),
-      kimchi: matches(/김치/),
-      condiment: matches(/된장|쌈장|고추장|양념장|소스|드레싱/),
-      mealKit: matches(/밀키트|meal\s*kit/),
-      iceCream: matches(/아이스|빙과|빙수|파인트|샤베트|셔벗|젤라또|하드|빠삐코|스크류바|메로나|돼지바|싸만코|설레임|셀렉션|월드콘|죠스바|요맘때|비비빅|티코|구구|라라스윗|멀티바|더위사냥|투게더|붕어싸만코|빵빠레|초코퍼지|쿠앤크|엔초|옥동자|와일드바디|누가바|탱크보이|폴라포|끌레도르/),
-      seafood: matches(/수산|생선|연어|고등어|갈치|참치|새우|오징어|문어|조개|전복|게|꽃게/),
-      mincedMeat: matches(/다짐육|민찌|간고기|분쇄육/),
-      // ✨ 가공식품(치킨까스 등)과 소고기(안심)가 걸리지 않도록 순수 날생육(계육)만 타겟팅
-      poultry: matches(/계육|닭고기|닭다리|닭가슴|오리고기|오리육|토종닭|생닭|절단육/),
-      dairy: matches(/유제품|우유|치즈|요거트|요구르트|버터|생크림/),
-      organic: matches(/유기농|친환경|올가닉|organic/),
-      produce: matches(/과일|채소|야채|사과|배|감귤|포도|딸기|토마토|오이|호박|양파|감자|고구마|상추|버섯|브로콜리|파프리카|대파|마늘|파채/),
-      dry: matches(/건식|상온|dry/),
-      processedMeat: matches(/양념육|훈제|햄|소시지|베이컨/),
-      deli: matches(/델리|디저트|반찬|즉석/),
-      wetBakery: matches(/베이커리|빵|케이크|페이스트리/),
-      frozenMeat: matches(/냉동/) && matches(/소고기|돼지고기|닭|오리|육|갈비|목살|삼겹/),
-      seasonal: matches(/시즌|명절|행사|대량/)
+      egg: group === '계란',
+      iceCream: group === '아이스크림', // 이름 무시, 오직 중분류가 '아이스크림'인 것만
+      livestock: ['수입육', '우육', '돈육', '계육', '양념육', '훈제육'].includes(group) // 순수 축산 생육만 지정
     };
-    category.livestock = category.mincedMeat || category.poultry || matches(/축산|소고기|돼지고기|한우|돈육|우육|갈비|목살|삼겹|육류/);
     
-    const isButterZeroToFive = matches(/버터/) && matches(/0\s*~\s*5|0~5도|0~5℃|이하\s*보관/);
-    category.zeroToFive = category.poultry || category.seafood || category.mincedMeat || isButterZeroToFive;
+    // 0~5℃ 기준 엄격 적용 (수산물, 계육, 또는 다짐육 명시된 육류)
+    const isSeafoodOrPoultry = ['계육', '대중선어', '구색선어', '생선회', '갑각류', '패류', '연체류'].includes(group);
+    const isMincedMeat = ['수입육', '우육', '돈육'].includes(group) && name.includes('다짐육');
+    
+    category.zeroToFive = isSeafoodOrPoultry || isMincedMeat;
 
     return category;
   }
@@ -161,7 +149,6 @@
     
     const skuProfileData = new Map();
 
-    // ✨ 데이터 병합(Merge) 버그 완벽 수정: 기존 데이터가 있으면 보존하면서 없는 데이터만 채워넣음
     function extractMetadata(rows, map) {
       if (!map.sku) return;
       for (let i = 0; i < rows.length; i++) {
@@ -437,7 +424,7 @@
     if (preferred.includes(rackFamily(target))) reasons.push(`${rackFamily(target) === 'gate' ? '게이트랙' : rackFamily(target) === 'flow' || rackFamily(target) === 'flat' ? '플로우랙' : '선반랙'} 권장 배치`);
     if (profile.category.iceCream) reasons.push('E07 아이스크림 전용 구역 유지');
     if (profile.category.egg) reasons.push('계란 전용 A08 2~4단 및 규격별 구역');
-    if (profile.category.zeroToFive) reasons.push('0~5℃ 보관 권장 품목');
+    if (profile.category.zeroToFive) reasons.push('0~5℃ 보관 품목(계육·수산·다짐육)');
     if (profile.vendor && vendorClusterScore(target, profile, context.vendorCounts) > 0) reasons.push('동일 업체 인접 구역 군집화');
     if (scoreInfo.balance.score > 1) reasons.push('W/S 터치수 편차 완화');
     if (fNearWorkstation(target)) reasons.push('F존 W/S 인접 셀 우선');
@@ -557,6 +544,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.5.0-cache-buster' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.6.0-strict-category' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
