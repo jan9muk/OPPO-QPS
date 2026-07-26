@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2 - MetaData Caching + Ultra Fast)
+ * QPS cell-allocation rule engine (V2 - MetaData Caching + Ultra Fast + Hard Rules)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -107,7 +107,6 @@
     return category;
   }
 
-  // ✨ 최적화 1: 엑셀 파일 헤더를 단 한 번만 캐싱하여 파싱 속도를 수천 배 향상
   function mapHeaders(rows) {
     if (!rows || !rows.length) return {};
     const map = {};
@@ -146,7 +145,6 @@
     return map;
   }
 
-  // ✨ 최적화 2: 무한 반복문(O(N*M))을 O(N)으로 압축하여 메타데이터 추출 속도 극대화
   function buildProfiles(allData) {
     const bRows = typeof boxRows !== 'undefined' && Array.isArray(boxRows) ? boxRows : [];
     const cRows = typeof cellRows !== 'undefined' && Array.isArray(cellRows) ? cellRows : [];
@@ -181,8 +179,8 @@
       }
     }
 
-    extractMetadata(cRows, cellHeaderMap); // 셀할당현황부터 먼저 분석
-    extractMetadata(bRows, boxHeaderMap); // 나머지 상품 정보 수집
+    extractMetadata(cRows, cellHeaderMap); 
+    extractMetadata(bRows, boxHeaderMap); 
 
     const profiles = new Map();
     for (const cell of allData.assignedCells) {
@@ -336,6 +334,8 @@
       temp: thermalClass(cell)
     });
   }
+
+  // ✨ 현재 속한 셀(Source)이 룰을 위반했는지 검사하여 방 빼기(강제 이동) 지시
   function violationReasons(cell, profile) {
     const a10MustMove = cell.zone === 'A10' && profile.touch < 100 && profile.stock <= 100 && profile.hasIncomingPlan && profile.noIncomingInTwoWeeks;
     if (a10MustMove) return ['A10 이동 기준 충족: 일 출고 100건 미만·재고 100PCS 이하·2주 입고 예정 없음'];
@@ -343,6 +343,10 @@
     if (!category.ok) return [category.reason];
     const physical = physicalCellAllowed(cell, profile);
     if (!physical.ok) return [physical.reason];
+    
+    // [하드 룰 위반 사유 추가] 게이트랙에 있는데 출고량이 100pcs 미만인 경우 강제 추천(방 빼기)
+    if (rackFamily(cell) === 'gate' && profile.outboundPcs < 100) return ['게이트랙 부적합 (일 출고 100pcs 미만)'];
+
     return [];
   }
 
@@ -352,19 +356,25 @@
     const index = sorted.findIndex((x) => value >= x);
     return index < 0 ? 0 : 1 - (index / Math.max(1, sorted.length - 1));
   }
+
+  // ✨ 후보군 배정 시 조건 수정: 게이트랙은 출고량 100 이상일 때만 선호하도록 변경
   function desiredFamilies(profile, statistics) {
     if (profile.fragile && profile.category.frozenMeat) return ['shelf', 'showcase', 'flow'];
     if (profile.boxWeightG >= 7000 && profile.stock >= 50) return ['flow', 'flat'];
     if (profile.isNew && profile.incomingBoxes >= 10) return ['flow', 'flat'];
     if (profile.isNew && profile.incomingBoxes > 0 && profile.incomingBoxes < 10) return ['shelf', 'showcase'];
     if (profile.category.kimchi || profile.temp === 'frozen' && /^F/.test(profile.sourceZone || '')) return ['flow', 'flat'];
+    
     const demand = percentile(profile.touch, statistics.touches);
     const inventory = percentile(profile.stock, statistics.stocks);
     const priority = demand * 0.70 + inventory * 0.30;
-    if (priority >= 0.75) return ['gate'];
+    
+    // 출고 100pcs 이상이면서 우선순위가 높은 상품만 게이트랙 배정
+    if (priority >= 0.75 && profile.outboundPcs >= 100) return ['gate'];
     if (priority >= 0.40) return ['flow', 'flat'];
     return ['shelf', 'showcase'];
   }
+
   function familyScore(cell, preferred) {
     const family = rackFamily(cell);
     if (preferred.includes(family)) return 150;
@@ -435,10 +445,15 @@
     return { score, balance };
   }
 
+  // ✨ 하드 룰 평가 - 타겟 추천 후보에서 절대 조건 위반 시 배제
   function candidateEvaluation(candidate, source, profile) {
     if (thermalClass(candidate) !== thermalClass(source)) return { ok: false, reason: '온도대 불일치' };
     if (CONFIG.disabledZones.has(text(candidate.zone))) return { ok: false, reason: 'E01~E02는 셀 할당 금지 구역' };
     if (profile.category.livestock && !livestockCellAllowed(candidate)) return { ok: false, reason: '축산물 법정 허가 구역 외' };
+    
+    // [하드 룰 사유 추가] 100pcs 미만인 상품을 빈 게이트랙에 넣으려고 할 때 원천 차단
+    if (rackFamily(candidate) === 'gate' && profile.outboundPcs < 100) return { ok: false, reason: '게이트랙은 출고 100pcs 이상 전용' };
+
     return { ok: true };
   }
 
@@ -568,6 +583,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.4.0-final' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.4.1-hard-rules' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
