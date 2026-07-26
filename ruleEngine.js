@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2 - MetaData Caching + Ultra Fast + Hard Rules)
+ * QPS cell-allocation rule engine (V2 - MetaData Caching + Ultra Fast + Hard Rules + IceCream Fix)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -80,15 +80,18 @@
   }
 
   function categorize(profile) {
+    // 상품명과 중분류(group) 컬럼을 하나로 합쳐서 검사합니다.
     const source = `${profile.name} ${profile.group}`.toLowerCase();
     const matches = (regexp) => regexp.test(source);
+    
     const category = {
       egg: matches(/계란|식용란/),
       tofu: matches(/두부|연두부|순두부/),
       kimchi: matches(/김치/),
       condiment: matches(/된장|쌈장|고추장|양념장|소스|드레싱/),
       mealKit: matches(/밀키트|meal\s*kit/),
-      iceCream: matches(/아이스크림|빙과|아이스바|아이스콘/),
+      // ✨ 아이스크림 판별 사전(정규식) 대폭 확장 ✨
+      iceCream: matches(/아이스|빙과|빙수|파인트|샤베트|셔벗|젤라또|하드/),
       seafood: matches(/수산|생선|연어|고등어|갈치|참치|새우|오징어|문어|조개|전복|게|꽃게/),
       mincedMeat: matches(/다짐육|민찌|간고기|분쇄육/),
       poultry: matches(/계육|닭고기|닭다리|닭가슴|오리고기|오리육/),
@@ -115,7 +118,7 @@
       sku: ['물류상품ID', 'SKU', '상품ID', 'productid'],
       name: ['물류상품명', '상품명', '품명', 'productname'],
       vendor: OPTIONAL_FIELDS.vendor,
-      group: OPTIONAL_FIELDS.group,
+      group: OPTIONAL_FIELDS.group, // 엑셀의 '중분류' 컬럼을 여기서 매핑합니다.
       boxWeight: OPTIONAL_FIELDS.boxWeight,
       itemWeight: OPTIONAL_FIELDS.itemWeight,
       incomingBoxes: OPTIONAL_FIELDS.incomingBoxes,
@@ -335,7 +338,6 @@
     });
   }
 
-  // ✨ 현재 속한 셀(Source)이 룰을 위반했는지 검사하여 방 빼기(강제 이동) 지시
   function violationReasons(cell, profile) {
     const a10MustMove = cell.zone === 'A10' && profile.touch < 100 && profile.stock <= 100 && profile.hasIncomingPlan && profile.noIncomingInTwoWeeks;
     if (a10MustMove) return ['A10 이동 기준 충족: 일 출고 100건 미만·재고 100PCS 이하·2주 입고 예정 없음'];
@@ -344,7 +346,6 @@
     const physical = physicalCellAllowed(cell, profile);
     if (!physical.ok) return [physical.reason];
     
-    // [하드 룰 위반 사유 추가] 게이트랙에 있는데 출고량이 100pcs 미만인 경우 강제 추천(방 빼기)
     if (rackFamily(cell) === 'gate' && profile.outboundPcs < 100) return ['게이트랙 부적합 (일 출고 100pcs 미만)'];
 
     return [];
@@ -357,7 +358,6 @@
     return index < 0 ? 0 : 1 - (index / Math.max(1, sorted.length - 1));
   }
 
-  // ✨ 후보군 배정 시 조건 수정: 게이트랙은 출고량 100 이상일 때만 선호하도록 변경
   function desiredFamilies(profile, statistics) {
     if (profile.fragile && profile.category.frozenMeat) return ['shelf', 'showcase', 'flow'];
     if (profile.boxWeightG >= 7000 && profile.stock >= 50) return ['flow', 'flat'];
@@ -369,7 +369,6 @@
     const inventory = percentile(profile.stock, statistics.stocks);
     const priority = demand * 0.70 + inventory * 0.30;
     
-    // 출고 100pcs 이상이면서 우선순위가 높은 상품만 게이트랙 배정
     if (priority >= 0.75 && profile.outboundPcs >= 100) return ['gate'];
     if (priority >= 0.40) return ['flow', 'flat'];
     return ['shelf', 'showcase'];
@@ -445,13 +444,11 @@
     return { score, balance };
   }
 
-  // ✨ 하드 룰 평가 - 타겟 추천 후보에서 절대 조건 위반 시 배제
   function candidateEvaluation(candidate, source, profile) {
     if (thermalClass(candidate) !== thermalClass(source)) return { ok: false, reason: '온도대 불일치' };
     if (CONFIG.disabledZones.has(text(candidate.zone))) return { ok: false, reason: 'E01~E02는 셀 할당 금지 구역' };
     if (profile.category.livestock && !livestockCellAllowed(candidate)) return { ok: false, reason: '축산물 법정 허가 구역 외' };
     
-    // [하드 룰 사유 추가] 100pcs 미만인 상품을 빈 게이트랙에 넣으려고 할 때 원천 차단
     if (rackFamily(candidate) === 'gate' && profile.outboundPcs < 100) return { ok: false, reason: '게이트랙은 출고 100pcs 이상 전용' };
 
     return { ok: true };
@@ -583,6 +580,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.4.1-hard-rules' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '1.4.2-icecream-fix' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
