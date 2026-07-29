@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.8 - Duplicate Fix, Egg Hard Rule & Stock Filter)
+ * QPS cell-allocation rule engine (V2.9 - Egg Volume Exception & Shelf Stock Limit)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -85,8 +85,11 @@
     const group = text(profile.group); 
     const name = text(profile.name);   
 
+    // ✨ 중분류가 꼬여있더라도 이름에 계란 키워드가 명확하면 안전망(Fallback)으로 계란 취급
+    const isEggByName = /계란|식용란|유정란|왕란|특란|대란|신선란|메추리알|구운란/.test(name);
+
     const category = {
-      egg: group === '계란',
+      egg: group === '계란' || isEggByName,
       iceCream: group === '아이스크림', 
       livestock: ['수입육', '우육', '돈육', '계육', '양념육', '훈제육'].includes(group)
     };
@@ -239,9 +242,16 @@
   function fTieOrder(cell) { return isFZone(cell.zone) ? zoneNumber(cell.zone) : 0; }
 
   function eggCellAllowed(cell, profile) {
-    const loc = location(cell), level = levelOf(cell);
-    if (inRange(loc, 'A08-010101', 'A08-080505')) {
+    const loc = location(cell), level = levelOf(cell), zone = text(cell.zone);
+    
+    // ✨ 대량 재고(50 이상) 또는 대량 출고(100 이상) 계란은 A08(선반랙)으로 강제 이주시키지 않고 게이트랙(A09, A10) 사용을 허용합니다.
+    if ((profile.outboundPcs >= 100 || profile.stock >= 50) && (zone === 'A09' || zone === 'A10')) {
+        return true;
+    }
+
+    if (zone === 'A08') {
       if (![2, 3, 4].includes(level)) return false; 
+      // 10구, 15구, 20구, 30구 전용 칸 분리 로직 (동일 구역 내 이동 원인)
       const ranges = {
         10: ['A08-010101', 'A08-020505'],
         15: ['A08-030101', 'A08-040505'],
@@ -251,7 +261,7 @@
       const range = ranges[profile.eggSize];
       return !range || inRange(loc, range[0], range[1]);
     }
-    return profile.event && inRange(loc, 'A09-010101', 'A09-010114');
+    return profile.event && zone === 'A09';
   }
   function livestockCellAllowed(cell) {
     const loc = location(cell);
@@ -263,8 +273,7 @@
     if (profile.temp === 'frozen' && !isFrozenDedicated(zone)) return { ok: false, reason: '냉동 상품은 냉동 전용 구역에 배치 필요' };
     if (profile.temp !== 'frozen' && isFrozenDedicated(zone)) return { ok: false, reason: '냉장/상온 상품은 냉동 전용 구역 제외' };
     
-    // ✨ 계란은 A08 (또는 A09) 이외의 구역에서는 추천되지 않도록 엄격히 통제합니다.
-    if (c.egg && !eggCellAllowed(cell, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09) 및 규격별 단수 제한' };
+    if (c.egg && !eggCellAllowed(cell, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사/대량 시 A09, A10) 및 규격별 단수 제한' };
     
     if (c.iceCream && zone !== 'E07') return { ok: false, reason: '아이스크림류는 E07 전용 구역 배치 필요' };
     if (!c.iceCream && zone === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 구역이므로 일반 냉동 상품 불가' };
@@ -278,6 +287,7 @@
   function a10Eligible(profile, touch, stock) {
     return profile.category.seasonal || profile.event || touch >= 100 || stock > 100;
   }
+  
   function physicalCellAllowed(cell, profile) {
     const loc = location(cell), zone = text(cell.zone), level = levelOf(cell), family = rackFamily(cell);
     if (zone === 'A10' && CONFIG.a10OddCellsOnly && /[02468]$/.test(loc)) return { ok: false, reason: 'A10은 끝자리가 홀수인 셀만 사용' };
@@ -300,18 +310,25 @@
   }
 
   function violationReasons(cell, profile) {
+    const reasons = [];
     const a10MustMove = cell.zone === 'A10' && profile.touch < 100 && profile.stock <= 100 && profile.hasIncomingPlan && profile.noIncomingInTwoWeeks;
-    if (a10MustMove) return ['A10 이동 기준 충족: 일 출고 100건 미만·재고 100PCS 이하·2주 입고 예정 없음'];
+    if (a10MustMove) reasons.push('A10 이동 기준 충족: 일 출고 100건 미만·재고 100PCS 이하·2주 입고 예정 없음');
     
     const category = categoryZoneAllowed(cell, profile);
-    if (!category.ok) return [category.reason];
+    if (!category.ok) reasons.push(category.reason);
     
-    // ✨ 게이트랙 방 빼기 조건 완화: 출고량 100 미만이고 동시에 '현 재고도 50 미만'일 때만 쫓아냄
     if (rackFamily(cell) === 'gate' && profile.outboundPcs < 100 && profile.stock < 50) {
-      return ['게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)'];
+      reasons.push('게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)');
     }
 
-    return [];
+    // ✨ 선반랙(Shelf) 재고 50개 이상 보충 과다 위반 룰 추가
+    // 단, 선반랙 전용 구역(A01, B08, C08, D08, D09, D10) 등은 예외로 처리하여 무한 추천 방지
+    const zone = text(cell.zone);
+    if (rackFamily(cell) === 'shelf' && profile.stock >= 50 && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(zone)) {
+      reasons.push('선반랙 부적합 (현 재고 50개 이상 보충 과다)');
+    }
+
+    return reasons;
   }
 
   function percentile(value, values) {
@@ -388,14 +405,16 @@
     if (fNearWorkstation(candidate)) score += 55;
     if (isFZone(candidate.zone)) score += fTieOrder(candidate) * 2; 
     
-    if (CONFIG.productZones.produceB.has(candidate.zone) && profile.isNew) {
-      score += 40; 
-    }
-
     score += vendorClusterScore(candidate, profile, context.vendorCounts);
     
     const balance = balanceStats(context, source.ws, candidate.ws, profile.touch);
     score += balance.score;
+
+    // ✨ 타겟 셀(추천 셀) 평가 시에도 선반랙 50개 이상 페널티를 부여하여 플로우/게이트랙으로 유도
+    const zone = text(candidate.zone);
+    if (rackFamily(candidate) === 'shelf' && profile.stock >= 50 && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(zone)) {
+      score -= 150;
+    }
 
     const categoryCheck = categoryZoneAllowed(candidate, profile);
     if (!categoryCheck.ok) {
@@ -405,21 +424,18 @@
     return { score, balance };
   }
 
-  // ✨ 대상 공셀이 하드 룰을 어기면 후보군에서 원천 차단합니다.
   function candidateEvaluation(candidate, source, profile) {
     if (thermalClass(candidate) !== thermalClass(source)) return { ok: false, reason: '온도대 불일치' };
     if (CONFIG.disabledZones.has(text(candidate.zone))) return { ok: false, reason: 'E01~E02는 셀 할당 금지 구역' };
     if (profile.category.livestock && !livestockCellAllowed(candidate)) return { ok: false, reason: '축산물 법정 허가 구역 외' };
     
-    // 게이트랙에는 100PCS 이상만 들어갈 수 있습니다.
     if (rackFamily(candidate) === 'gate' && profile.outboundPcs < 100) return { ok: false, reason: '게이트랙은 출고 100pcs 이상 전용' };
 
     const c = profile.category;
     if (c.iceCream && text(candidate.zone) !== 'E07') return { ok: false, reason: '아이스크림은 E07 전용' };
     if (!c.iceCream && text(candidate.zone) === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 셀' };
 
-    // ✨ 계란은 A08 (행사시 A09) 외의 곳으로는 이동을 절대 허용하지 않는 하드 룰 적용 (A01 추천 방지)
-    if (c.egg && !eggCellAllowed(candidate, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09) 및 규격별 단수 제한' };
+    if (c.egg && !eggCellAllowed(candidate, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09, A10) 및 규격별 단수 제한' };
 
     return { ok: true };
   }
@@ -428,7 +444,6 @@
     const reasons = sourceViolations.slice();
     const preferred = context.preferredFamilies;
     
-    // ✨ 텍스트 수정 적용
     if (preferred.includes(rackFamily(target))) {
         let rName = rackFamily(target) === 'gate' ? '게이트랙' : rackFamily(target) === 'flow' || rackFamily(target) === 'flat' ? '플로우랙' : '선반랙';
         reasons.push(`${rName} 배치 권장`);
@@ -446,7 +461,6 @@
   function recommend(allData) {
     if (!allData || !Array.isArray(allData.assignedCells) || !Array.isArray(allData.emptyCells)) return [];
     
-    // ✨ 공셀 클러스터링(일부만 사용)을 폐지하고, 존재하는 모든 공셀을 활용하여 중복 추천 방지 로직 적용
     const profiles = buildProfiles(allData);
     const statistics = {
       touches: allData.assignedCells.map((cell) => allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0),
@@ -485,7 +499,6 @@
     activeSources.sort((a, b) => b.profile.touch - a.profile.touch);
     const sourcesToProcess = activeSources.slice(0, 1500);
     
-    // ✨ 한 번 추천된 셀을 기록하여 다른 상품에 중복 배정되지 않도록 하는 예약 장부
     const usedTargetCells = new Set();
 
     for (const { source, profile } of sourcesToProcess) {
@@ -497,7 +510,6 @@
       const candidates = [];
 
       for (const candidate of allData.emptyCells) {
-        // 이미 다른 상품에게 추천된 공셀은 패스합니다.
         if (usedTargetCells.has(location(candidate))) continue;
 
         const evaluation = candidateEvaluation(candidate, source, profile);
@@ -520,7 +532,6 @@
 
       const target = best && best.cell;
       
-      // 타겟이 확정되었으면 예약 장부에 등록합니다.
       if (target) {
           usedTargetCells.add(location(target));
       }
@@ -529,7 +540,7 @@
         sku: source.sku,
         productName: profile.name || source.productName || '',
         pcs: profile.outboundPcs,
-        stock: profile.stock, // ✨ 재고량 데이터 연동
+        stock: profile.stock, 
         toteCount: profile.touch,
         temp: thermalClass(source),
         currentCell: location(source),
@@ -550,6 +561,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.8.0-final-fixes' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.9.0-egg-shelf-fix' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
