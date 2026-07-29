@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.11.0 - Flow Rack Weight Limit & Auto Weight Extraction)
+ * QPS cell-allocation rule engine (V2.12.0 - Flow Rack Weight Limit 1kg)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -77,7 +77,6 @@
     return source.includes('kg') || source.includes('킬로') ? n * 1000 : n;
   }
   
-  // 상품명에서 무게 자동 추출
   function extractWeightFromName(name) {
     const match = text(name).match(/(\d+(?:\.\d+)?)\s*(kg|g|킬로|그램|l|ml)/i);
     if (!match) return 0;
@@ -200,7 +199,6 @@
         group,
         vendor: rawP.vendor || '',
         boxWeightG: weightInGrams(rawP.boxWeightRaw, 'box'),
-        // 엑셀 중량 값이 없으면 이름에서 추출하도록 로직 적용
         itemWeightG: weightInGrams(rawP.itemWeightRaw, 'ea') || extractWeightFromName(name),
         incomingBoxes: rawP.incomingBoxes || 0,
         hasIncomingPlan: rawP.incomingPlan !== undefined && rawP.incomingPlan !== '',
@@ -332,9 +330,9 @@
       mandatory.push('게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)');
     }
 
-    // 이미 플로우랙 4단에 위치한 500g 초과 중량물 방 빼기
-    if (rackFamily(cell) === 'flow' && levelOf(cell) === 4 && profile.itemWeightG > 500) {
-      mandatory.push('플로우랙 4단 중량 초과 (500g 이하 권장)');
+    // ✨ 완화된 룰 적용: 1000g 초과 시 방 빼기
+    if (rackFamily(cell) === 'flow' && levelOf(cell) === 4 && profile.itemWeightG > 1000) {
+      mandatory.push('플로우랙 4단 중량 초과 (1kg 이하 권장)');
     }
 
     const zone = text(cell.zone);
@@ -450,9 +448,9 @@
 
     if (c.egg && !eggCellAllowed(candidate, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09, A10) 및 규격별 단수 제한' };
 
-    // 500g 초과 상품이 플로우랙 4단 추천 공셀로 진입하는 것 차단
-    if (rackFamily(candidate) === 'flow' && levelOf(candidate) === 4 && profile.itemWeightG > 500) {
-      return { ok: false, reason: '플로우랙 4단은 500g 이하 소형 상품 전용' };
+    // ✨ 완화된 룰 적용: 1000g 초과 시 진입 차단
+    if (rackFamily(candidate) === 'flow' && levelOf(candidate) === 4 && profile.itemWeightG > 1000) {
+      return { ok: false, reason: '플로우랙 4단은 1kg 이하 소형 상품 전용' };
     }
 
     return { ok: true };
@@ -582,6 +580,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.11.0-flow-weight-limit' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.12.0-flow-weight-1kg' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
