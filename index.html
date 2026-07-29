@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>QPS RAW 대시보드 v8.5.3</title>
+<title>QPS RAW 대시보드 v8.5.4</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -53,7 +53,7 @@ th{background:#f8fafc}
 <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
 
 <div class="card">
-  <div class="title">QPS RAW 대시보드 v8.5.3</div>
+  <div class="title">QPS RAW 대시보드 v8.5.4</div>
   <div class="subtitle">노드 터치수(SKU) 최우선 기반 진척률 + 병목 모니터링 적용</div>
 </div>
 
@@ -116,7 +116,7 @@ const zoneDefs = {
 };
 const machineList=['APS1','APS2','APS3'];
 let boxRows=null, cellRows=null, boxMeta=null, cellMeta=null;
-window.qpsAllData = null; // 패스 기능 사용 시 재렌더링을 위한 글로벌 변수
+window.qpsAllData = null; 
 const $=s=>document.querySelector(s);
 
 const COMPLETE_STATUS=['피킹완료','토트매핑완료','패킹완료','출고완료','출하완료','배송완료'];
@@ -173,11 +173,7 @@ function heatColor(value,min,max){
   const hue=220-(220*t);
   return `hsl(${hue},82%,${62-(t*10)}%)`;
 }
-function progressColor(rate){
-  const t=Math.max(0,Math.min(1,rate||0));
-  const hue=0+(120*t);
-  return `hsl(${hue},75%,45%)`;
-}
+
 function ensureXLSX(){
   if(typeof XLSX==='undefined') throw new Error('XLSX 라이브러리 로딩 실패');
 }
@@ -414,11 +410,12 @@ function drawScreen(allData){
   const max=touchValues.length?Math.max(...touchValues):0;
   const stats=computeZoneStats(allData.wsMetrics);
 
+  // ✨ 요약 카드 타이틀 텍스트 변경
   $('#machineSummary').innerHTML=machineList.map(machine=>{
     const st=stats[machine];
     return `
       <div class="card machine-card">
-        <div class="machine-name">${zoneDefs[machine].label}</div>
+        <div class="machine-name">${zoneDefs[machine].label}(요약)</div>
         <div class="metrics">
           <div class="metric">지시 터치수<b>${fmt(st.totalTouches)}</b><span class="share">메인 공수 지표</span></div>
           <div class="metric">완료 터치수<b>${fmt(st.completeTouches)}</b><span class="share">실시간 처리량</span></div>
@@ -431,21 +428,38 @@ function drawScreen(allData){
 
   $('#zonesArea').innerHTML=machineList.map(machine=>{
     const def=zoneDefs[machine];
+    
+    // ✨ 호기별 진척률 하위 3개 W/S 추출 (터치수가 0보다 큰 곳 대상)
+    const machineWs = [];
+    for (const col of def.cols) {
+      for (const ws of col.order) {
+        if (ws && allData.wsMetrics[ws] && allData.wsMetrics[ws].totalTouches > 0) {
+          machineWs.push({ ws, progress: allData.wsMetrics[ws].progressRate });
+        }
+      }
+    }
+    machineWs.sort((a, b) => a.progress - b.progress);
+    const bottom3Ws = new Set(machineWs.slice(0, 3).map(x => x.ws));
+
     return `<div class="card aps-block"><div class="aps-head"><div class="aps-title">${zoneDefs[machine].label}</div></div><div class="zone-columns">${
       def.cols.map(col=>`<div class="zone-col"><div class="zone-head"><span>${col.zone}</span></div><div class="spark-stack">${
         col.order.map(ws=>{
           if(!ws) return `<div class="spark-row blank"></div>`;
           const m=allData.wsMetrics[ws]||{inboundToteCount:0,totalTouches:0,completeTouches:0,progressRate:0,pcsPerTouch:0};
           const touch=m.totalTouches||0;
-          const tote=m.inboundToteCount||0;
           const progress=m.progressRate||0;
           const pcsPT=m.pcsPerTouch||0;
           
           const touchWidth=max>0?Math.max(touch>0?3:0,(touch/max)*100):0;
-          const progressWidth=Math.max(progress>0?3:0,progress*100);
           const touchBarColor=heatColor(touch,min,max);
-          const progBarColor=progressColor(progress);
+          
+          // ✨ 하위 3개 하이라이트 스타일 적용
+          const isBottom3 = bottom3Ws.has(ws);
+          const progressStyle = isBottom3 
+            ? 'color:#b91c1c; font-weight:900; background:#fee2e2; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:2px;' 
+            : 'color:#2563eb;';
 
+          // ✨ 진척률 막대그래프 HTML 삭제, 텍스트 강조만 남김
           return `
             <div class="spark-row">
               <div class="ws-label">${ws}</div>
@@ -454,12 +468,12 @@ function drawScreen(allData){
                   <div class="spark-item-label">터치수</div>
                   <div class="spark-track"><div class="spark-fill" style="width:${touchWidth}%;background:${touchBarColor};"></div></div>
                 </div>
-                <div class="spark-item">
-                  <div class="spark-item-label">진척률</div>
-                  <div class="spark-track"><div class="spark-fill" style="width:${progressWidth}%;background:${progBarColor};"></div></div>
-                </div>
               </div>
-              <div class="spark-value">터치 ${fmt(touch)}<br>진척 <b style="color:#2563eb">${fmtPct(progress)}</b><br><span style="color:#ef4444">${pcsPT.toFixed(1)} pcs/t</span></div>
+              <div class="spark-value" style="text-align:right; line-height:1.4;">
+                터치 ${fmt(touch)}<br>
+                진척 <b style="${progressStyle}">${fmtPct(progress)}</b><br>
+                <span style="color:#ef4444">${pcsPT.toFixed(1)} pcs/t</span>
+              </div>
             </div>
           `;
         }).join('')
@@ -472,7 +486,6 @@ function drawScreen(allData){
   
   const displayRecs = recs.filter(r => !ignoredSkus.has(r.sku)).slice(0, 20);
 
-  // ✨ 테이블 컬럼에 현 재고량(stock) 렌더링 추가
   $('#recommendBody').innerHTML=
     displayRecs.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.pcs)}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill ${r.currentRank<=2?'bad':''}">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('')
     || '<tr><td colspan="14">추천 결과 없음</td></tr>';
@@ -595,7 +608,6 @@ $('#cellFile').addEventListener('change', async e=>{
   await tryBuild();
 });
 </script>
-<!-- 브라우저 캐시 강제 우회를 위한 자동 꼬리표 로직 -->
 <script>
   const script = document.createElement('script');
   script.src = 'ruleEngine.js?v=' + new Date().getTime();
