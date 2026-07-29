@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.9 - Egg Volume Exception & Shelf Stock Limit)
+ * QPS cell-allocation rule engine (V2.10.0 - Soft Shelf Rule Architecture)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -85,7 +85,6 @@
     const group = text(profile.group); 
     const name = text(profile.name);   
 
-    // ✨ 중분류가 꼬여있더라도 이름에 계란 키워드가 명확하면 안전망(Fallback)으로 계란 취급
     const isEggByName = /계란|식용란|유정란|왕란|특란|대란|신선란|메추리알|구운란/.test(name);
 
     const category = {
@@ -244,14 +243,12 @@
   function eggCellAllowed(cell, profile) {
     const loc = location(cell), level = levelOf(cell), zone = text(cell.zone);
     
-    // ✨ 대량 재고(50 이상) 또는 대량 출고(100 이상) 계란은 A08(선반랙)으로 강제 이주시키지 않고 게이트랙(A09, A10) 사용을 허용합니다.
     if ((profile.outboundPcs >= 100 || profile.stock >= 50) && (zone === 'A09' || zone === 'A10')) {
         return true;
     }
 
     if (zone === 'A08') {
       if (![2, 3, 4].includes(level)) return false; 
-      // 10구, 15구, 20구, 30구 전용 칸 분리 로직 (동일 구역 내 이동 원인)
       const ranges = {
         10: ['A08-010101', 'A08-020505'],
         15: ['A08-030101', 'A08-040505'],
@@ -309,26 +306,28 @@
     });
   }
 
+  // ✨ 위반 사유를 mandatory(강제)와 soft(검토/권장)로 철저히 분리
   function violationReasons(cell, profile) {
-    const reasons = [];
+    const mandatory = [];
+    const soft = [];
+    
     const a10MustMove = cell.zone === 'A10' && profile.touch < 100 && profile.stock <= 100 && profile.hasIncomingPlan && profile.noIncomingInTwoWeeks;
-    if (a10MustMove) reasons.push('A10 이동 기준 충족: 일 출고 100건 미만·재고 100PCS 이하·2주 입고 예정 없음');
+    if (a10MustMove) mandatory.push('A10 이동 기준 충족: 일 출고 100건 미만·재고 100PCS 이하·2주 입고 예정 없음');
     
     const category = categoryZoneAllowed(cell, profile);
-    if (!category.ok) reasons.push(category.reason);
+    if (!category.ok) mandatory.push(category.reason);
     
     if (rackFamily(cell) === 'gate' && profile.outboundPcs < 100 && profile.stock < 50) {
-      reasons.push('게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)');
+      mandatory.push('게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)');
     }
 
-    // ✨ 선반랙(Shelf) 재고 50개 이상 보충 과다 위반 룰 추가
-    // 단, 선반랙 전용 구역(A01, B08, C08, D08, D09, D10) 등은 예외로 처리하여 무한 추천 방지
     const zone = text(cell.zone);
     if (rackFamily(cell) === 'shelf' && profile.stock >= 50 && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(zone)) {
-      reasons.push('선반랙 부적합 (현 재고 50개 이상 보충 과다)');
+      // 50개 이상이더라도 소형 상품일 수 있으므로 약한 조항(soft)으로 뺌
+      soft.push('현재고 50개 이상으로 선반랙 부적합');
     }
 
-    return reasons;
+    return { mandatory, soft };
   }
 
   function percentile(value, values) {
@@ -410,10 +409,10 @@
     const balance = balanceStats(context, source.ws, candidate.ws, profile.touch);
     score += balance.score;
 
-    // ✨ 타겟 셀(추천 셀) 평가 시에도 선반랙 50개 이상 페널티를 부여하여 플로우/게이트랙으로 유도
     const zone = text(candidate.zone);
+    // ✨ 타겟을 고를 때 선반랙 페널티를 -150에서 -50으로 대폭 완화하여 소형상품 수용 확률 확보
     if (rackFamily(candidate) === 'shelf' && profile.stock >= 50 && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(zone)) {
-      score -= 150;
+      score -= 50;
     }
 
     const categoryCheck = categoryZoneAllowed(candidate, profile);
@@ -503,7 +502,11 @@
 
     for (const { source, profile } of sourcesToProcess) {
       const preferredFamilies = desiredFamilies(profile, statistics);
-      const sourceViolations = violationReasons(source, profile);
+      
+      // ✨ 위반 사유 추출 및 강제/권장 분리 로직 적용
+      const violationsObj = violationReasons(source, profile);
+      const sourceViolations = [...violationsObj.mandatory, ...violationsObj.soft];
+      const isMandatoryMove = violationsObj.mandatory.length > 0;
       
       const context = { allData, preferredFamilies, vendorCounts, wsMetricsArray, wsCount, wsAverage };
       const sourceScore = targetScore(source, source, profile, context).score;
@@ -517,6 +520,7 @@
         
         const scoreInfo = targetScore(candidate, source, profile, context);
         const articleFiveOverride = preferredFamilies.includes(rackFamily(candidate));
+        
         if (!scoreInfo.balance.compliant && !articleFiveOverride && !sourceViolations.length) continue;
         
         candidates.push({ cell: candidate, scoreInfo });
@@ -524,11 +528,11 @@
       
       candidates.sort((a, b) => b.scoreInfo.score - a.scoreInfo.score || location(a.cell).localeCompare(location(b.cell)));
       const best = candidates[0];
-      const mandatory = sourceViolations.length > 0;
       const materiallyBetter = best && best.scoreInfo.score >= sourceScore + 25;
       
-      if (!best && !mandatory) continue;
-      if (!mandatory && !materiallyBetter) continue;
+      // ✨ 강제 룰(mandatory)이 없더라도, 더 좋은 자리가 있다면 이동 제안 (약한 룰의 진정한 가치)
+      if (!best && !isMandatoryMove && !sourceViolations.length) continue;
+      if (!isMandatoryMove && !materiallyBetter) continue;
 
       const target = best && best.cell;
       
@@ -551,7 +555,7 @@
         reason: target
           ? recommendationReasons(source, target, profile, context, sourceViolations, best.scoreInfo)
           : sourceViolations.join(' · '),
-        mandatory: mandatory ? 1 : 0,
+        mandatory: isMandatoryMove ? 1 : 0,
         improvement: best ? best.scoreInfo.score - sourceScore : -999
       });
     }
@@ -561,6 +565,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.9.0-egg-shelf-fix' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.10.0-soft-shelf' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
