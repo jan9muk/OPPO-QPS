@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>QPS RAW 대시보드 v8.5.5</title>
+<title>QPS RAW 대시보드 v8.5.6</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -23,11 +23,8 @@ body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;backgrou
 .aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}
 .zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}
 .spark-stack{display:grid;gap:10px}
-
-/* 변경 영역: 불필요한 텍스트 제거 및 비율 조정, blank의 visibility 수정 */
 .spark-row{display:grid;grid-template-columns:40px 1fr 70px;gap:8px;align-items:center;min-height:52px}
 .spark-row.blank{visibility:hidden} 
-
 .ws-label{font-size:13px;font-weight:700;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .spark-track{width:100%;height:14px;background:#eef2f7;border-radius:999px;overflow:hidden;border:1px solid #e2e8f0}
 .spark-fill{height:100%;border-radius:999px}
@@ -47,13 +44,18 @@ th{background:#f8fafc}
 .btn-pass:hover{background:#fee2e2}
 .btn-reset{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;color:#475569;font-weight:bold;transition:0.2s}
 .btn-reset:hover{background:#e2e8f0}
+/* ✨ 신규: 아코디언 및 복구 버튼 스타일 */
+.accordion-header{cursor:pointer; user-select:none;}
+.accordion-header:hover{color:#2563eb;}
+.btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}
+.btn-restore:hover{background:#dcfce7}
 </style>
 </head>
 <body>
 <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
 
 <div class="card">
-  <div class="title">QPS RAW 대시보드 v8.5.5</div>
+  <div class="title">QPS RAW 대시보드 v8.5.6</div>
   <div class="subtitle">노드 터치수(SKU) 최우선 기반 진척률 + 병목 모니터링 적용</div>
 </div>
 
@@ -77,10 +79,12 @@ th{background:#f8fafc}
   <div class="machine-grid" id="machineSummary"></div>
   <div class="zones" id="zonesArea"></div>
 
+  <!-- 메인 추천 카드 -->
   <div class="card">
     <div class="subhead" style="display:flex; justify-content:space-between; align-items:center;">
       <span>셀 이동 추천</span>
-      <button class="btn-reset" onclick="resetIgnored()">패스 목록 초기화</button>
+      <!-- 일괄 초기화는 메인 카드에 유지하여 접근성 확보 -->
+      <button class="btn-reset" onclick="resetIgnored()">패스 목록 전체 초기화</button>
     </div>
     <table>
       <thead>
@@ -92,6 +96,23 @@ th{background:#f8fafc}
     </table>
   </div>
 
+  <!-- ✨ 신규: 패스 목록 아코디언 카드 -->
+  <div class="card" id="passCard" style="display:none;">
+    <div class="subhead accordion-header" style="display:flex; justify-content:space-between; align-items:center;" onclick="togglePassList()">
+      <span>셀 이동 패스 목록 (<span id="passCount">0</span>) <span id="passToggleIcon">▼</span></span>
+    </div>
+    <div id="passListContent" style="display:none; margin-top:14px;">
+      <table>
+        <thead>
+          <tr>
+            <th>SKU</th><th>상품명</th><th>사유</th><th>관리</th>
+          </tr>
+        </thead>
+        <tbody id="passedBody"></tbody>
+      </table>
+    </div>
+  </div>
+
   <div class="footer-note" id="footNote"></div>
 </div>
 
@@ -100,7 +121,6 @@ th{background:#f8fafc}
 </div>
 
 <script>
-// 변경 영역: APS3 E존 배열 길이 맞춤 (null 추가)
 const zoneDefs = {
   APS1:{label:'1호기',cols:[
     {zone:'A존',order:['APS1-01','APS1-02','APS1-03','APS1-04','APS1-05','APS1-06','APS1-07','APS1-08','APS1-09','APS1-10']},
@@ -392,7 +412,7 @@ function computeZoneStats(wsMetrics){
   return res;
 }
 
-// 패스(제외) 기능을 위한 함수
+// ✨ 패스 기능
 window.ignoreSku = function(sku) {
   const ignored = new Set(JSON.parse(localStorage.getItem('qps_ignored_skus') || '[]'));
   ignored.add(sku);
@@ -405,7 +425,26 @@ window.resetIgnored = function() {
   if(window.qpsAllData) drawScreen(window.qpsAllData);
 };
 
-// 변경 영역: 명칭 축약 함수 추가
+// ✨ 아코디언 토글 및 개별 복구 기능 추가
+window.togglePassList = function() {
+  const content = $('#passListContent');
+  const icon = $('#passToggleIcon');
+  if(content.style.display === 'none') {
+    content.style.display = 'block';
+    icon.textContent = '▲';
+  } else {
+    content.style.display = 'none';
+    icon.textContent = '▼';
+  }
+};
+
+window.restoreSku = function(sku) {
+  const ignored = new Set(JSON.parse(localStorage.getItem('qps_ignored_skus') || '[]'));
+  ignored.delete(sku);
+  localStorage.setItem('qps_ignored_skus', JSON.stringify([...ignored]));
+  if(window.qpsAllData) drawScreen(window.qpsAllData);
+};
+
 function formatWsName(ws){
   if(!ws) return '';
   const m = ws.match(/APS(\d+)-0*(\d+)/);
@@ -463,7 +502,6 @@ function drawScreen(allData){
             ? 'color:#b91c1c; font-weight:900; background:#fee2e2; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:2px;' 
             : 'color:#2563eb;';
 
-          // 변경 영역: 레이아웃 구조 축소, 불필요 텍스트 삭제
           return `
             <div class="spark-row">
               <div class="ws-label">${formatWsName(ws)}</div>
@@ -479,20 +517,35 @@ function drawScreen(allData){
     }</div></div>`;
   }).join('');
 
-  const recs=buildRecommendations(allData);
+  const recs = buildRecommendations(allData);
   const ignoredSkus = new Set(JSON.parse(localStorage.getItem('qps_ignored_skus') || '[]'));
   
-  const displayRecs = recs.filter(r => !ignoredSkus.has(r.sku)).slice(0, 20);
+  const displayRecs = [];
+  const passedRecs = [];
+  
+  recs.forEach(r => {
+    if(ignoredSkus.has(r.sku)) passedRecs.push(r);
+    else displayRecs.push(r);
+  });
 
-  $('#recommendBody').innerHTML=
-    displayRecs.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.pcs)}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill ${r.currentRank<=2?'bad':''}">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('')
-    || '<tr><td colspan="14">추천 결과 없음</td></tr>';
+  // 메인 추천 렌더링 (20개 제한)
+  const renderDisplay = displayRecs.slice(0, 20);
+  $('#recommendBody').innerHTML = renderDisplay.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.pcs)}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill ${r.currentRank<=2?'bad':''}">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('') || '<tr><td colspan="14">추천 결과 없음</td></tr>';
 
-  const boxInfo=boxMeta?`${boxMeta.fileName} / 시트: ${boxMeta.sheetName||'미탐지'}`:'-';
-  const cellInfo=cellMeta?`${cellMeta.fileName} / 시트: ${cellMeta.sheetName||'미탐지'}`:'-';
-  $('#footNote').textContent=`박스상품 상세정보: ${boxInfo} · 셀할당현황: ${cellInfo}`;
-  $('#emptyState').style.display='none';
-  $('#content').style.display='block';
+  // 패스 목록 렌더링 및 UI 컨트롤
+  if(passedRecs.length > 0) {
+    $('#passCard').style.display = 'block';
+    $('#passCount').textContent = passedRecs.length;
+    $('#passedBody').innerHTML = passedRecs.map(r => `<tr><td>${r.sku}</td><td>${r.productName||''}</td><td style="color:#6b7280">${r.reason}</td><td><button class="btn-restore" onclick="restoreSku('${r.sku}')">복구</button></td></tr>`).join('');
+  } else {
+    $('#passCard').style.display = 'none';
+  }
+
+  const boxInfo = boxMeta ? `${boxMeta.fileName} / 시트: ${boxMeta.sheetName||'미탐지'}` : '-';
+  const cellInfo = cellMeta ? `${cellMeta.fileName} / 시트: ${cellMeta.sheetName||'미탐지'}` : '-';
+  $('#footNote').textContent = `박스상품 상세정보: ${boxInfo} · 셀할당현황: ${cellInfo}`;
+  $('#emptyState').style.display = 'none';
+  $('#content').style.display = 'block';
 }
 
 function validateRows(rows,type){
