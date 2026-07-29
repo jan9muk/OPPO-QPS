@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.10.0 - Soft Shelf Rule Architecture)
+ * QPS cell-allocation rule engine (V2.11.0 - Flow Rack Weight Limit & Auto Weight Extraction)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -76,6 +76,17 @@
     const source = `${text(value)} ${text(headerHint)}`.toLowerCase();
     return source.includes('kg') || source.includes('킬로') ? n * 1000 : n;
   }
+  
+  // 상품명에서 무게 자동 추출
+  function extractWeightFromName(name) {
+    const match = text(name).match(/(\d+(?:\.\d+)?)\s*(kg|g|킬로|그램|l|ml)/i);
+    if (!match) return 0;
+    let val = parseFloat(match[1]);
+    const unit = match[2].toLowerCase();
+    if (unit === 'kg' || unit === '킬로' || unit === 'l') val *= 1000;
+    return val;
+  }
+
   function hasExplicitNoInbound(value) {
     const normalized = key(value);
     return normalized === '0' || ['없음', '무', 'no', 'n', '미정'].includes(normalized);
@@ -189,7 +200,8 @@
         group,
         vendor: rawP.vendor || '',
         boxWeightG: weightInGrams(rawP.boxWeightRaw, 'box'),
-        itemWeightG: weightInGrams(rawP.itemWeightRaw, 'ea'),
+        // 엑셀 중량 값이 없으면 이름에서 추출하도록 로직 적용
+        itemWeightG: weightInGrams(rawP.itemWeightRaw, 'ea') || extractWeightFromName(name),
         incomingBoxes: rawP.incomingBoxes || 0,
         hasIncomingPlan: rawP.incomingPlan !== undefined && rawP.incomingPlan !== '',
         noIncomingInTwoWeeks: rawP.incomingPlan !== undefined && rawP.incomingPlan !== '' && hasExplicitNoInbound(rawP.incomingPlan),
@@ -306,7 +318,6 @@
     });
   }
 
-  // ✨ 위반 사유를 mandatory(강제)와 soft(검토/권장)로 철저히 분리
   function violationReasons(cell, profile) {
     const mandatory = [];
     const soft = [];
@@ -321,9 +332,13 @@
       mandatory.push('게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)');
     }
 
+    // 이미 플로우랙 4단에 위치한 500g 초과 중량물 방 빼기
+    if (rackFamily(cell) === 'flow' && levelOf(cell) === 4 && profile.itemWeightG > 500) {
+      mandatory.push('플로우랙 4단 중량 초과 (500g 이하 권장)');
+    }
+
     const zone = text(cell.zone);
     if (rackFamily(cell) === 'shelf' && profile.stock >= 50 && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(zone)) {
-      // 50개 이상이더라도 소형 상품일 수 있으므로 약한 조항(soft)으로 뺌
       soft.push('현재고 50개 이상으로 선반랙 부적합');
     }
 
@@ -410,7 +425,6 @@
     score += balance.score;
 
     const zone = text(candidate.zone);
-    // ✨ 타겟을 고를 때 선반랙 페널티를 -150에서 -50으로 대폭 완화하여 소형상품 수용 확률 확보
     if (rackFamily(candidate) === 'shelf' && profile.stock >= 50 && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(zone)) {
       score -= 50;
     }
@@ -435,6 +449,11 @@
     if (!c.iceCream && text(candidate.zone) === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 셀' };
 
     if (c.egg && !eggCellAllowed(candidate, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09, A10) 및 규격별 단수 제한' };
+
+    // 500g 초과 상품이 플로우랙 4단 추천 공셀로 진입하는 것 차단
+    if (rackFamily(candidate) === 'flow' && levelOf(candidate) === 4 && profile.itemWeightG > 500) {
+      return { ok: false, reason: '플로우랙 4단은 500g 이하 소형 상품 전용' };
+    }
 
     return { ok: true };
   }
@@ -503,7 +522,6 @@
     for (const { source, profile } of sourcesToProcess) {
       const preferredFamilies = desiredFamilies(profile, statistics);
       
-      // ✨ 위반 사유 추출 및 강제/권장 분리 로직 적용
       const violationsObj = violationReasons(source, profile);
       const sourceViolations = [...violationsObj.mandatory, ...violationsObj.soft];
       const isMandatoryMove = violationsObj.mandatory.length > 0;
@@ -530,7 +548,6 @@
       const best = candidates[0];
       const materiallyBetter = best && best.scoreInfo.score >= sourceScore + 25;
       
-      // ✨ 강제 룰(mandatory)이 없더라도, 더 좋은 자리가 있다면 이동 제안 (약한 룰의 진정한 가치)
       if (!best && !isMandatoryMove && !sourceViolations.length) continue;
       if (!isMandatoryMove && !materiallyBetter) continue;
 
@@ -565,6 +582,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.10.0-soft-shelf' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.11.0-flow-weight-limit' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
