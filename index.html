@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>QPS RAW 대시보드 v8.5.4</title>
+<title>QPS RAW 대시보드 v8.5.5</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -23,12 +23,12 @@ body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;backgrou
 .aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}
 .zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}
 .spark-stack{display:grid;gap:10px}
-.spark-row{display:grid;grid-template-columns:72px 1fr 100px;gap:8px;align-items:center;min-height:64px}
-.spark-row.blank{display:none}
+
+/* 변경 영역: 불필요한 텍스트 제거 및 비율 조정, blank의 visibility 수정 */
+.spark-row{display:grid;grid-template-columns:40px 1fr 70px;gap:8px;align-items:center;min-height:52px}
+.spark-row.blank{visibility:hidden} 
+
 .ws-label{font-size:13px;font-weight:700;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.spark-metrics{display:grid;gap:6px}
-.spark-item{display:grid;grid-template-columns:46px 1fr;gap:8px;align-items:center}
-.spark-item-label{font-size:11px;font-weight:700;color:#6b7280;white-space:nowrap}
 .spark-track{width:100%;height:14px;background:#eef2f7;border-radius:999px;overflow:hidden;border:1px solid #e2e8f0}
 .spark-fill{height:100%;border-radius:999px}
 .spark-value{text-align:right;font-size:11px;font-weight:700;color:#475569;white-space:nowrap;line-height:1.45}
@@ -53,7 +53,7 @@ th{background:#f8fafc}
 <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
 
 <div class="card">
-  <div class="title">QPS RAW 대시보드 v8.5.4</div>
+  <div class="title">QPS RAW 대시보드 v8.5.5</div>
   <div class="subtitle">노드 터치수(SKU) 최우선 기반 진척률 + 병목 모니터링 적용</div>
 </div>
 
@@ -100,6 +100,7 @@ th{background:#f8fafc}
 </div>
 
 <script>
+// 변경 영역: APS3 E존 배열 길이 맞춤 (null 추가)
 const zoneDefs = {
   APS1:{label:'1호기',cols:[
     {zone:'A존',order:['APS1-01','APS1-02','APS1-03','APS1-04','APS1-05','APS1-06','APS1-07','APS1-08','APS1-09','APS1-10']},
@@ -110,7 +111,7 @@ const zoneDefs = {
     {zone:'D존',order:['APS2-20','APS2-19','APS2-18','APS2-17','APS2-16','APS2-15','APS2-14','APS2-13','APS2-12','APS2-11']}
   ]},
   APS3:{label:'3호기',cols:[
-    {zone:'E존',order:[null,'APS3-07','APS3-06','APS3-05','APS3-04',null,null,'APS3-03','APS3-02','APS3-01']},
+    {zone:'E존',order:[null,'APS3-07','APS3-06','APS3-05','APS3-04',null,null,'APS3-03','APS3-02','APS3-01',null,null]},
     {zone:'F존',order:['APS3-08','APS3-09','APS3-10','APS3-11','APS3-12','APS3-13','APS3-14','APS3-15','APS3-16','APS3-17','APS3-18','APS3-19']}
   ]}
 };
@@ -404,13 +405,19 @@ window.resetIgnored = function() {
   if(window.qpsAllData) drawScreen(window.qpsAllData);
 };
 
+// 변경 영역: 명칭 축약 함수 추가
+function formatWsName(ws){
+  if(!ws) return '';
+  const m = ws.match(/APS(\d+)-0*(\d+)/);
+  return m ? `${m[1]}-${m[2]}` : ws;
+}
+
 function drawScreen(allData){
   const touchValues=Object.values(allData.wsMetrics).map(v=>v.totalTouches||0);
   const min=touchValues.length?Math.min(...touchValues):0;
   const max=touchValues.length?Math.max(...touchValues):0;
   const stats=computeZoneStats(allData.wsMetrics);
 
-  // ✨ 요약 카드 타이틀 텍스트 변경
   $('#machineSummary').innerHTML=machineList.map(machine=>{
     const st=stats[machine];
     return `
@@ -429,7 +436,6 @@ function drawScreen(allData){
   $('#zonesArea').innerHTML=machineList.map(machine=>{
     const def=zoneDefs[machine];
     
-    // ✨ 호기별 진척률 하위 3개 W/S 추출 (터치수가 0보다 큰 곳 대상)
     const machineWs = [];
     for (const col of def.cols) {
       for (const ws of col.order) {
@@ -448,31 +454,23 @@ function drawScreen(allData){
           const m=allData.wsMetrics[ws]||{inboundToteCount:0,totalTouches:0,completeTouches:0,progressRate:0,pcsPerTouch:0};
           const touch=m.totalTouches||0;
           const progress=m.progressRate||0;
-          const pcsPT=m.pcsPerTouch||0;
           
           const touchWidth=max>0?Math.max(touch>0?3:0,(touch/max)*100):0;
           const touchBarColor=heatColor(touch,min,max);
           
-          // ✨ 하위 3개 하이라이트 스타일 적용
           const isBottom3 = bottom3Ws.has(ws);
           const progressStyle = isBottom3 
             ? 'color:#b91c1c; font-weight:900; background:#fee2e2; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:2px;' 
             : 'color:#2563eb;';
 
-          // ✨ 진척률 막대그래프 HTML 삭제, 텍스트 강조만 남김
+          // 변경 영역: 레이아웃 구조 축소, 불필요 텍스트 삭제
           return `
             <div class="spark-row">
-              <div class="ws-label">${ws}</div>
-              <div class="spark-metrics">
-                <div class="spark-item">
-                  <div class="spark-item-label">터치수</div>
-                  <div class="spark-track"><div class="spark-fill" style="width:${touchWidth}%;background:${touchBarColor};"></div></div>
-                </div>
-              </div>
+              <div class="ws-label">${formatWsName(ws)}</div>
+              <div class="spark-track"><div class="spark-fill" style="width:${touchWidth}%;background:${touchBarColor};"></div></div>
               <div class="spark-value" style="text-align:right; line-height:1.4;">
                 터치 ${fmt(touch)}<br>
-                진척 <b style="${progressStyle}">${fmtPct(progress)}</b><br>
-                <span style="color:#ef4444">${pcsPT.toFixed(1)} pcs/t</span>
+                진척 <b style="${progressStyle}">${fmtPct(progress)}</b>
               </div>
             </div>
           `;
