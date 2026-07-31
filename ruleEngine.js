@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.13.0 - Egg Exception & Classification Fix)
+ * QPS cell-allocation rule engine (V2.14.0 - Frozen Livestock Fix)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -287,7 +287,9 @@
     if (!c.iceCream && zone === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 구역이므로 일반 냉동 상품 불가' };
 
     if (c.zeroToFive && profile.temp !== 'frozen' && !isChilledDedicated(zone)) return { ok: false, reason: '0~5℃ 보관 필요 품목은 D01~D02 권장' };
-    if (c.livestock && !livestockCellAllowed(cell)) return { ok: false, reason: '축산물 법정 허가 구역 외' };
+    
+    // ✨ 냉장 축산물만 허가 구역 강제
+    if (c.livestock && profile.temp !== 'frozen' && !livestockCellAllowed(cell)) return { ok: false, reason: '냉장 축산물 법정 허가 구역 외' };
 
     return { ok: true };
   }
@@ -336,7 +338,6 @@
     }
 
     const zone = text(cell.zone);
-    // ✨ 계란은 선반랙 재고 제한에서 예외 처리
     if (rackFamily(cell) === 'shelf' && profile.stock >= 50 && !profile.category.egg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(zone)) {
       soft.push('현재고 50개 이상으로 선반랙 부적합');
     }
@@ -424,7 +425,6 @@
     score += balance.score;
 
     const zone = text(candidate.zone);
-    // ✨ 계란은 선반랙 재고 제한 감점 제외
     if (rackFamily(candidate) === 'shelf' && profile.stock >= 50 && !profile.category.egg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(zone)) {
       score -= 50;
     }
@@ -440,7 +440,9 @@
   function candidateEvaluation(candidate, source, profile) {
     if (thermalClass(candidate) !== thermalClass(source)) return { ok: false, reason: '온도대 불일치' };
     if (CONFIG.disabledZones.has(text(candidate.zone))) return { ok: false, reason: 'E01~E02는 셀 할당 금지 구역' };
-    if (profile.category.livestock && !livestockCellAllowed(candidate)) return { ok: false, reason: '축산물 법정 허가 구역 외' };
+    
+    // ✨ 냉장 축산물만 허가 구역 강제
+    if (profile.category.livestock && profile.temp !== 'frozen' && !livestockCellAllowed(candidate)) return { ok: false, reason: '냉장 축산물 법정 허가 구역 외' };
     
     if (rackFamily(candidate) === 'gate' && profile.outboundPcs < 100) return { ok: false, reason: '게이트랙은 출고 100pcs 이상 전용' };
 
@@ -581,6 +583,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.13.0-egg-fix' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.14.0-frozen-livestock-fix' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
