@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>QPS RAW 대시보드 v8.5.6</title>
+<title>QPS RAW 대시보드 v8.5.7</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -44,7 +44,6 @@ th{background:#f8fafc}
 .btn-pass:hover{background:#fee2e2}
 .btn-reset{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;color:#475569;font-weight:bold;transition:0.2s}
 .btn-reset:hover{background:#e2e8f0}
-/* ✨ 신규: 아코디언 및 복구 버튼 스타일 */
 .accordion-header{cursor:pointer; user-select:none;}
 .accordion-header:hover{color:#2563eb;}
 .btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}
@@ -55,8 +54,8 @@ th{background:#f8fafc}
 <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
 
 <div class="card">
-  <div class="title">QPS RAW 대시보드 v8.5.6</div>
-  <div class="subtitle">노드 터치수(SKU) 최우선 기반 진척률 + 병목 모니터링 적용</div>
+  <div class="title">QPS RAW 대시보드 v8.5.7</div>
+  <div class="subtitle">노드 터치수(SKU) 최우선 기반 진척률 + 계란 분류 및 재고 패널티 예외 로직 적용</div>
 </div>
 
 <div class="card">
@@ -83,7 +82,6 @@ th{background:#f8fafc}
   <div class="card">
     <div class="subhead" style="display:flex; justify-content:space-between; align-items:center;">
       <span>셀 이동 추천</span>
-      <!-- 일괄 초기화는 메인 카드에 유지하여 접근성 확보 -->
       <button class="btn-reset" onclick="resetIgnored()">패스 목록 전체 초기화</button>
     </div>
     <table>
@@ -96,7 +94,7 @@ th{background:#f8fafc}
     </table>
   </div>
 
-  <!-- ✨ 신규: 패스 목록 아코디언 카드 -->
+  <!-- 패스 목록 아코디언 카드 -->
   <div class="card" id="passCard" style="display:none;">
     <div class="subhead accordion-header" style="display:flex; justify-content:space-between; align-items:center;" onclick="togglePassList()">
       <span>셀 이동 패스 목록 (<span id="passCount">0</span>) <span id="passToggleIcon">▼</span></span>
@@ -412,7 +410,6 @@ function computeZoneStats(wsMetrics){
   return res;
 }
 
-// ✨ 패스 기능
 window.ignoreSku = function(sku) {
   const ignored = new Set(JSON.parse(localStorage.getItem('qps_ignored_skus') || '[]'));
   ignored.add(sku);
@@ -425,7 +422,6 @@ window.resetIgnored = function() {
   if(window.qpsAllData) drawScreen(window.qpsAllData);
 };
 
-// ✨ 아코디언 토글 및 개별 복구 기능 추가
 window.togglePassList = function() {
   const content = $('#passListContent');
   const icon = $('#passToggleIcon');
@@ -528,11 +524,9 @@ function drawScreen(allData){
     else displayRecs.push(r);
   });
 
-  // 메인 추천 렌더링 (20개 제한)
   const renderDisplay = displayRecs.slice(0, 20);
   $('#recommendBody').innerHTML = renderDisplay.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.pcs)}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill ${r.currentRank<=2?'bad':''}">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('') || '<tr><td colspan="14">추천 결과 없음</td></tr>';
 
-  // 패스 목록 렌더링 및 UI 컨트롤
   if(passedRecs.length > 0) {
     $('#passCard').style.display = 'block';
     $('#passCount').textContent = passedRecs.length;
