@@ -288,7 +288,6 @@
 
     if (c.zeroToFive && profile.temp !== 'frozen' && !isChilledDedicated(zone)) return { ok: false, reason: '0~5℃ 보관 필요 품목은 D01~D02 권장' };
     
-    // ✨ 냉장 축산물만 허가 구역 강제
     if (c.livestock && profile.temp !== 'frozen' && !livestockCellAllowed(cell)) return { ok: false, reason: '냉장 축산물 법정 허가 구역 외' };
 
     return { ok: true };
@@ -441,7 +440,6 @@
     if (thermalClass(candidate) !== thermalClass(source)) return { ok: false, reason: '온도대 불일치' };
     if (CONFIG.disabledZones.has(text(candidate.zone))) return { ok: false, reason: 'E01~E02는 셀 할당 금지 구역' };
     
-    // ✨ 냉장 축산물만 허가 구역 강제
     if (profile.category.livestock && profile.temp !== 'frozen' && !livestockCellAllowed(candidate)) return { ok: false, reason: '냉장 축산물 법정 허가 구역 외' };
     
     if (rackFamily(candidate) === 'gate' && profile.outboundPcs < 100) return { ok: false, reason: '게이트랙은 출고 100pcs 이상 전용' };
