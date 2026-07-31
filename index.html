@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>QPS RAW 대시보드 v8.5.8</title>
+<title>QPS RAW 대시보드 v8.5.9</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -54,8 +54,8 @@ th{background:#f8fafc}
 <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
 
 <div class="card">
-  <div class="title">QPS RAW 대시보드 v8.5.8</div>
-  <div class="subtitle">노드 터치수(SKU) 최우선 기반 진척률 + 냉동 축산물 법정 구역 예외 로직 적용</div>
+  <div class="title">QPS RAW 대시보드 v8.5.9</div>
+  <div class="subtitle">노드 터치수(SKU) 최우선 기반 진척률 + 초기화 버튼 위치 정상화</div>
 </div>
 
 <div class="card">
@@ -82,7 +82,7 @@ th{background:#f8fafc}
   <div class="card">
     <div class="subhead" style="display:flex; justify-content:space-between; align-items:center;">
       <span>셀 이동 추천</span>
-      <button class="btn-reset" onclick="resetIgnored()">패스 목록 전체 초기화</button>
+      <!-- 기존 초기화 버튼 제거됨 -->
     </div>
     <table>
       <thead>
@@ -98,6 +98,8 @@ th{background:#f8fafc}
   <div class="card" id="passCard" style="display:none;">
     <div class="subhead accordion-header" style="display:flex; justify-content:space-between; align-items:center;" onclick="togglePassList()">
       <span>셀 이동 패스 목록 (<span id="passCount">0</span>) <span id="passToggleIcon">▼</span></span>
+      <!-- 버튼 클릭 시 아코디언 토글 방지를 위해 stopPropagation 추가 -->
+      <button class="btn-reset" onclick="event.stopPropagation(); resetIgnored()">패스 목록 전체 초기화</button>
     </div>
     <div id="passListContent" style="display:none; margin-top:14px;">
       <table>
