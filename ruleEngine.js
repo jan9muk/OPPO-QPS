@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.12.0 - Flow Rack Weight Limit 1kg)
+ * QPS cell-allocation rule engine (V2.13.0 - Egg Exception & Classification Fix)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -96,9 +96,10 @@
     const name = text(profile.name);   
 
     const isEggByName = /계란|식용란|유정란|왕란|특란|대란|신선란|메추리알|구운란/.test(name);
+    const isProcessedEgg = /연두부|장조림|소시지|소세지|과자|빵|볶음밥|말이|찜/.test(name) || ['두부/묵/콩가공품', '반찬', '햄/소시지', '간편식', '가공식품'].includes(group);
 
     const category = {
-      egg: group === '계란' || isEggByName,
+      egg: group === '계란' || (isEggByName && !isProcessedEgg),
       iceCream: group === '아이스크림', 
       livestock: ['수입육', '우육', '돈육', '계육', '양념육', '훈제육'].includes(group)
     };
@@ -330,13 +331,13 @@
       mandatory.push('게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)');
     }
 
-    // ✨ 완화된 룰 적용: 1000g 초과 시 방 빼기
     if (rackFamily(cell) === 'flow' && levelOf(cell) === 4 && profile.itemWeightG > 1000) {
       mandatory.push('플로우랙 4단 중량 초과 (1kg 이하 권장)');
     }
 
     const zone = text(cell.zone);
-    if (rackFamily(cell) === 'shelf' && profile.stock >= 50 && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(zone)) {
+    // ✨ 계란은 선반랙 재고 제한에서 예외 처리
+    if (rackFamily(cell) === 'shelf' && profile.stock >= 50 && !profile.category.egg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(zone)) {
       soft.push('현재고 50개 이상으로 선반랙 부적합');
     }
 
@@ -423,7 +424,8 @@
     score += balance.score;
 
     const zone = text(candidate.zone);
-    if (rackFamily(candidate) === 'shelf' && profile.stock >= 50 && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(zone)) {
+    // ✨ 계란은 선반랙 재고 제한 감점 제외
+    if (rackFamily(candidate) === 'shelf' && profile.stock >= 50 && !profile.category.egg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(zone)) {
       score -= 50;
     }
 
@@ -448,7 +450,6 @@
 
     if (c.egg && !eggCellAllowed(candidate, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09, A10) 및 규격별 단수 제한' };
 
-    // ✨ 완화된 룰 적용: 1000g 초과 시 진입 차단
     if (rackFamily(candidate) === 'flow' && levelOf(candidate) === 4 && profile.itemWeightG > 1000) {
       return { ok: false, reason: '플로우랙 4단은 1kg 이하 소형 상품 전용' };
     }
@@ -580,6 +581,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.12.0-flow-weight-1kg' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.13.0-egg-fix' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
