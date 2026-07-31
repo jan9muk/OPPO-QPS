@@ -3,17 +3,26 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>QPS RAW 대시보드 v8.5.9</title>
+<title>QPS RAW 대시보드 v8.5.10</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
 .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}
 .title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}
 .row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}
-.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"]{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px}
+.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}
 .status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}
 .debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}
 .empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}
+
+/* HUD 패널 스타일 */
+.hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center}
+.hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}
+.hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+.hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}
+.val-tph{color:#34d399} .val-eta{color:#facc15} .val-remain{color:#60a5fa}
+
 .machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px}.machine-grid{margin-bottom:18px}
 .machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}
 .metrics{display:flex;gap:20px;flex-wrap:nowrap;justify-content:center;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}
@@ -54,8 +63,8 @@ th{background:#f8fafc}
 <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
 
 <div class="card">
-  <div class="title">QPS RAW 대시보드 v8.5.9</div>
-  <div class="subtitle">노드 터치수(SKU) 최우선 기반 진척률 + 초기화 버튼 위치 정상화</div>
+  <div class="title">QPS RAW 대시보드 v8.5.10</div>
+  <div class="subtitle">실시간 속도(TPH) 및 ETA 예측 계기판 추가 (결품/취소 데이터 제외)</div>
 </div>
 
 <div class="card">
@@ -68,6 +77,13 @@ th{background:#f8fafc}
       <label>셀할당현황 RAW</label>
       <input type="file" id="cellFile" accept=".xlsx,.xls">
     </div>
+    <div class="group">
+      <label>작업 시작 시간 설정</label>
+      <select id="startTimeSelect" onchange="if(window.qpsAllData) tryBuild();">
+        <option value="13">13:00 시작</option>
+        <option value="14">14:00 시작</option>
+      </select>
+    </div>
   </div>
   <div class="status" id="status">두 파일을 모두 업로드하면 W/S별 터치수와 진척률을 계산합니다.</div>
 </div>
@@ -75,6 +91,22 @@ th{background:#f8fafc}
 <div id="emptyState" class="card empty">파일 2개를 모두 업로드해야 데이터가 표시됩니다.</div>
 
 <div id="content" class="section">
+  <!-- ✨ 글로벌 HUD 패널 -->
+  <div class="hud-panel" id="hudPanel">
+    <div class="hud-box">
+      <div class="hud-label">진행 속도 (TPH)</div>
+      <div class="hud-value val-tph" id="hudTph">0<span class="hud-unit">totes/hr</span></div>
+    </div>
+    <div class="hud-box">
+      <div class="hud-label">예상 종료 시각 (ETA)</div>
+      <div class="hud-value val-eta" id="hudEta">--:--</div>
+    </div>
+    <div class="hud-box">
+      <div class="hud-label">총 잔여 토트</div>
+      <div class="hud-value val-remain" id="hudRemain">0<span class="hud-unit">totes</span></div>
+    </div>
+  </div>
+
   <div class="machine-grid" id="machineSummary"></div>
   <div class="zones" id="zonesArea"></div>
 
@@ -82,7 +114,6 @@ th{background:#f8fafc}
   <div class="card">
     <div class="subhead" style="display:flex; justify-content:space-between; align-items:center;">
       <span>셀 이동 추천</span>
-      <!-- 기존 초기화 버튼 제거됨 -->
     </div>
     <table>
       <thead>
@@ -98,7 +129,6 @@ th{background:#f8fafc}
   <div class="card" id="passCard" style="display:none;">
     <div class="subhead accordion-header" style="display:flex; justify-content:space-between; align-items:center;" onclick="togglePassList()">
       <span>셀 이동 패스 목록 (<span id="passCount">0</span>) <span id="passToggleIcon">▼</span></span>
-      <!-- 버튼 클릭 시 아코디언 토글 방지를 위해 stopPropagation 추가 -->
       <button class="btn-reset" onclick="event.stopPropagation(); resetIgnored()">패스 목록 전체 초기화</button>
     </div>
     <div id="passListContent" style="display:none; margin-top:14px;">
@@ -140,8 +170,9 @@ let boxRows=null, cellRows=null, boxMeta=null, cellMeta=null;
 window.qpsAllData = null; 
 const $=s=>document.querySelector(s);
 
-const COMPLETE_STATUS=['피킹완료','토트매핑완료','패킹완료','출고완료','출하완료','배송완료'];
-const EXCLUDE_STATUS=['전체취소','전체결품','출고불가','취소대기'];
+// ✨ 상태 분류 수정: 피킹/패킹/출하 -> 완료 간주, 결품/취소 -> 제외
+const COMPLETE_STATUS=['피킹완료','패킹완료','출하완료'];
+const EXCLUDE_STATUS=['전체취소','전체결품'];
 
 function setStatus(msg,isError=false){
   const el=$('#status');
@@ -251,10 +282,22 @@ function makeToteKey(row){
   return `${d}__${b}`;
 }
 
+// 엑셀 날짜 포맷 변환 유틸리티
+function parseExcelDate(v) {
+  if (!v) return null;
+  if (typeof v === 'number') {
+    return new Date((v - 25569) * 86400 * 1000);
+  }
+  const d = new Date(v);
+  if (!isNaN(d.getTime())) return d;
+  return null;
+}
+
 function buildAllData(boxRows,cellRows){
   const boxHeaders=headersOfRows(boxRows);
   const statusCols=findStatusColumns(boxHeaders);
   const statusCol=statusCols.primary;
+  const updateDateCol = boxHeaders.find(h => String(h).replace(/\s/g,'') === '수정일시');
 
   const skuToPcs=new Map();
   const skuMeta=new Map();
@@ -296,6 +339,8 @@ function buildAllData(boxRows,cellRows){
   }
 
   const touchMap = new Map();
+  let latestDataTimeMs = 0;
+
   for(const row of boxRows){
     const sku=normalizeSku(row['물류상품ID']);
     const toteKey=makeToteKey(row);
@@ -304,7 +349,15 @@ function buildAllData(boxRows,cellRows){
     const pcs=toNumber(row['피킹지시수량']);
     const status=String(statusCol ? row[statusCol] : '').trim();
     
+    // ✨ 전체결품/취소는 모수에서 아예 배제
     if(EXCLUDE_STATUS.includes(status)) continue;
+
+    if(updateDateCol) {
+      const parsedTime = parseExcelDate(row[updateDateCol]);
+      if(parsedTime && parsedTime.getTime() > latestDataTimeMs) {
+        latestDataTimeMs = parsedTime.getTime();
+      }
+    }
 
     if(!skuMeta.has(sku)) skuMeta.set(sku,{name:getProductName(row)});
     skuToPcs.set(sku,(skuToPcs.get(sku)||0)+pcs);
@@ -318,6 +371,7 @@ function buildAllData(boxRows,cellRows){
     const entry = touchMap.get(key);
     entry.pcs += pcs;
     
+    // ✨ 피킹,패킹,출하완료 3가지만 완료로 인정
     if(!COMPLETE_STATUS.includes(status)) {
       entry.isComplete = false;
     }
@@ -367,7 +421,8 @@ function buildAllData(boxRows,cellRows){
     emptyCells,
     assignedCells,
     totalDirectedTouches,
-    totalCompleteTouches
+    totalCompleteTouches,
+    latestDataTimeMs // ETA 계산용 최근 데이터 시점
   };
 }
 
@@ -449,7 +504,53 @@ function formatWsName(ws){
   return m ? `${m[1]}-${m[2]}` : ws;
 }
 
+function updateHUD(allData) {
+  const latestTime = allData.latestDataTimeMs;
+  const targetHour = parseInt($('#startTimeSelect').value, 10);
+  
+  const total = allData.totalDirectedTouches;
+  const comp = allData.totalCompleteTouches;
+  const remain = total - comp;
+
+  $('#hudRemain').innerHTML = `${fmt(remain)}<span class="hud-unit">totes</span>`;
+
+  if (!latestTime || remain <= 0) {
+    $('#hudTph').innerHTML = comp > 0 ? `작업 완료` : `대기 중`;
+    $('#hudEta').textContent = '--:--';
+    return;
+  }
+
+  const latestDate = new Date(latestTime);
+  const startDate = new Date(latestDate);
+  startDate.setHours(targetHour, 0, 0, 0);
+
+  const elapsedMs = latestDate.getTime() - startDate.getTime();
+  const elapsedHours = elapsedMs / 3600000;
+
+  if (elapsedHours <= 0) {
+    $('#hudTph').innerHTML = `시작 전`;
+    $('#hudEta').textContent = '--:--';
+    return;
+  }
+
+  const tph = comp / elapsedHours;
+  $('#hudTph').innerHTML = `${fmt(Math.round(tph))}<span class="hud-unit">totes/hr</span>`;
+
+  if (tph > 0) {
+    const hoursNeeded = remain / tph;
+    const etaMs = latestDate.getTime() + (hoursNeeded * 3600000);
+    const etaDate = new Date(etaMs);
+    const hh = String(etaDate.getHours()).padStart(2, '0');
+    const mm = String(etaDate.getMinutes()).padStart(2, '0');
+    $('#hudEta').textContent = `${hh}:${mm}`;
+  } else {
+    $('#hudEta').textContent = '계산 불가';
+  }
+}
+
 function drawScreen(allData){
+  updateHUD(allData);
+
   const touchValues=Object.values(allData.wsMetrics).map(v=>v.totalTouches||0);
   const min=touchValues.length?Math.min(...touchValues):0;
   const max=touchValues.length?Math.max(...touchValues):0;
