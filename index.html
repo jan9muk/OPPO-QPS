@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>QPS RAW 대시보드 v8.5.10</title>
+<title>QPS RAW 대시보드 v8.5.11</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -63,8 +63,8 @@ th{background:#f8fafc}
 <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
 
 <div class="card">
-  <div class="title">QPS RAW 대시보드 v8.5.10</div>
-  <div class="subtitle">실시간 속도(TPH) 및 ETA 예측 계기판 추가 (결품/취소 데이터 제외)</div>
+  <div class="title">QPS RAW 대시보드 v8.5.11</div>
+  <div class="subtitle">플로우랙 저효율(출고10/재고20 이하) 강제 퇴출 로직 및 타겟 셀 포맷 갱신</div>
 </div>
 
 <div class="card">
@@ -91,7 +91,7 @@ th{background:#f8fafc}
 <div id="emptyState" class="card empty">파일 2개를 모두 업로드해야 데이터가 표시됩니다.</div>
 
 <div id="content" class="section">
-  <!-- ✨ 글로벌 HUD 패널 -->
+  <!-- 글로벌 HUD 패널 -->
   <div class="hud-panel" id="hudPanel">
     <div class="hud-box">
       <div class="hud-label">진행 속도 (TPH)</div>
@@ -170,7 +170,6 @@ let boxRows=null, cellRows=null, boxMeta=null, cellMeta=null;
 window.qpsAllData = null; 
 const $=s=>document.querySelector(s);
 
-// ✨ 상태 분류 수정: 피킹/패킹/출하 -> 완료 간주, 결품/취소 -> 제외
 const COMPLETE_STATUS=['피킹완료','패킹완료','출하완료'];
 const EXCLUDE_STATUS=['전체취소','전체결품'];
 
@@ -282,7 +281,6 @@ function makeToteKey(row){
   return `${d}__${b}`;
 }
 
-// 엑셀 날짜 포맷 변환 유틸리티
 function parseExcelDate(v) {
   if (!v) return null;
   if (typeof v === 'number') {
@@ -349,7 +347,6 @@ function buildAllData(boxRows,cellRows){
     const pcs=toNumber(row['피킹지시수량']);
     const status=String(statusCol ? row[statusCol] : '').trim();
     
-    // ✨ 전체결품/취소는 모수에서 아예 배제
     if(EXCLUDE_STATUS.includes(status)) continue;
 
     if(updateDateCol) {
@@ -371,7 +368,6 @@ function buildAllData(boxRows,cellRows){
     const entry = touchMap.get(key);
     entry.pcs += pcs;
     
-    // ✨ 피킹,패킹,출하완료 3가지만 완료로 인정
     if(!COMPLETE_STATUS.includes(status)) {
       entry.isComplete = false;
     }
@@ -422,7 +418,7 @@ function buildAllData(boxRows,cellRows){
     assignedCells,
     totalDirectedTouches,
     totalCompleteTouches,
-    latestDataTimeMs // ETA 계산용 최근 데이터 시점
+    latestDataTimeMs 
   };
 }
 
