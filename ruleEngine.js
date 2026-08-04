@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.14.0 - Frozen Livestock Fix)
+ * QPS cell-allocation rule engine (V2.15.0 - Flow Rack Eviction & Cell Format Update)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -332,8 +332,14 @@
       mandatory.push('게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)');
     }
 
+    // ✨ 플로우랙 저출고/저재고 강제 퇴출 룰 추가
+    if (rackFamily(cell) === 'flow' && profile.outboundPcs <= 10 && profile.stock <= 20) {
+      mandatory.push('플로우랙 부적합 (출고 10 이하 & 재고 20 이하)');
+    }
+
+    // ✨ 텍스트 수정 적용
     if (rackFamily(cell) === 'flow' && levelOf(cell) === 4 && profile.itemWeightG > 1000) {
-      mandatory.push('플로우랙 4단 중량 초과 (1kg 이하 권장)');
+      mandatory.push('플로우랙 4단 중량(1kg) 초과');
     }
 
     const zone = text(cell.zone);
@@ -450,8 +456,9 @@
 
     if (c.egg && !eggCellAllowed(candidate, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09, A10) 및 규격별 단수 제한' };
 
+    // ✨ 텍스트 수정 적용
     if (rackFamily(candidate) === 'flow' && levelOf(candidate) === 4 && profile.itemWeightG > 1000) {
-      return { ok: false, reason: '플로우랙 4단은 1kg 이하 소형 상품 전용' };
+      return { ok: false, reason: '플로우랙 4단 중량(1kg) 초과 상품' };
     }
 
     return { ok: true };
@@ -556,6 +563,13 @@
           usedTargetCells.add(location(target));
       }
 
+      // ✨ 타겟 셀이 있을 경우 WS 접두어를 추출하여 결합 (ex. APS2-A09-010108)
+      let targetCellFmt = '-';
+      if (target) {
+        const machine = target.ws ? target.ws.split('-')[0] : '';
+        targetCellFmt = machine ? `${machine}-${location(target)}` : location(target);
+      }
+
       recommendations.push({
         sku: source.sku,
         productName: profile.name || source.productName || '',
@@ -567,7 +581,7 @@
         currentRack: text(source.rackType) || rackFamily(source),
         currentRank: FAMILY_RANK[rackFamily(source)] || 9,
         targetRack: target ? (text(target.rackType) || rackFamily(source)) : '적합 공셀 없음',
-        targetCell: target ? location(target) : '-',
+        targetCell: targetCellFmt,
         reason: target
           ? recommendationReasons(source, target, profile, context, sourceViolations, best.scoreInfo)
           : sourceViolations.join(' · '),
@@ -581,6 +595,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.14.0-frozen-livestock-fix' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.15.0-flow-eviction' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
