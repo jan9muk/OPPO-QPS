@@ -4,8 +4,7 @@
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
  */
-(function (global) {
-  'use strict';
+(function (global) {  'use strict';
 
   const CONFIG = {
     wsDeviation: 0.10,
