@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.16.0 - Processed Chicken & Frozen Flow Fix)
+ * QPS cell-allocation rule engine (V2.18.0 - Frozen Flow 5th Level Limit)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -98,7 +98,6 @@
     const isEggByName = /계란|식용란|유정란|왕란|특란|대란|신선란|메추리알|구운란/.test(name);
     const isProcessedEgg = /연두부|장조림|소시지|소세지|과자|빵|볶음밥|말이|찜/.test(name) || ['두부/묵/콩가공품', '반찬', '햄/소시지', '간편식', '가공식품'].includes(group);
     
-    // ✨ 가공 계육 예외 처리 로직
     const isProcessedChicken = /닭갈비|양념|볶음|훈제/.test(name);
 
     const category = {
@@ -335,13 +334,18 @@
       mandatory.push('게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)');
     }
 
-    // ✨ 플로우랙 강제 퇴출 예외 처리 (냉동 상품 제외)
     if (rackFamily(cell) === 'flow' && profile.temp !== 'frozen' && profile.outboundPcs <= 10 && profile.stock <= 20) {
       mandatory.push('플로우랙 부적합 (출고 10 이하 & 재고 20 이하)');
     }
 
-    if (rackFamily(cell) === 'flow' && levelOf(cell) === 4 && profile.itemWeightG > 1000) {
-      mandatory.push('플로우랙 4단 중량(1kg) 초과');
+    // ✨ 4단/5단 중량 초과 룰 분리 적용
+    if (rackFamily(cell) === 'flow' && profile.itemWeightG > 1000) {
+      const level = levelOf(cell);
+      if (profile.temp !== 'frozen' && level === 4) {
+        mandatory.push('플로우랙 4단 중량(1kg) 초과');
+      } else if (profile.temp === 'frozen' && level === 5) {
+        mandatory.push('냉동 플로우랙 5단 중량(1kg) 초과');
+      }
     }
 
     const zone = text(cell.zone);
@@ -458,8 +462,14 @@
 
     if (c.egg && !eggCellAllowed(candidate, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09, A10) 및 규격별 단수 제한' };
 
-    if (rackFamily(candidate) === 'flow' && levelOf(candidate) === 4 && profile.itemWeightG > 1000) {
-      return { ok: false, reason: '플로우랙 4단 중량(1kg) 초과 상품' };
+    // ✨ 타겟 셀 평가 시에도 냉동/냉장 분리 적용
+    if (rackFamily(candidate) === 'flow' && profile.itemWeightG > 1000) {
+      const level = levelOf(candidate);
+      if (profile.temp !== 'frozen' && level === 4) {
+        return { ok: false, reason: '플로우랙 4단 중량(1kg) 초과 상품' };
+      } else if (profile.temp === 'frozen' && level === 5) {
+        return { ok: false, reason: '냉동 플로우랙 5단 중량(1kg) 초과 상품' };
+      }
     }
 
     return { ok: true };
@@ -595,6 +605,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.16.0-flow-freeze-fix' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.18.0-frozen-flow-level5' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
