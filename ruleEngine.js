@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.18.0 - Frozen Flow 5th Level Limit)
+ * QPS cell-allocation rule engine (V2.19.0 - HUD Metrics Fix)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -338,7 +338,6 @@
       mandatory.push('플로우랙 부적합 (출고 10 이하 & 재고 20 이하)');
     }
 
-    // ✨ 4단/5단 중량 초과 룰 분리 적용
     if (rackFamily(cell) === 'flow' && profile.itemWeightG > 1000) {
       const level = levelOf(cell);
       if (profile.temp !== 'frozen' && level === 4) {
@@ -462,7 +461,6 @@
 
     if (c.egg && !eggCellAllowed(candidate, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09, A10) 및 규격별 단수 제한' };
 
-    // ✨ 타겟 셀 평가 시에도 냉동/냉장 분리 적용
     if (rackFamily(candidate) === 'flow' && profile.itemWeightG > 1000) {
       const level = levelOf(candidate);
       if (profile.temp !== 'frozen' && level === 4) {
@@ -605,6 +603,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.18.0-frozen-flow-level5' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.19.0-hud-metrics' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
