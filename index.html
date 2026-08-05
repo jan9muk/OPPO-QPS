@@ -1,73 +1,6 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>QPS RAW 대시보드 v8.5.14</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<style>
-body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
-.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}
-.title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}
-.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}
-.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}
-.status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}
-.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}
-.empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}
-
-/* HUD 패널 스타일 */
-.hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}
-.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}
-.hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}
-.hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
-.hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}
-.val-tph{color:#34d399} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}
-
-.machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px}.machine-grid{margin-bottom:18px}
-.machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}
-.metrics{display:flex;gap:20px;flex-wrap:nowrap;justify-content:center;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}
-.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-width:85px}
-.metric b{display:block;color:#1f2937;font-size:22px;margin-top:2px}
-.metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}
-.aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}
-.zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}
-.spark-stack{display:grid;gap:10px}
-.spark-row{display:grid;grid-template-columns:40px 1fr 70px;gap:8px;align-items:center;min-height:52px}
-.spark-row.blank{visibility:hidden} 
-.ws-label{font-size:13px;font-weight:700;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.spark-track{width:100%;height:14px;background:#eef2f7;border-radius:999px;overflow:hidden;border:1px solid #e2e8f0}
-.spark-fill{height:100%;border-radius:999px}
-.spark-value{text-align:right;font-size:11px;font-weight:700;color:#475569;white-space:nowrap;line-height:1.45}
-.footer-note{margin-top:14px;font-size:12px;color:#6b7280}
-.subhead{font-size:18px;font-weight:800;margin-bottom:10px}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{border-bottom:1px solid #e5e7eb;padding:8px 10px;text-align:left;vertical-align:top}
-th{background:#f8fafc}
-.pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:700}
-.pill.bad{background:#fef2f2;color:#b91c1c}
-#loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.68);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:9999}
-.loader-box{width:120px;height:120px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.08);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
-.loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}.loader-text{font-size:13px;color:#6b7280;font-weight:700}@keyframes spin{to{transform:rotate(360deg)}}
-@media (max-width:1280px){.machine-grid,.zones{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}
-.btn-pass{background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}
-.btn-pass:hover{background:#fee2e2}
-.btn-reset{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;color:#475569;font-weight:bold;transition:0.2s}
-.btn-reset:hover{background:#e2e8f0}
-.accordion-header{cursor:pointer; user-select:none;}
-.accordion-header:hover{color:#2563eb;}
-.btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}
-.btn-restore:hover{background:#dcfce7}
-</style>
-</head>
-<body>
-<div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
-
-<div class="card">
-  <div class="title">QPS RAW 대시보드 v8.5.14</div>
-  <div class="subtitle">계기판 물리적 토트 기준(totes/hr) 전환 및 ETA 대신 Inbound TPH 속도계 도입</div>
-</div>
-
-<div class="card">
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>QPS RAW 대시보드 v8.5.15</title><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><style>body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}.title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}.status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}.empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}/* HUD 패널 스타일 */.hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}.hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}.hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}.hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}.val-tph{color:#34d399} .val-avg{color:#a855f7} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}.machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px}.machine-grid{margin-bottom:18px}.machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}.metrics{display:flex;gap:20px;flex-wrap:nowrap;justify-content:center;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-width:85px}.metric b{display:block;color:#1f2937;font-size:22px;margin-top:2px}.metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}.aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}.zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}.spark-stack{display:grid;gap:10px}.spark-row{display:grid;grid-template-columns:40px 1fr 70px;gap:8px;align-items:center;min-height:52px}.spark-row.blank{visibility:hidden} .ws-label{font-size:13px;font-weight:700;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.spark-track{width:100%;height:14px;background:#eef2f7;border-radius:999px;overflow:hidden;border:1px solid #e2e8f0}.spark-fill{height:100%;border-radius:999px}.spark-value{text-align:right;font-size:11px;font-weight:700;color:#475569;white-space:nowrap;line-height:1.45}.footer-note{margin-top:14px;font-size:12px;color:#6b7280}.subhead{font-size:18px;font-weight:800;margin-bottom:10px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border-bottom:1px solid #e5e7eb;padding:8px 10px;text-align:left;vertical-align:top}th{background:#f8fafc}.pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:700}.pill.bad{background:#fef2f2;color:#b91c1c}#loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.68);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:9999}.loader-box{width:120px;height:120px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.08);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}.loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}.loader-text{font-size:13px;color:#6b7280;font-weight:700}@keyframes spin{to{transform:rotate(360deg)}}@media (max-width:1280px){.machine-grid,.zones{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}.btn-pass{background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-pass:hover{background:#fee2e2}.btn-reset{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;color:#475569;font-weight:bold;transition:0.2s}.btn-reset:hover{background:#e2e8f0}.accordion-header{cursor:pointer; user-select:none;}.accordion-header:hover{color:#2563eb;}.btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-restore:hover{background:#dcfce7}</style></head><body><div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div><div class="card">
+  <div class="title">QPS RAW 대시보드 v8.5.15</div>
+  <div class="subtitle">2층 전용 인입 TPH 필터링 및 시간당 평균/실시간 처리 속도(최근 1시간) 이원화</div></div><div class="card">
   <div class="row">
     <div class="group">
       <label>박스상품 상세정보 RAW</label>
@@ -85,24 +18,23 @@ th{background:#f8fafc}
       </select>
     </div>
   </div>
-  <div class="status" id="status">두 파일을 모두 업로드하면 W/S별 터치수와 진척률을 계산합니다.</div>
-</div>
-
-<div id="emptyState" class="card empty">파일 2개를 모두 업로드해야 데이터가 표시됩니다.</div>
-
-<div id="content" class="section">
+  <div class="status" id="status">두 파일을 모두 업로드하면 W/S별 터치수와 진척률을 계산합니다.</div></div><div id="emptyState" class="card empty">파일 2개를 모두 업로드해야 데이터가 표시됩니다.</div><div id="content" class="section">
   <!-- 글로벌 HUD 패널 -->
   <div class="hud-panel" id="hudPanel">
     <div class="hud-box">
-      <div class="hud-label">실시간 처리 속도 (Outbound TPH)</div>
-      <div class="hud-value val-tph" id="hudTph">0<span class="hud-unit">totes/hr</span></div>
+      <div class="hud-label">실시간 처리 속도 (최근 1시간)</div>
+      <div class="hud-value val-tph" id="hudInstantTph">0<span class="hud-unit">totes/hr</span></div>
     </div>
     <div class="hud-box">
-      <div class="hud-label">신규 지시 인입 속도 (Inbound TPH)</div>
+      <div class="hud-label">시간당 평균 처리량 (누적)</div>
+      <div class="hud-value val-avg" id="hudAvgTph">0<span class="hud-unit">totes/hr</span></div>
+    </div>
+    <div class="hud-box">
+      <div class="hud-label">신규 지시 인입 속도 (Inbound 2F)</div>
       <div class="hud-value val-inbound" id="hudInboundTph">0<span class="hud-unit">totes/hr</span></div>
     </div>
     <div class="hud-box">
-      <div class="hud-label">총 잔여 물리적 토트</div>
+      <div class="hud-label">2층 잔여 물리적 토트</div>
       <div class="hud-value val-remain" id="hudRemain">0<span class="hud-unit">totes</span></div>
     </div>
   </div>
@@ -143,15 +75,8 @@ th{background:#f8fafc}
     </div>
   </div>
 
-  <div class="footer-note" id="footNote"></div>
-</div>
-
-<div class="card">
-  <div class="debug" id="debugLog">대기 중</div>
-</div>
-
-<script>
-const zoneDefs = {
+  <div class="footer-note" id="footNote"></div></div><div class="card">
+  <div class="debug" id="debugLog">대기 중</div></div><script>const zoneDefs = {
   APS1:{label:'1호기',cols:[
     {zone:'A존',order:['APS1-01','APS1-02','APS1-03','APS1-04','APS1-05','APS1-06','APS1-07','APS1-08','APS1-09','APS1-10']},
     {zone:'B존',order:['APS1-20','APS1-19','APS1-18','APS1-17','APS1-16','APS1-15','APS1-14','APS1-13','APS1-12','APS1-11']}
@@ -164,80 +89,54 @@ const zoneDefs = {
     {zone:'E존',order:[null,'APS3-07','APS3-06','APS3-05','APS3-04',null,null,'APS3-03','APS3-02','APS3-01',null,null]},
     {zone:'F존',order:['APS3-08','APS3-09','APS3-10','APS3-11','APS3-12','APS3-13','APS3-14','APS3-15','APS3-16','APS3-17','APS3-18','APS3-19']}
   ]}
-};
-const machineList=['APS1','APS2','APS3'];
-let boxRows=null, cellRows=null, boxMeta=null, cellMeta=null;
-window.qpsAllData = null; 
-const $=s=>document.querySelector(s);
-
-const COMPLETE_STATUS=['피킹완료','패킹완료','출하완료'];
-const EXCLUDE_STATUS=['전체취소','전체결품'];
-
-function setStatus(msg,isError=false){
+};const machineList=['APS1','APS2','APS3'];let boxRows=null, cellRows=null, boxMeta=null, cellMeta=null;window.qpsAllData = null; const $=s=>document.querySelector(s);const COMPLETE_STATUS=['피킹완료','패킹완료','출하완료'];const EXCLUDE_STATUS=['전체취소','전체결품'];function setStatus(msg,isError=false){
   const el=$('#status');
   el.textContent=msg;
   el.style.color=isError?'#b91c1c':'#6b7280';
-}
-function appendDebug(msg){
+}function appendDebug(msg){
   const el=$('#debugLog');
   const time=new Date().toLocaleTimeString('ko-KR');
   el.textContent=`[${time}] ${msg}\n`+(el.textContent==='대기 중'?'':el.textContent);
-}
-function showLoading(on){$('#loadingOverlay').style.display=on?'flex':'none';}
-function fmt(n){return (n??0).toLocaleString('ko-KR');}
-function fmtPct(n){return `${(n*100).toFixed(1)}%`;}
-function toNumber(v){
+}function showLoading(on){$('#loadingOverlay').style.display=on?'flex':'none';}function fmt(n){return (n??0).toLocaleString('ko-KR');}function fmtPct(n){return `${(n*100).toFixed(1)}%`;}function toNumber(v){
   if(v==null||v==='') return 0;
   if(typeof v==='number') return isFinite(v)?v:0;
   const num=Number(String(v).replace(/,/g,'').trim());
   return isFinite(num)?num:0;
-}
-function normalizeWs(v){
+}function normalizeWs(v){
   if(v==null) return null;
   const s=String(v).toUpperCase().replace(/\s+/g,'').replace(/_/g,'-');
   const m=s.match(/APS\s*([123])[- ]?(\d{1,2})/i);
   return m?`APS${m[1]}-${String(m[2]).padStart(2,'0')}`:null;
-}
-function normalizeSheetName(v){return String(v||'').replace(/\s+/g,'').toLowerCase();}
-function normalizeSku(v){
+}function normalizeSheetName(v){return String(v||'').replace(/\s+/g,'').toLowerCase();}function normalizeSku(v){
   if(v==null) return '';
   let s=String(v).trim();
   s=s.replace(/\.0+$/,'').replace(/[^\d]/g,'');
   if(!s) return '';
   return s.padStart(13,'0');
-}
-function normalizeTemp(code){
+}function normalizeTemp(code){
   const s=String(code||'').trim();
   if(s==='WET 냉동') return 'frozen';
   if(s==='WET 일반'||s==='WET 냉장') return 'chilled';
   return 'unknown';
-}
-function tempLabel(temp){
+}function tempLabel(temp){
   if(temp==='frozen') return '냉동';
   if(temp==='chilled') return '냉장';
   return '기타';
-}
-function heatColor(value,min,max){
+}function heatColor(value,min,max){
   if(value==null||isNaN(value)) return '#dbeafe';
   if(max===min) return 'hsl(8,85%,60%)';
   const t=Math.max(0,Math.min(1,(value-min)/(max-min)));
   const hue=220-(220*t);
   return `hsl(${hue},82%,${62-(t*10)}%)`;
-}
-
-function ensureXLSX(){
+}function ensureXLSX(){
   if(typeof XLSX==='undefined') throw new Error('XLSX 라이브러리 로딩 실패');
-}
-function readSheetRows(workbook,sheetName){
+}function readSheetRows(workbook,sheetName){
   const ws=workbook.Sheets[sheetName];
   return XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
-}
-function headersOfRows(rows){return rows&&rows.length?Object.keys(rows[0]):[];}
-function findStatusColumns(headers){
+}function headersOfRows(rows){return rows&&rows.length?Object.keys(rows[0]):[];}function findStatusColumns(headers){
   const candidates=headers.filter(h=>String(h).includes('WMS배송진행상태'));
   return {all:candidates, primary:candidates[candidates.length-1] || null};
-}
-function findBestSheet(workbook,type){
+}function findBestSheet(workbook,type){
   const required=type==='box'
     ? ['물류상품ID','피킹지시수량']
     : ['작업대','물류상품ID','보관위치','랙유형','물류분류코드','현재고'];
@@ -262,8 +161,7 @@ function findBestSheet(workbook,type){
     if(required.every(h=>headers.includes(h))) return {sheetName:name,rows};
   }
   return candidate;
-}
-async function readExcelRows(file,type){
+}async function readExcelRows(file,type){
   ensureXLSX();
   const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
   const found=findBestSheet(wb,type);
@@ -272,16 +170,12 @@ async function readExcelRows(file,type){
     sheetName:found?found.sheetName:null,
     rows:found?found.rows:[]
   };
-}
-function getProductName(row){return String(row['물류상품명']||row['상품명']||'').trim();}
-function makeToteKey(row){
+}function getProductName(row){return String(row['물류상품명']||row['상품명']||'').trim();}function makeToteKey(row){
   const d=String(row['배송번호']||'').trim();
   const b=String(row['배송박스순번']||'').trim();
   if(!d || !b) return '';
   return `${d}__${b}`;
-}
-
-function parseExcelDate(v) {
+}function parseExcelDate(v) {
   if (!v) return null;
   if (typeof v === 'number') {
     return new Date((v - 25569) * 86400 * 1000);
@@ -289,13 +183,14 @@ function parseExcelDate(v) {
   const d = new Date(v);
   if (!isNaN(d.getTime())) return d;
   return null;
-}
-
-function buildAllData(boxRows,cellRows){
+}function buildAllData(boxRows,cellRows){
   const boxHeaders=headersOfRows(boxRows);
   const statusCols=findStatusColumns(boxHeaders);
   const statusCol=statusCols.primary;
   const updateDateCol = boxHeaders.find(h => String(h).replace(/\s/g,'') === '수정일시');
+  const routingCol = boxHeaders.find(h => String(h).replace(/\s/g,'').includes('박스설비라인상세유형'));
+  
+  const valid2FTypes = new Set(['APS2F_Only', 'AS_APS2F', 'AS_APS3M_APS2F', 'APS3M_APS2F']);
 
   const skuToPcs=new Map();
   const skuMeta=new Map();
@@ -337,7 +232,7 @@ function buildAllData(boxRows,cellRows){
   }
 
   const touchMap = new Map();
-  const toteStatusMap = new Map(); // ✨ 물리적 토트 상태 압축용 Map
+  const toteStatusMap = new Map(); 
   let latestDataTimeMs = 0;
 
   for(const row of boxRows){
@@ -350,25 +245,38 @@ function buildAllData(boxRows,cellRows){
     
     if(EXCLUDE_STATUS.includes(status)) continue;
 
+    let timeMs = 0;
     if(updateDateCol) {
       const parsedTime = parseExcelDate(row[updateDateCol]);
-      if(parsedTime && parsedTime.getTime() > latestDataTimeMs) {
-        latestDataTimeMs = parsedTime.getTime();
+      if(parsedTime) {
+        timeMs = parsedTime.getTime();
+        if(timeMs > latestDataTimeMs) {
+          latestDataTimeMs = timeMs;
+        }
       }
     }
+
+    const routeVal = routingCol ? String(row[routingCol]).trim() : '';
+    const is2FType = routingCol ? valid2FTypes.has(routeVal) : true;
 
     if(!skuMeta.has(sku)) skuMeta.set(sku,{name:getProductName(row)});
     skuToPcs.set(sku,(skuToPcs.get(sku)||0)+pcs);
 
-    // ✨ 물리적 토트 상태 판정 로직 (모든 라인이 완료여야 해당 토트 완료)
     if(!toteStatusMap.has(toteKey)) {
-      toteStatusMap.set(toteKey, { isComplete: true });
+      toteStatusMap.set(toteKey, { isComplete: true, is2F: false, completionTime: 0 });
     }
+    
+    const toteObj = toteStatusMap.get(toteKey);
+    if (is2FType) toteObj.is2F = true;
+    
     if(!COMPLETE_STATUS.includes(status)) {
-      toteStatusMap.get(toteKey).isComplete = false;
+      toteObj.isComplete = false;
     }
 
-    // 터치 집계용 (W/S별 하단 패널용 유지)
+    if(timeMs > toteObj.completionTime) {
+      toteObj.completionTime = timeMs;
+    }
+
     const key = `${toteKey}||${sku}`;
     if(!touchMap.has(key)) {
       touchMap.set(key, { pcs: 0, isComplete: true, wsSet: new Set() });
@@ -388,14 +296,20 @@ function buildAllData(boxRows,cellRows){
     }
   }
 
-  // ✨ 글로벌 HUD용 토트 집계
-  const totalUniqueTotes = toteStatusMap.size;
-  let completedUniqueTotes = 0;
+  let total2FTotes = 0;
+  let comp2FTotes = 0;
+  const comp2FTimes = [];
+
   for(const tote of toteStatusMap.values()) {
-    if(tote.isComplete) completedUniqueTotes++;
+    if(tote.is2F) {
+      total2FTotes++;
+      if(tote.isComplete) {
+        comp2FTotes++;
+        if(tote.completionTime > 0) comp2FTimes.push(tote.completionTime);
+      }
+    }
   }
 
-  // 기존 노드 터치용 집계 (하위 WS 박스용)
   let totalDirectedTouches = 0, totalCompleteTouches = 0;
   for(const [key, entry] of touchMap.entries()){
     const [toteKey] = key.split('||');
@@ -436,13 +350,12 @@ function buildAllData(boxRows,cellRows){
     assignedCells,
     totalDirectedTouches,
     totalCompleteTouches,
-    totalUniqueTotes,       // ✨ 추가된 토트 총량
-    completedUniqueTotes,   // ✨ 추가된 토트 완료량
+    total2FTotes,       
+    comp2FTotes,   
+    comp2FTimes,
     latestDataTimeMs 
   };
-}
-
-function computeZoneStats(wsMetrics){
+}function computeZoneStats(wsMetrics){
   const res={};
   for(const machine of machineList){
     const def=zoneDefs[machine];
@@ -481,21 +394,15 @@ function computeZoneStats(wsMetrics){
     res[machine].pcsPerTouch=machineTouches ? machinePcs/machineTouches : 0;
   }
   return res;
-}
-
-window.ignoreSku = function(sku) {
+}window.ignoreSku = function(sku) {
   const ignored = new Set(JSON.parse(localStorage.getItem('qps_ignored_skus') || '[]'));
   ignored.add(sku);
   localStorage.setItem('qps_ignored_skus', JSON.stringify([...ignored]));
   if(window.qpsAllData) drawScreen(window.qpsAllData);
-};
-
-window.resetIgnored = function() {
+};window.resetIgnored = function() {
   localStorage.removeItem('qps_ignored_skus');
   if(window.qpsAllData) drawScreen(window.qpsAllData);
-};
-
-window.togglePassList = function() {
+};window.togglePassList = function() {
   const content = $('#passListContent');
   const icon = $('#passToggleIcon');
   if(content.style.display === 'none') {
@@ -505,35 +412,28 @@ window.togglePassList = function() {
     content.style.display = 'none';
     icon.textContent = '▼';
   }
-};
-
-window.restoreSku = function(sku) {
+};window.restoreSku = function(sku) {
   const ignored = new Set(JSON.parse(localStorage.getItem('qps_ignored_skus') || '[]'));
   ignored.delete(sku);
   localStorage.setItem('qps_ignored_skus', JSON.stringify([...ignored]));
   if(window.qpsAllData) drawScreen(window.qpsAllData);
-};
-
-function formatWsName(ws){
+};function formatWsName(ws){
   if(!ws) return '';
   const m = ws.match(/APS(\d+)-0*(\d+)/);
   return m ? `${m[1]}-${m[2]}` : ws;
-}
-
-// ✨ 수정된 HUD 업데이트 함수
-function updateHUD(allData) {
+}function updateHUD(allData) {
   const latestTime = allData.latestDataTimeMs;
   const targetHour = parseInt($('#startTimeSelect').value, 10);
   
-  // 터치가 아닌 실제 물리적 토트 기준으로 집계 변경
-  const total = allData.totalUniqueTotes;
-  const comp = allData.completedUniqueTotes;
-  const remain = total - comp;
+  const total2F = allData.total2FTotes;
+  const comp2F = allData.comp2FTotes;
+  const remain2F = total2F - comp2F;
 
-  $('#hudRemain').innerHTML = `${fmt(remain)}<span class="hud-unit">totes</span>`;
+  $('#hudRemain').innerHTML = `${fmt(remain2F)}<span class="hud-unit">totes</span>`;
 
-  if (!latestTime || total <= 0) {
-    $('#hudTph').innerHTML = `대기 중`;
+  if (!latestTime || total2F <= 0) {
+    $('#hudInstantTph').innerHTML = `대기 중`;
+    $('#hudAvgTph').innerHTML = `대기 중`;
     $('#hudInboundTph').innerHTML = `대기 중`;
     return;
   }
@@ -546,19 +446,31 @@ function updateHUD(allData) {
   const elapsedHours = elapsedMs / 3600000;
 
   if (elapsedHours <= 0) {
-    $('#hudTph').innerHTML = `시작 전`;
+    $('#hudInstantTph').innerHTML = `시작 전`;
+    $('#hudAvgTph').innerHTML = `시작 전`;
     $('#hudInboundTph').innerHTML = `시작 전`;
     return;
   }
 
-  const outTph = comp / elapsedHours;
-  const inTph = total / elapsedHours;
+  // 누적 평균
+  const avgTph = comp2F / elapsedHours;
+  const inTph = total2F / elapsedHours;
 
-  $('#hudTph').innerHTML = `${fmt(Math.round(outTph))}<span class="hud-unit">totes/hr</span>`;
+  // 실시간(최근 1시간) TPH
+  const oneHourAgo = latestTime - 3600000;
+  let recentComp = 0;
+  for (let i = 0; i < allData.comp2FTimes.length; i++) {
+    if (allData.comp2FTimes[i] >= oneHourAgo) {
+      recentComp++;
+    }
+  }
+  const instantHours = Math.min(1, elapsedHours);
+  const instantTph = recentComp / instantHours;
+
+  $('#hudInstantTph').innerHTML = `${fmt(Math.round(instantTph))}<span class="hud-unit">totes/hr</span>`;
+  $('#hudAvgTph').innerHTML = `${fmt(Math.round(avgTph))}<span class="hud-unit">totes/hr</span>`;
   $('#hudInboundTph').innerHTML = `${fmt(Math.round(inTph))}<span class="hud-unit">totes/hr</span>`;
-}
-
-function drawScreen(allData){
+}function drawScreen(allData){
   updateHUD(allData);
 
   const touchValues=Object.values(allData.wsMetrics).map(v=>v.totalTouches||0);
@@ -653,9 +565,7 @@ function drawScreen(allData){
   $('#footNote').textContent = `박스상품 상세정보: ${boxInfo} · 셀할당현황: ${cellInfo}`;
   $('#emptyState').style.display = 'none';
   $('#content').style.display = 'block';
-}
-
-function validateRows(rows,type){
+}function validateRows(rows,type){
   if(!rows||!rows.length) return `${type} 시트에 데이터가 없습니다.`;
   const headers=headersOfRows(rows);
   if(type==='박스상품 상세정보'){
@@ -670,9 +580,7 @@ function validateRows(rows,type){
     }
   }
   return null;
-}
-
-async function tryBuild(){
+}async function tryBuild(){
   if(!(boxRows&&cellRows)) return;
   showLoading(true);
   try{
@@ -707,9 +615,7 @@ async function tryBuild(){
   }finally{
     showLoading(false);
   }
-}
-
-document.addEventListener('DOMContentLoaded',()=>{
+}document.addEventListener('DOMContentLoaded',()=>{
   if(typeof XLSX==='undefined'){
     setStatus('XLSX 라이브러리 로딩 실패',true);
     appendDebug('XLSX 라이브러리 로딩 실패');
@@ -764,12 +670,7 @@ $('#cellFile').addEventListener('change', async e=>{
     showLoading(false);
   }
   await tryBuild();
-});
-</script>
-<script>
+});</script><script>
   const script = document.createElement('script');
   script.src = 'ruleEngine.js?v=' + new Date().getTime();
-  document.body.appendChild(script);
-</script>
-</body>
-</html>
+  document.body.appendChild(script);</script></body></html>
