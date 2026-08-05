@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.15.0 - Flow Rack Eviction & Cell Format Update)
+ * QPS cell-allocation rule engine (V2.16.0 - Processed Chicken & Frozen Flow Fix)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -97,6 +97,9 @@
 
     const isEggByName = /계란|식용란|유정란|왕란|특란|대란|신선란|메추리알|구운란/.test(name);
     const isProcessedEgg = /연두부|장조림|소시지|소세지|과자|빵|볶음밥|말이|찜/.test(name) || ['두부/묵/콩가공품', '반찬', '햄/소시지', '간편식', '가공식품'].includes(group);
+    
+    // ✨ 가공 계육 예외 처리 로직
+    const isProcessedChicken = /닭갈비|양념|볶음|훈제/.test(name);
 
     const category = {
       egg: group === '계란' || (isEggByName && !isProcessedEgg),
@@ -104,7 +107,7 @@
       livestock: ['수입육', '우육', '돈육', '계육', '양념육', '훈제육'].includes(group)
     };
     
-    const isSeafoodOrPoultry = ['계육', '대중선어', '구색선어', '생선회', '갑각류', '패류', '연체류'].includes(group);
+    const isSeafoodOrPoultry = ['대중선어', '구색선어', '생선회', '갑각류', '패류', '연체류'].includes(group) || (group === '계육' && !isProcessedChicken);
     const isMincedMeat = ['수입육', '우육', '돈육'].includes(group) && name.includes('다짐육');
     
     category.zeroToFive = isSeafoodOrPoultry || isMincedMeat;
@@ -332,12 +335,11 @@
       mandatory.push('게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)');
     }
 
-    // ✨ 플로우랙 저출고/저재고 강제 퇴출 룰 추가
-    if (rackFamily(cell) === 'flow' && profile.outboundPcs <= 10 && profile.stock <= 20) {
+    // ✨ 플로우랙 강제 퇴출 예외 처리 (냉동 상품 제외)
+    if (rackFamily(cell) === 'flow' && profile.temp !== 'frozen' && profile.outboundPcs <= 10 && profile.stock <= 20) {
       mandatory.push('플로우랙 부적합 (출고 10 이하 & 재고 20 이하)');
     }
 
-    // ✨ 텍스트 수정 적용
     if (rackFamily(cell) === 'flow' && levelOf(cell) === 4 && profile.itemWeightG > 1000) {
       mandatory.push('플로우랙 4단 중량(1kg) 초과');
     }
@@ -456,7 +458,6 @@
 
     if (c.egg && !eggCellAllowed(candidate, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09, A10) 및 규격별 단수 제한' };
 
-    // ✨ 텍스트 수정 적용
     if (rackFamily(candidate) === 'flow' && levelOf(candidate) === 4 && profile.itemWeightG > 1000) {
       return { ok: false, reason: '플로우랙 4단 중량(1kg) 초과 상품' };
     }
@@ -563,7 +564,6 @@
           usedTargetCells.add(location(target));
       }
 
-      // ✨ 타겟 셀이 있을 경우 WS 접두어를 추출하여 결합 (ex. APS2-A09-010108)
       let targetCellFmt = '-';
       if (target) {
         const machine = target.ws ? target.ws.split('-')[0] : '';
@@ -595,6 +595,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.15.0-flow-eviction' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.16.0-flow-freeze-fix' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
