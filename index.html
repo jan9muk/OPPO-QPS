@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>QPS RAW 대시보드 v8.5.13</title>
+<title>QPS RAW 대시보드 v8.5.14</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -17,11 +17,11 @@ body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;backgrou
 
 /* HUD 패널 스타일 */
 .hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}
-.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center}
+.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}
 .hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}
 .hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
 .hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}
-.val-tph{color:#34d399} .val-eta{color:#facc15} .val-remain{color:#60a5fa}
+.val-tph{color:#34d399} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}
 
 .machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px}.machine-grid{margin-bottom:18px}
 .machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}
@@ -63,8 +63,8 @@ th{background:#f8fafc}
 <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
 
 <div class="card">
-  <div class="title">QPS RAW 대시보드 v8.5.13</div>
-  <div class="subtitle">플로우랙 최상단 중량 제약 분리 (냉장 4단 / 냉동 5단)</div>
+  <div class="title">QPS RAW 대시보드 v8.5.14</div>
+  <div class="subtitle">계기판 물리적 토트 기준(totes/hr) 전환 및 ETA 대신 Inbound TPH 속도계 도입</div>
 </div>
 
 <div class="card">
@@ -94,15 +94,15 @@ th{background:#f8fafc}
   <!-- 글로벌 HUD 패널 -->
   <div class="hud-panel" id="hudPanel">
     <div class="hud-box">
-      <div class="hud-label">진행 속도 (TPH)</div>
+      <div class="hud-label">실시간 처리 속도 (Outbound TPH)</div>
       <div class="hud-value val-tph" id="hudTph">0<span class="hud-unit">totes/hr</span></div>
     </div>
     <div class="hud-box">
-      <div class="hud-label">예상 종료 시각 (ETA)</div>
-      <div class="hud-value val-eta" id="hudEta">--:--</div>
+      <div class="hud-label">신규 지시 인입 속도 (Inbound TPH)</div>
+      <div class="hud-value val-inbound" id="hudInboundTph">0<span class="hud-unit">totes/hr</span></div>
     </div>
     <div class="hud-box">
-      <div class="hud-label">총 잔여 토트</div>
+      <div class="hud-label">총 잔여 물리적 토트</div>
       <div class="hud-value val-remain" id="hudRemain">0<span class="hud-unit">totes</span></div>
     </div>
   </div>
@@ -337,6 +337,7 @@ function buildAllData(boxRows,cellRows){
   }
 
   const touchMap = new Map();
+  const toteStatusMap = new Map(); // ✨ 물리적 토트 상태 압축용 Map
   let latestDataTimeMs = 0;
 
   for(const row of boxRows){
@@ -359,6 +360,15 @@ function buildAllData(boxRows,cellRows){
     if(!skuMeta.has(sku)) skuMeta.set(sku,{name:getProductName(row)});
     skuToPcs.set(sku,(skuToPcs.get(sku)||0)+pcs);
 
+    // ✨ 물리적 토트 상태 판정 로직 (모든 라인이 완료여야 해당 토트 완료)
+    if(!toteStatusMap.has(toteKey)) {
+      toteStatusMap.set(toteKey, { isComplete: true });
+    }
+    if(!COMPLETE_STATUS.includes(status)) {
+      toteStatusMap.get(toteKey).isComplete = false;
+    }
+
+    // 터치 집계용 (W/S별 하단 패널용 유지)
     const key = `${toteKey}||${sku}`;
     if(!touchMap.has(key)) {
       touchMap.set(key, { pcs: 0, isComplete: true, wsSet: new Set() });
@@ -378,6 +388,14 @@ function buildAllData(boxRows,cellRows){
     }
   }
 
+  // ✨ 글로벌 HUD용 토트 집계
+  const totalUniqueTotes = toteStatusMap.size;
+  let completedUniqueTotes = 0;
+  for(const tote of toteStatusMap.values()) {
+    if(tote.isComplete) completedUniqueTotes++;
+  }
+
+  // 기존 노드 터치용 집계 (하위 WS 박스용)
   let totalDirectedTouches = 0, totalCompleteTouches = 0;
   for(const [key, entry] of touchMap.entries()){
     const [toteKey] = key.split('||');
@@ -418,6 +436,8 @@ function buildAllData(boxRows,cellRows){
     assignedCells,
     totalDirectedTouches,
     totalCompleteTouches,
+    totalUniqueTotes,       // ✨ 추가된 토트 총량
+    completedUniqueTotes,   // ✨ 추가된 토트 완료량
     latestDataTimeMs 
   };
 }
@@ -500,19 +520,21 @@ function formatWsName(ws){
   return m ? `${m[1]}-${m[2]}` : ws;
 }
 
+// ✨ 수정된 HUD 업데이트 함수
 function updateHUD(allData) {
   const latestTime = allData.latestDataTimeMs;
   const targetHour = parseInt($('#startTimeSelect').value, 10);
   
-  const total = allData.totalDirectedTouches;
-  const comp = allData.totalCompleteTouches;
+  // 터치가 아닌 실제 물리적 토트 기준으로 집계 변경
+  const total = allData.totalUniqueTotes;
+  const comp = allData.completedUniqueTotes;
   const remain = total - comp;
 
   $('#hudRemain').innerHTML = `${fmt(remain)}<span class="hud-unit">totes</span>`;
 
-  if (!latestTime || remain <= 0) {
-    $('#hudTph').innerHTML = comp > 0 ? `작업 완료` : `대기 중`;
-    $('#hudEta').textContent = '--:--';
+  if (!latestTime || total <= 0) {
+    $('#hudTph').innerHTML = `대기 중`;
+    $('#hudInboundTph').innerHTML = `대기 중`;
     return;
   }
 
@@ -525,23 +547,15 @@ function updateHUD(allData) {
 
   if (elapsedHours <= 0) {
     $('#hudTph').innerHTML = `시작 전`;
-    $('#hudEta').textContent = '--:--';
+    $('#hudInboundTph').innerHTML = `시작 전`;
     return;
   }
 
-  const tph = comp / elapsedHours;
-  $('#hudTph').innerHTML = `${fmt(Math.round(tph))}<span class="hud-unit">totes/hr</span>`;
+  const outTph = comp / elapsedHours;
+  const inTph = total / elapsedHours;
 
-  if (tph > 0) {
-    const hoursNeeded = remain / tph;
-    const etaMs = latestDate.getTime() + (hoursNeeded * 3600000);
-    const etaDate = new Date(etaMs);
-    const hh = String(etaDate.getHours()).padStart(2, '0');
-    const mm = String(etaDate.getMinutes()).padStart(2, '0');
-    $('#hudEta').textContent = `${hh}:${mm}`;
-  } else {
-    $('#hudEta').textContent = '계산 불가';
-  }
+  $('#hudTph').innerHTML = `${fmt(Math.round(outTph))}<span class="hud-unit">totes/hr</span>`;
+  $('#hudInboundTph').innerHTML = `${fmt(Math.round(inTph))}<span class="hud-unit">totes/hr</span>`;
 }
 
 function drawScreen(allData){
