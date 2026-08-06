@@ -1,19 +1,21 @@
-<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>QPS RAW 대시보드 v8.5.19</title><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><style>body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}.title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}.status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}.empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}/* HUD 패널 스타일 */.hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}.hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}.hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}.hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}.val-tph{color:#34d399} .val-avg{color:#a855f7} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}.machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px;margin-bottom:18px}.machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}.metrics{display:flex;gap:20px;flex-wrap:nowrap;justify-content:center;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-width:85px}.metric b{display:block;color:#1f2937;font-size:22px;margin-top:2px}.metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}.aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}.zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:40px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}.spark-stack{display:grid;gap:10px}
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>QPS RAW 대시보드 v8.5.20</title><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><style>body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}.title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}.status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}.empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}/* HUD 패널 스타일 */.hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}.hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}.hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}.hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}.val-tph{color:#34d399} .val-avg{color:#a855f7} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}.machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px;margin-bottom:18px}.machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}.metrics{display:flex;gap:20px;flex-wrap:nowrap;justify-content:center;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-width:85px}.metric b{display:block;color:#1f2937;font-size:22px;margin-top:2px}.metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}.aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}.zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:40px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}.spark-stack{display:grid;gap:10px;position:relative;}
 /* 툴팁 및 막대그래프 영역 수정 */
-.spark-row{display:grid;grid-template-columns:40px 1fr 70px;gap:8px;align-items:center;min-height:36px;position:relative;}
+.spark-row{display:grid;grid-template-columns:60px 1fr 90px;gap:16px;align-items:center;min-height:36px;position:relative;}
 .spark-row.blank{visibility:hidden}
 .ws-label{font-size:13px;font-weight:700;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.spark-track{width:100%;height:10px;background:#eef2f7;border-radius:999px;overflow:hidden;border:1px solid #e2e8f0}
+.spark-track{width:100%;height:10px;background:#eef2f7;border-radius:999px;overflow:hidden;border:1px solid #e2e8f0;position:relative;}
 .spark-fill{height:100%;border-radius:999px}
 .spark-value{text-align:right;font-size:11px;font-weight:700;color:#475569;white-space:nowrap;line-height:1.45}
+/* 평균 기준선 */
+.avg-line{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px dashed #0f766e;z-index:5;pointer-events:none;opacity:0.8;}
 /* 호버 툴팁 스타일 */
 .ws-tooltip{display:none;position:absolute;left:50px;bottom:80%;z-index:50;background:rgba(17,24,39,0.95);color:#fff;padding:12px 16px;border-radius:8px;font-size:12px;width:max-content;pointer-events:none;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1);border:1px solid #374151;}
 .spark-row:hover .ws-tooltip{display:block;}
 .ws-tooltip-grid{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;text-align:left;}
 .ws-tooltip-grid span:nth-child(even){text-align:right;font-weight:700;}
 .footer-note{margin-top:14px;font-size:12px;color:#6b7280}.subhead{font-size:18px;font-weight:800;margin-bottom:10px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border-bottom:1px solid #e5e7eb;padding:8px 10px;text-align:left;vertical-align:top}th{background:#f8fafc}.pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:700}.pill.bad{background:#fef2f2;color:#b91c1c}#loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.68);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:9999}.loader-box{width:120px;height:120px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.08);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}.loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}.loader-text{font-size:13px;color:#6b7280;font-weight:700}@keyframes spin{to{transform:rotate(360deg)}}@media (max-width:1280px){.machine-grid,.zones{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}.btn-pass{background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-pass:hover{background:#fee2e2}.btn-reset{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;color:#475569;font-weight:bold;transition:0.2s}.btn-reset:hover{background:#e2e8f0}.accordion-header{cursor:pointer; user-select:none;}.accordion-header:hover{color:#2563eb;}.btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-restore:hover{background:#dcfce7}</style></head><body><div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div><div class="card">
-  <div class="title">QPS RAW 대시보드 v8.5.19</div>
-  <div class="subtitle">시인성 개선(여백 축소 및 존 간격 확보), 진척도 절대 척도 적용 및 툴팁 정밀도 향상</div></div><div class="card">
+  <div class="title">QPS RAW 대시보드 v8.5.20</div>
+  <div class="subtitle">시각적 평균선 표기 및 IndexedDB 기반 캐싱(상태유지/드래그앤드롭) 적용</div></div><div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
   <div class="row">
     <div class="group">
       <label>박스상품 상세정보 RAW</label>
@@ -31,7 +33,8 @@
       </select>
     </div>
   </div>
-  <div class="status" id="status">두 파일을 모두 업로드하면 W/S별 터치수와 진척률을 계산합니다.</div></div><div id="emptyState" class="card empty">파일 2개를 모두 업로드해야 데이터가 표시됩니다.</div><div id="content" class="section">
+  <div class="status" id="status">두 파일을 모두 업로드하면 W/S별 터치수와 진척률을 계산합니다.</div>
+  <div style="font-size:12px; color:#6b7280; margin-top:8px;">* 로컬 브라우저에 데이터가 자동 캐싱됩니다. 파일을 이곳에 드래그 앤 드롭하여 덮어쓰거나 캐시를 비워주세요. <button class="btn-reset" onclick="clearCacheAndReload()" style="padding:4px 8px; font-size:11px; margin-left:8px;">강제 캐시 초기화</button></div></div><div id="emptyState" class="card empty">파일 2개를 모두 업로드해야 데이터가 표시됩니다.</div><div id="content" class="section">
   <!-- 글로벌 HUD 패널 -->
   <div class="hud-panel" id="hudPanel">
     <div class="hud-box">
@@ -96,7 +99,39 @@
   </div>
 
   <div class="footer-note" id="footNote"></div></div><div class="card">
-  <div class="debug" id="debugLog">대기 중</div></div><script>const zoneDefs = {
+  <div class="debug" id="debugLog">대기 중</div></div><script>
+// IndexedDB Cache Logic
+const DB_STORE = 'qps_raw_cache';
+const dbPromise = new Promise((res, rej) => {
+  const req = indexedDB.open('QPS_DB', 1);
+  req.onupgradeneeded = () => req.result.createObjectStore(DB_STORE);
+  req.onsuccess = () => res(req.result);
+  req.onerror = () => rej(req.error);
+});
+async function idbSave(key, val) {
+  const db = await dbPromise;
+  const tx = db.transaction(DB_STORE, 'readwrite');
+  tx.objectStore(DB_STORE).put(val, key);
+  return new Promise(r => tx.oncomplete = r);
+}
+async function idbLoad(key) {
+  const db = await dbPromise;
+  const tx = db.transaction(DB_STORE, 'readonly');
+  const req = tx.objectStore(DB_STORE).get(key);
+  return new Promise(r => req.onsuccess = () => r(req.result));
+}
+async function idbClear() {
+  const db = await dbPromise;
+  const tx = db.transaction(DB_STORE, 'readwrite');
+  tx.objectStore(DB_STORE).clear();
+  return new Promise(r => tx.oncomplete = r);
+}
+window.clearCacheAndReload = async function() {
+  await idbClear();
+  location.reload();
+};
+
+const zoneDefs = {
   APS1:{label:'1호기',cols:[
     {zone:'A존',order:['APS1-01','APS1-02','APS1-03','APS1-04','APS1-05','APS1-06','APS1-07','APS1-08','APS1-09','APS1-10']},
     {zone:'B존',order:['APS1-20','APS1-19','APS1-18','APS1-17','APS1-16','APS1-15','APS1-14','APS1-13','APS1-12','APS1-11']}
@@ -539,10 +574,13 @@ function ensureXLSX(){
     const def = zoneDefs[machine];
     const st = stats[machine];
     
-    // 호기별 활성 작업대 개수 및 평균
     const machineWsCount = def.cols.flatMap(c => c.order).filter(ws => ws && allData.wsMetrics[ws] && allData.wsMetrics[ws].totalTouches > 0).length;
     const machineAvgTouch = machineWsCount > 0 ? st.totalTouches / machineWsCount : 0;
     const inboundPct = totalInboundAll > 0 ? ((st.inboundTotes / totalInboundAll) * 100).toFixed(1) : "0.0";
+    
+    // 평균선 Left Offset 계산: Grid fixed width (60+16+16+90 = 182px), Left offset (60+16 = 76px)
+    const avgPct = max > 0 ? (machineAvgTouch / max) * 100 : 0;
+    const lineHTML = `<div class="avg-line" title="W/S별 터치 평균" style="left: calc(76px + (100% - 182px) * ${avgPct / 100});"></div>`;
 
     return `<div class="card aps-block">
       <div class="aps-head">
@@ -550,8 +588,9 @@ function ensureXLSX(){
         <div style="font-size:13px; color:#475569; font-weight:700;">W/S별 터치 평균 ${fmt(Math.round(machineAvgTouch))} / 유입 토트 ${fmt(st.inboundTotes)} (${inboundPct}%)</div>
       </div>
       <div class="zone-columns">${
-      def.cols.map(col=>`<div class="zone-col"><div class="zone-head"><span>${col.zone}</span></div><div class="spark-stack">${
-        col.order.map(ws=>{
+      def.cols.map(col=>`<div class="zone-col"><div class="zone-head"><span>${col.zone}</span></div><div class="spark-stack">
+        ${lineHTML}
+        ${col.order.map(ws=>{
           if(!ws) return `<div class="spark-row blank"></div>`;
           const m=allData.wsMetrics[ws]||{inboundToteCount:0,totalTouches:0,completeTouches:0,progressRate:0,pcsPerTouch:0,totalTouchPcs:0};
           const touch=m.totalTouches||0;
@@ -581,8 +620,8 @@ function ensureXLSX(){
               </div>
             </div>
           `;
-        }).join('')
-      }</div></div>`).join('')
+        }).join('')}
+      </div></div>`).join('')
     }</div></div>`;
   }).join('');
 
@@ -602,6 +641,10 @@ function ensureXLSX(){
     }
     machineWs.sort((a, b) => a.progress - b.progress);
     const bottom3Ws = new Set(machineWs.slice(0, 3).map(x => x.ws));
+    
+    // 평균선 Left Offset 계산
+    const avgPct = machineAvgProgress * 100;
+    const lineHTML = `<div class="avg-line" title="평균 완료율 기준선" style="left: calc(76px + (100% - 182px) * ${avgPct / 100});"></div>`;
 
     return `<div class="card aps-block">
       <div class="aps-head">
@@ -609,8 +652,9 @@ function ensureXLSX(){
         <div style="font-size:13px; color:#475569; font-weight:700;">평균 완료율 ${fmtPct(machineAvgProgress)}</div>
       </div>
       <div class="zone-columns">${
-      def.cols.map(col=>`<div class="zone-col"><div class="zone-head"><span>${col.zone}</span></div><div class="spark-stack">${
-        col.order.map(ws=>{
+      def.cols.map(col=>`<div class="zone-col"><div class="zone-head"><span>${col.zone}</span></div><div class="spark-stack">
+        ${lineHTML}
+        ${col.order.map(ws=>{
           if(!ws) return `<div class="spark-row blank"></div>`;
           const m=allData.wsMetrics[ws]||{inboundToteCount:0,totalTouches:0,completeTouches:0,progressRate:0,pcsPerTouch:0,totalTouchPcs:0};
           const progress=m.progressRate||0;
@@ -646,8 +690,8 @@ function ensureXLSX(){
               </div>
             </div>
           `;
-        }).join('')
-      }</div></div>`).join('')
+        }).join('')}
+      </div></div>`).join('')
     }</div></div>`;
   }).join('');
 
@@ -715,7 +759,7 @@ function ensureXLSX(){
     }
 
     drawScreen(allData);
-    setStatus('RAW 데이터 분석 완료');
+    setStatus('RAW 데이터 연산 완료 (브라우저 로컬 캐시 적용됨)');
     appendDebug('RAW 데이터 분석 완료');
   }catch(err){
     console.error(err);
@@ -727,62 +771,102 @@ function ensureXLSX(){
   }finally{
     showLoading(false);
   }
-}document.addEventListener('DOMContentLoaded',()=>{
+}
+
+async function handleBoxFile(file) {
+  showLoading(true);
+  try{
+    appendDebug(`박스상품 파일 선택: ${file.name}`);
+    const result=await readExcelRows(file,'box');
+    boxRows=result.rows;
+    boxMeta={fileName:file.name,sheetName:result.sheetName};
+    await idbSave('boxData', {rows: boxRows, meta: boxMeta});
+    const msg=`박스상품 캐시 업로드 완료 / 시트: ${result.sheetName||'미탐지'}`;
+    setStatus(msg);
+    appendDebug(msg);
+  }catch(err){
+    console.error(err);
+    boxRows=null;
+    setStatus('박스상품 상세정보 파일 읽기 실패: '+(err.message||err), true);
+  }finally{
+    showLoading(false);
+    await tryBuild();
+  }
+}
+
+async function handleCellFile(file) {
+  showLoading(true);
+  try{
+    appendDebug(`셀할당 파일 선택: ${file.name}`);
+    const result=await readExcelRows(file,'cell');
+    cellRows=result.rows;
+    cellMeta={fileName:file.name,sheetName:result.sheetName};
+    await idbSave('cellData', {rows: cellRows, meta: cellMeta});
+    const msg=`셀할당 캐시 업로드 완료 / 시트: ${result.sheetName||'미탐지'}`;
+    setStatus(msg);
+    appendDebug(msg);
+  }catch(err){
+    console.error(err);
+    cellRows=null;
+    setStatus('셀할당현황 파일 읽기 실패: '+(err.message||err), true);
+  }finally{
+    showLoading(false);
+    await tryBuild();
+  }
+}
+
+document.addEventListener('DOMContentLoaded', async ()=>{
   if(typeof XLSX==='undefined'){
     setStatus('XLSX 라이브러리 로딩 실패',true);
     appendDebug('XLSX 라이브러리 로딩 실패');
   }else{
     appendDebug('XLSX 라이브러리 로딩 성공');
   }
+
+  // 캐시 복구
+  try {
+    const bd = await idbLoad('boxData');
+    const cd = await idbLoad('cellData');
+    if(bd && bd.rows) { boxRows = bd.rows; boxMeta = bd.meta; appendDebug('IndexedDB 캐시된 박스 데이터 로드 완료'); }
+    if(cd && cd.rows) { cellRows = cd.rows; cellMeta = cd.meta; appendDebug('IndexedDB 캐시된 셀 데이터 로드 완료'); }
+    if(boxRows && cellRows) {
+       setStatus('이전 세션 캐시 데이터 복구 완료. 화면을 갱신합니다.');
+       await tryBuild();
+    }
+  } catch(e) { appendDebug('캐시 로드 실패: ' + e); }
 });
 
 $('#boxFile').addEventListener('change', async e=>{
-  const file=e.target.files[0];
-  if(!file) return;
-  showLoading(true);
-  try{
-    appendDebug(`박스상품 상세정보 파일 선택: ${file.name}`);
-    const result=await readExcelRows(file,'box');
-    boxRows=result.rows;
-    boxMeta={fileName:file.name,sheetName:result.sheetName};
-    const msg=`박스상품 상세정보 업로드 완료 / 시트: ${result.sheetName||'미탐지'} / 시트목록: ${result.workbookSheetNames.join(', ')}`;
-    setStatus(msg);
-    appendDebug(msg);
-  }catch(err){
-    console.error(err);
-    boxRows=null;
-    const msg='박스상품 상세정보 파일 읽기에 실패했습니다: '+(err.message||err);
-    setStatus(msg,true);
-    appendDebug(msg);
-  }finally{
-    showLoading(false);
-  }
-  await tryBuild();
+  if(e.target.files[0]) await handleBoxFile(e.target.files[0]);
 });
 
 $('#cellFile').addEventListener('change', async e=>{
-  const file=e.target.files[0];
-  if(!file) return;
-  showLoading(true);
-  try{
-    appendDebug(`셀할당현황 파일 선택: ${file.name}`);
-    const result=await readExcelRows(file,'cell');
-    cellRows=result.rows;
-    cellMeta={fileName:file.name,sheetName:result.sheetName};
-    const msg=`셀할당현황 업로드 완료 / 시트: ${result.sheetName||'미탐지'} / 시트목록: ${result.workbookSheetNames.join(', ')}`;
-    setStatus(msg);
-    appendDebug(msg);
-  }catch(err){
-    console.error(err);
-    cellRows=null;
-    const msg='셀할당현황 파일 읽기에 실패했습니다: '+(err.message||err);
-    setStatus(msg,true);
-    appendDebug(msg);
-  }finally{
-    showLoading(false);
+  if(e.target.files[0]) await handleCellFile(e.target.files[0]);
+});
+
+// Drag & Drop
+const dz = $('#dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.borderColor = '#2563eb'; dz.style.background = '#eff6ff'; });
+dz.addEventListener('dragleave', e => { e.preventDefault(); dz.style.borderColor = 'transparent'; dz.style.background = '#fff'; });
+dz.addEventListener('drop', async e => {
+  e.preventDefault();
+  dz.style.borderColor = 'transparent'; dz.style.background = '#fff';
+  const files = Array.from(e.dataTransfer.files);
+  
+  const boxF = files.find(f => f.name.includes('박스') || f.name.includes('상세'));
+  const cellF = files.find(f => f.name.includes('셀') || f.name.includes('할당'));
+  
+  if(boxF) await handleBoxFile(boxF);
+  if(cellF) await handleCellFile(cellF);
+  
+  if(!boxF && !cellF && files.length === 2) {
+      await handleBoxFile(files[0]);
+      await handleCellFile(files[1]);
+  } else if (!boxF && !cellF && files.length > 0) {
+      setStatus('파일을 식별할 수 없습니다. 파일명에 "박스" 또는 "셀"을 포함해주세요.', true);
   }
-  await tryBuild();
-});</script><script>
+});
+</script><script>
   const script = document.createElement('script');
   script.src = 'ruleEngine.js?v=' + new Date().getTime();
   document.body.appendChild(script);</script></body></html>
