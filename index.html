@@ -1,10 +1,9 @@
-<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>QPS RAW 대시보드 v8.5.16</title><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><style>body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}.title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}.status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}.empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}/* HUD 패널 스타일 */.hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}.hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}.hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}.hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}.val-tph{color:#34d399} .val-avg{color:#a855f7} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}.machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px}.machine-grid{margin-bottom:18px}.machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}.metrics{display:flex;gap:20px;flex-wrap:nowrap;justify-content:center;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-width:85px}.metric b{display:block;color:#1f2937;font-size:22px;margin-top:2px}.metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}.aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}.zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}.spark-stack{display:grid;gap:10px}
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>QPS RAW 대시보드 v8.5.17</title><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><style>body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}.title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}.status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}.empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}/* HUD 패널 스타일 */.hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}.hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}.hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}.hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}.val-tph{color:#34d399} .val-avg{color:#a855f7} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}.machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px;margin-bottom:18px}.machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}.metrics{display:flex;gap:20px;flex-wrap:nowrap;justify-content:center;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-width:85px}.metric b{display:block;color:#1f2937;font-size:22px;margin-top:2px}.metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}.aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}.zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}.spark-stack{display:grid;gap:10px}
 /* 툴팁 및 막대그래프 영역 수정 */
-.spark-row{display:grid;grid-template-columns:45px 1fr 70px;gap:8px;align-items:center;min-height:52px;position:relative;}
+.spark-row{display:grid;grid-template-columns:45px 1fr 70px;gap:8px;align-items:center;min-height:36px;position:relative;}
 .spark-row.blank{visibility:hidden}
 .ws-label{font-size:13px;font-weight:700;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.spark-bars{display:flex;flex-direction:column;gap:5px;width:100%;}
-.spark-track{width:100%;height:8px;background:#eef2f7;border-radius:999px;overflow:hidden;border:1px solid #e2e8f0}
+.spark-track{width:100%;height:10px;background:#eef2f7;border-radius:999px;overflow:hidden;border:1px solid #e2e8f0}
 .spark-fill{height:100%;border-radius:999px}
 .spark-value{text-align:right;font-size:11px;font-weight:700;color:#475569;white-space:nowrap;line-height:1.45}
 /* 호버 툴팁 스타일 */
@@ -13,8 +12,8 @@
 .ws-tooltip-grid{display:grid;grid-template-columns:max-content 1fr;gap:4px 12px;text-align:left;}
 .ws-tooltip-grid span:nth-child(even){text-align:right;font-weight:700;}
 .footer-note{margin-top:14px;font-size:12px;color:#6b7280}.subhead{font-size:18px;font-weight:800;margin-bottom:10px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border-bottom:1px solid #e5e7eb;padding:8px 10px;text-align:left;vertical-align:top}th{background:#f8fafc}.pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:700}.pill.bad{background:#fef2f2;color:#b91c1c}#loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.68);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:9999}.loader-box{width:120px;height:120px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.08);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}.loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}.loader-text{font-size:13px;color:#6b7280;font-weight:700}@keyframes spin{to{transform:rotate(360deg)}}@media (max-width:1280px){.machine-grid,.zones{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}.btn-pass{background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-pass:hover{background:#fee2e2}.btn-reset{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;color:#475569;font-weight:bold;transition:0.2s}.btn-reset:hover{background:#e2e8f0}.accordion-header{cursor:pointer; user-select:none;}.accordion-header:hover{color:#2563eb;}.btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-restore:hover{background:#dcfce7}</style></head><body><div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div><div class="card">
-  <div class="title">QPS RAW 대시보드 v8.5.16</div>
-  <div class="subtitle">이중 막대그래프(부하/진척) 도입, 완료율 표기, 툴팁 상세지표 및 패스 카드 상시 노출</div></div><div class="card">
+  <div class="title">QPS RAW 대시보드 v8.5.17</div>
+  <div class="subtitle">작업대별 부하 및 피킹 진척도 카드 분리, 척도(Scale) 불일치 해소</div></div><div class="card">
   <div class="row">
     <div class="group">
       <label>박스상품 상세정보 RAW</label>
@@ -54,7 +53,12 @@
   </div>
 
   <div class="machine-grid" id="machineSummary"></div>
-  <div class="zones" id="zonesArea"></div>
+  
+  <!-- 작업대별 부하 영역 -->
+  <div class="zones" id="loadZonesArea"></div>
+  
+  <!-- 작업대별 진척도 영역 -->
+  <div class="zones" id="progressZonesArea"></div>
 
   <!-- 메인 추천 카드 -->
   <div class="card">
@@ -507,9 +511,46 @@
       </div>`;
   }).join('');
 
-  $('#zonesArea').innerHTML=machineList.map(machine=>{
-    const def=zoneDefs[machine];
-    
+  // 1. 작업대별 부하 렌더링
+  $('#loadZonesArea').innerHTML = machineList.map(machine=>{
+    const def = zoneDefs[machine];
+    return `<div class="card aps-block"><div class="aps-head"><div class="aps-title">${def.label} 작업대별 부하</div></div><div class="zone-columns">${
+      def.cols.map(col=>`<div class="zone-col"><div class="zone-head"><span>${col.zone}</span></div><div class="spark-stack">${
+        col.order.map(ws=>{
+          if(!ws) return `<div class="spark-row blank"></div>`;
+          const m=allData.wsMetrics[ws]||{inboundToteCount:0,totalTouches:0,completeTouches:0,progressRate:0,pcsPerTouch:0};
+          const touch=m.totalTouches||0;
+          const touchWidth=max>0?Math.max(touch>0?3:0,(touch/max)*100):0;
+          const touchBarColor=heatColor(touch,min,max);
+          const progress=m.progressRate||0;
+
+          return `
+            <div class="spark-row">
+              <div class="ws-label">${formatWsName(ws)}</div>
+              <div class="spark-track"><div class="spark-fill" style="width:${touchWidth}%;background:${touchBarColor};"></div></div>
+              <div class="spark-value" style="text-align:right; line-height:1.4;">
+                터치 ${fmt(touch)}
+              </div>
+              <div class="ws-tooltip">
+                <div style="font-weight:800; margin-bottom:8px; border-bottom:1px solid #4b5563; padding-bottom:4px;">${formatWsName(ws)} 상세 지표</div>
+                <div class="ws-tooltip-grid">
+                  <span>지시 터치수</span><span>${fmt(touch)}</span>
+                  <span>완료 터치수</span><span style="color:#34d399">${fmt(m.completeTouches)}</span>
+                  <span>완료율</span><span>${fmtPct(progress)}</span>
+                  <span>유입 토트</span><span style="color:#facc15">${fmt(m.inboundToteCount)}</span>
+                  <span>터치당 PCS</span><span>${m.pcsPerTouch.toFixed(1)}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')
+      }</div></div>`).join('')
+    }</div></div>`;
+  }).join('');
+
+  // 2. 피킹 진척도 렌더링
+  $('#progressZonesArea').innerHTML = machineList.map(machine=>{
+    const def = zoneDefs[machine];
     const machineWs = [];
     for (const col of def.cols) {
       for (const ws of col.order) {
@@ -521,17 +562,14 @@
     machineWs.sort((a, b) => a.progress - b.progress);
     const bottom3Ws = new Set(machineWs.slice(0, 3).map(x => x.ws));
 
-    return `<div class="card aps-block"><div class="aps-head"><div class="aps-title">${zoneDefs[machine].label}</div></div><div class="zone-columns">${
+    return `<div class="card aps-block"><div class="aps-head"><div class="aps-title">${def.label} 피킹 진척도</div></div><div class="zone-columns">${
       def.cols.map(col=>`<div class="zone-col"><div class="zone-head"><span>${col.zone}</span></div><div class="spark-stack">${
         col.order.map(ws=>{
           if(!ws) return `<div class="spark-row blank"></div>`;
           const m=allData.wsMetrics[ws]||{inboundToteCount:0,totalTouches:0,completeTouches:0,progressRate:0,pcsPerTouch:0};
-          const touch=m.totalTouches||0;
           const progress=m.progressRate||0;
-          
-          const touchWidth=max>0?Math.max(touch>0?3:0,(touch/max)*100):0;
-          const touchBarColor=heatColor(touch,min,max);
           const compWidth=progress*100;
+          const touch=m.totalTouches||0;
           
           const isBottom3 = bottom3Ws.has(ws);
           const progressStyle = isBottom3 
@@ -541,15 +579,10 @@
           return `
             <div class="spark-row">
               <div class="ws-label">${formatWsName(ws)}</div>
-              <div class="spark-bars">
-                <div class="spark-track"><div class="spark-fill" style="width:${touchWidth}%;background:${touchBarColor};"></div></div>
-                <div class="spark-track"><div class="spark-fill" style="width:${compWidth}%;background:#10b981;"></div></div>
-              </div>
+              <div class="spark-track"><div class="spark-fill" style="width:${compWidth}%;background:#10b981;"></div></div>
               <div class="spark-value" style="text-align:right; line-height:1.4;">
-                터치 ${fmt(touch)}<br>
                 완료율 <b style="${progressStyle}">${fmtPctInt(progress)}</b>
               </div>
-              <!-- 호버 상세 툴팁 -->
               <div class="ws-tooltip">
                 <div style="font-weight:800; margin-bottom:8px; border-bottom:1px solid #4b5563; padding-bottom:4px;">${formatWsName(ws)} 상세 지표</div>
                 <div class="ws-tooltip-grid">
