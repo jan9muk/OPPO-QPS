@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.19.0 - HUD Metrics Fix)
+ * QPS cell-allocation rule engine (V2.19.1 - Quail Egg Specific Rules)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -94,13 +94,15 @@
     const group = text(profile.group); 
     const name = text(profile.name);   
 
-    const isEggByName = /계란|식용란|유정란|왕란|특란|대란|신선란|메추리알|구운란/.test(name);
+    const isQuailEgg = name.includes('메추리알') || group.includes('메추리알');
+    const isEggByName = /계란|식용란|유정란|왕란|특란|대란|신선란|구운란/.test(name);
     const isProcessedEgg = /연두부|장조림|소시지|소세지|과자|빵|볶음밥|말이|찜/.test(name) || ['두부/묵/콩가공품', '반찬', '햄/소시지', '간편식', '가공식품'].includes(group);
     
     const isProcessedChicken = /닭갈비|양념|볶음|훈제/.test(name);
 
     const category = {
-      egg: group === '계란' || (isEggByName && !isProcessedEgg),
+      egg: (group === '계란' || isEggByName) && !isProcessedEgg && !isQuailEgg,
+      quailEgg: isQuailEgg,
       iceCream: group === '아이스크림', 
       livestock: ['수입육', '우육', '돈육', '계육', '양념육', '훈제육'].includes(group)
     };
@@ -284,6 +286,15 @@
     
     if (c.egg && !eggCellAllowed(cell, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사/대량 시 A09, A10) 및 규격별 단수 제한' };
     
+    if (c.quailEgg) {
+        const needsFlow = profile.outboundPcs > 10 || profile.stock > 20;
+        if (needsFlow) {
+            if (rackFamily(cell) !== 'flow') return { ok: false, reason: '메추리알 대량(출고>10 또는 재고>20)은 플로우랙 전용' };
+        } else {
+            if (!inRange(location(cell), 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 일반 재고는 A07-04~07 선반랙 전용' };
+        }
+    }
+
     if (c.iceCream && zone !== 'E07') return { ok: false, reason: '아이스크림류는 E07 전용 구역 배치 필요' };
     if (!c.iceCream && zone === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 구역이므로 일반 냉동 상품 불가' };
 
@@ -328,12 +339,21 @@
     
     const category = categoryZoneAllowed(cell, profile);
     if (!category.ok) mandatory.push(category.reason);
+
+    if (profile.category.quailEgg) {
+        const needsFlow = profile.outboundPcs > 10 || profile.stock > 20;
+        if (needsFlow && rackFamily(cell) !== 'flow') {
+            mandatory.push('메추리알 대량(출고>10 또는 재고>20)으로 플로우랙 이동 필요');
+        } else if (!needsFlow && !inRange(location(cell), 'A07-040505', 'A07-070505')) {
+            mandatory.push('메추리알 일반 재고로 A07 선반랙(04~07열) 이동 필요');
+        }
+    }
     
     if (rackFamily(cell) === 'gate' && profile.outboundPcs < 100 && profile.stock < 50) {
       mandatory.push('게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)');
     }
 
-    if (rackFamily(cell) === 'flow' && profile.temp !== 'frozen' && profile.outboundPcs <= 10 && profile.stock <= 20) {
+    if (!profile.category.quailEgg && rackFamily(cell) === 'flow' && profile.temp !== 'frozen' && profile.outboundPcs <= 10 && profile.stock <= 20) {
       mandatory.push('플로우랙 부적합 (출고 10 이하 & 재고 20 이하)');
     }
 
@@ -347,7 +367,7 @@
     }
 
     const zone = text(cell.zone);
-    if (rackFamily(cell) === 'shelf' && profile.stock >= 50 && !profile.category.egg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(zone)) {
+    if (rackFamily(cell) === 'shelf' && profile.stock >= 50 && !profile.category.egg && !profile.category.quailEgg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(zone)) {
       soft.push('현재고 50개 이상으로 선반랙 부적합');
     }
 
@@ -362,6 +382,11 @@
   }
 
   function desiredFamilies(profile, statistics) {
+    if (profile.category.quailEgg) {
+        const needsFlow = profile.outboundPcs > 10 || profile.stock > 20;
+        return needsFlow ? ['flow'] : ['shelf'];
+    }
+
     if (profile.fragile && profile.category.frozenMeat) return ['shelf', 'showcase', 'flow'];
     if (profile.boxWeightG >= 7000 && profile.stock >= 50) return ['flow', 'flat'];
     if (profile.category.kimchi || profile.temp === 'frozen' && /^F/.test(profile.sourceZone || '')) return ['flow', 'flat'];
@@ -460,6 +485,15 @@
 
     if (c.egg && !eggCellAllowed(candidate, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09, A10) 및 규격별 단수 제한' };
 
+    if (c.quailEgg) {
+        const needsFlow = profile.outboundPcs > 10 || profile.stock > 20;
+        if (needsFlow) {
+            if (rackFamily(candidate) !== 'flow') return { ok: false, reason: '메추리알 대량(출고>10 또는 재고>20)은 플로우랙 전용' };
+        } else {
+            if (!inRange(location(candidate), 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 일반 재고는 A07-04~07 선반랙 전용' };
+        }
+    }
+
     if (rackFamily(candidate) === 'flow' && profile.itemWeightG > 1000) {
       const level = levelOf(candidate);
       if (profile.temp !== 'frozen' && level === 4) {
@@ -476,7 +510,11 @@
     const reasons = sourceViolations.slice();
     const preferred = context.preferredFamilies;
     
-    if (preferred.includes(rackFamily(target))) {
+    if (profile.category.quailEgg) {
+        const needsFlow = profile.outboundPcs > 10 || profile.stock > 20;
+        if (needsFlow) reasons.push('메추리알 대량 플로우랙 보관');
+        else reasons.push('메추리알 일반 A07 선반랙 보관');
+    } else if (preferred.includes(rackFamily(target))) {
         let rName = rackFamily(target) === 'gate' ? '게이트랙' : rackFamily(target) === 'flow' || rackFamily(target) === 'flat' ? '플로우랙' : '선반랙';
         reasons.push(`${rName} 배치 권장`);
     }
@@ -602,6 +640,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.19.0-hud-metrics' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.19.1-quail-egg-rules' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
