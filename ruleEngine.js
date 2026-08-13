@@ -523,7 +523,7 @@
     if (profile.category.egg) reasons.push('계란 전용 A08 2~4단 및 규격별 구역');
     if (profile.category.zeroToFive && profile.temp !== 'frozen') reasons.push('0~5℃ 보관 권장 품목');
     if (profile.vendor && vendorClusterScore(target, profile, context.vendorCounts) > 0) reasons.push('동일 업체 인접 구역 군집화');
-    if (scoreInfo.balance.score > 1) reasons.push('W/S 터치수 편차 완화');
+    if (scoreInfo.balance.score > 1) reasons.push('W/S SKU수 편차 완화');
     if (fNearWorkstation(target)) reasons.push('F존 W/S 인접 셀 우선');
     return Array.from(new Set(reasons)).join(' · ');
   }
