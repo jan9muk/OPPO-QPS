@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>QPS RAW 대시보드 v8.5.24</title><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><style>body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}.title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}.status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}.empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}/* HUD 패널 스타일 */.hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}.hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}.hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}.hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}.val-tph{color:#34d399} .val-avg{color:#a855f7} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}.machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px;margin-bottom:18px}.machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}.metrics{display:flex;gap:20px;flex-wrap:nowrap;justify-content:center;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-width:85px}.metric b{display:block;color:#1f2937;font-size:22px;margin-top:2px}.metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}.aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}.zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:40px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}.spark-stack{display:grid;gap:10px;position:relative;}
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>QPS Dashboard v8.5.25</title><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><style>body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}.title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}.status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}.empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}/* HUD 패널 스타일 */.hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}.hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}.hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}.hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}.val-tph{color:#34d399} .val-avg{color:#a855f7} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}.machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px;margin-bottom:18px}.machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}.metrics{display:flex;gap:20px;flex-wrap:nowrap;justify-content:center;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-width:85px}.metric b{display:block;color:#1f2937;font-size:22px;margin-top:2px}.metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}.aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}.zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:40px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}.spark-stack{display:grid;gap:10px;position:relative;}
 /* 툴팁 및 막대그래프 영역 수정 */
 .spark-row{display:grid;grid-template-columns:60px 1fr 90px;gap:16px;align-items:center;min-height:36px;position:relative;}
 .spark-row.blank{visibility:hidden}
@@ -14,8 +14,8 @@
 .ws-tooltip-grid{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;text-align:left;}
 .ws-tooltip-grid span:nth-child(even){text-align:right;font-weight:700;}
 .footer-note{margin-top:14px;font-size:12px;color:#6b7280}.subhead{font-size:18px;font-weight:800;margin-bottom:10px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border-bottom:1px solid #e5e7eb;padding:8px 10px;text-align:left;vertical-align:top}th{background:#f8fafc}.pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:700}.pill.bad{background:#fef2f2;color:#b91c1c}#loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.68);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:9999}.loader-box{width:220px;height:140px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.08);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;text-align:center;}.loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}.loader-text{font-size:13px;color:#6b7280;font-weight:700;line-height:1.4;}@keyframes spin{to{transform:rotate(360deg)}}@media (max-width:1280px){.machine-grid,.zones{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}.btn-pass{background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-pass:hover{background:#fee2e2}.btn-reset{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;color:#475569;font-weight:bold;transition:0.2s}.btn-reset:hover{background:#e2e8f0}.accordion-header{cursor:pointer; user-select:none;}.accordion-header:hover{color:#2563eb;}.btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-restore:hover{background:#dcfce7}</style></head><body><div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div><div class="card">
-  <div class="title">QPS RAW 대시보드 v8.5.24</div>
-  <div class="subtitle">작업대별 부하 그래프 지표 텍스트 불일치 수정 및 외부 접속자용 정적 파일 Fetch 연동</div></div><div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
+  <div class="title">QPS Dashboard v8.5.25</div>
+  <div class="subtitle">다중 파일 드래그 앤 드롭 최적화 및 추천 카드 컬럼명/순서 변경</div></div><div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
   <div class="row">
     <div class="group">
       <label>박스상품 상세정보 RAW</label>
@@ -33,7 +33,7 @@
       </select>
     </div>
   </div>
-  <div class="status" id="status">두 파일을 모두 업로드하면 W/S별 터치수와 진척률을 계산합니다.</div>
+  <div class="status" id="status">두 파일을 한 번에 드래그 앤 드롭하여 업로드할 수 있습니다.</div>
   <div style="font-size:12px; color:#6b7280; margin-top:8px;">* 로컬 브라우저에 데이터가 자동 캐싱됩니다. 파일을 이곳에 드래그 앤 드롭하여 덮어쓰거나 캐시를 비워주세요. <button class="btn-reset" onclick="clearCacheAndReload()" style="padding:4px 8px; font-size:11px; margin-left:8px;">강제 캐시 초기화</button></div></div><div id="emptyState" class="card empty">데이터를 표시하려면 최신 파일을 업로드하거나, 저장소에 box_latest.xlsx / cell_latest.xlsx 파일이 존재해야 합니다.</div><div id="content" class="section">
   <!-- 글로벌 HUD 패널 -->
   <div class="hud-panel" id="hudPanel">
@@ -71,7 +71,7 @@
     <table>
       <thead>
         <tr>
-          <th>순번</th><th>SKU</th><th>상품명</th><th>PCS</th><th>현 재고</th><th>토트 유입수</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>현재 우선순위</th><th>권장 랙</th><th>추천 셀</th><th>사유</th><th>관리</th>
+          <th>순번</th><th>SKU</th><th>상품명</th><th>현재고(PCS)</th><th>지시 토트 수</th><th>지시 PCS</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>현재 우선순위</th><th>권장 랙</th><th>추천 셀</th><th>사유</th><th>관리</th>
         </tr>
       </thead>
       <tbody id="recommendBody"></tbody>
@@ -733,7 +733,7 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
   });
 
   const renderDisplay = displayRecs.slice(0, 20);
-  $('#recommendBody').innerHTML = renderDisplay.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.pcs)}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill ${r.currentRank<=2?'bad':''}">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('') || '<tr><td colspan="14">추천 결과 없음</td></tr>';
+  $('#recommendBody').innerHTML = renderDisplay.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${fmt(r.pcs)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill ${r.currentRank<=2?'bad':''}">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('') || '<tr><td colspan="14">추천 결과 없음</td></tr>';
 
   $('#passCount').textContent = passedRecs.length;
   if(passedRecs.length > 0) {
@@ -799,7 +799,7 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
   }
 }
 
-async function handleBoxFile(file) {
+async function handleBoxFile(file, skipBuild = false) {
   showLoading(true, '박스상품 데이터 처리 중...\n잠시만 기다려주세요.');
   try{
     appendDebug(`박스상품 파일 선택: ${file.name}`);
@@ -815,12 +815,14 @@ async function handleBoxFile(file) {
     boxRows=null;
     setStatus('박스상품 상세정보 파일 읽기 실패: '+(err.message||err), true);
   }finally{
-    showLoading(false);
-    await tryBuild();
+    if(!skipBuild) {
+        showLoading(false);
+        await tryBuild();
+    }
   }
 }
 
-async function handleCellFile(file) {
+async function handleCellFile(file, skipBuild = false) {
   showLoading(true, '셀할당현황 데이터 처리 중...\n잠시만 기다려주세요.');
   try{
     appendDebug(`셀할당 파일 선택: ${file.name}`);
@@ -836,8 +838,10 @@ async function handleCellFile(file) {
     cellRows=null;
     setStatus('셀할당현황 파일 읽기 실패: '+(err.message||err), true);
   }finally{
-    showLoading(false);
-    await tryBuild();
+    if(!skipBuild) {
+        showLoading(false);
+        await tryBuild();
+    }
   }
 }
 
@@ -905,13 +909,23 @@ dz.addEventListener('drop', async e => {
   const boxF = files.find(f => f.name.includes('박스') || f.name.includes('상세') || f.name.includes('출하') || f.name.includes('상품'));
   const cellF = files.find(f => f.name.includes('셀') || f.name.includes('할당'));
   
-  if(boxF) await handleBoxFile(boxF);
-  if(cellF) await handleCellFile(cellF);
-  
-  if(!boxF && !cellF && files.length === 2) {
-      await handleBoxFile(files[0]);
-      await handleCellFile(files[1]);
-  } else if (!boxF && !cellF && files.length > 0) {
+  if(boxF && cellF) {
+      showLoading(true, '두 파일을 동시에 분석 중입니다...');
+      await handleBoxFile(boxF, true);
+      await handleCellFile(cellF, true);
+      showLoading(false);
+      await tryBuild();
+  } else if (boxF) {
+      await handleBoxFile(boxF);
+  } else if (cellF) {
+      await handleCellFile(cellF);
+  } else if (files.length === 2) {
+      showLoading(true, '두 파일을 동시에 분석 중입니다...');
+      await handleBoxFile(files[0], true);
+      await handleCellFile(files[1], true);
+      showLoading(false);
+      await tryBuild();
+  } else if (files.length > 0) {
       setStatus('파일을 식별할 수 없습니다. 파일명에 "박스", "출하", "셀" 등을 포함해주세요.', true);
   }
 });
