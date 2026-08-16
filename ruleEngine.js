@@ -606,8 +606,7 @@
 
       let targetCellFmt = '-';
       if (target) {
-        const machine = target.ws ? target.ws.split('-')[0] : '';
-        targetCellFmt = machine ? `${machine}-${location(target)}` : location(target);
+        targetCellFmt = location(target);
       }
 
       recommendations.push({
