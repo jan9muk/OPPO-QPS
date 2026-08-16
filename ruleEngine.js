@@ -287,9 +287,9 @@
     if (c.egg && !eggCellAllowed(cell, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사/대량 시 A09, A10) 및 규격별 단수 제한' };
     
     if (c.quailEgg) {
-        const needsFlow = profile.outboundPcs > 10 || profile.stock > 20;
+        const needsFlow = profile.outboundPcs >= 30 || profile.stock > 20;
         if (needsFlow) {
-            if (rackFamily(cell) !== 'flow') return { ok: false, reason: '메추리알 대량(출고>10 또는 재고>20)은 플로우랙 전용' };
+            if (rackFamily(cell) !== 'flow') return { ok: false, reason: '메추리알 대량(출고 30 이상 또는 재고 20 초과)은 플로우랙 전용' };
         } else {
             if (!inRange(location(cell), 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 일반 재고는 A07-04~07 선반랙 전용' };
         }
@@ -340,15 +340,6 @@
     const category = categoryZoneAllowed(cell, profile);
     if (!category.ok) mandatory.push(category.reason);
 
-    if (profile.category.quailEgg) {
-        const needsFlow = profile.outboundPcs > 10 || profile.stock > 20;
-        if (needsFlow && rackFamily(cell) !== 'flow') {
-            mandatory.push('메추리알 대량(출고>10 또는 재고>20)으로 플로우랙 이동 필요');
-        } else if (!needsFlow && !inRange(location(cell), 'A07-040505', 'A07-070505')) {
-            mandatory.push('메추리알 일반 재고로 A07 선반랙(04~07열) 이동 필요');
-        }
-    }
-    
     if (rackFamily(cell) === 'gate' && profile.outboundPcs < 100 && profile.stock < 50) {
       mandatory.push('게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)');
     }
@@ -383,7 +374,7 @@
 
   function desiredFamilies(profile, statistics) {
     if (profile.category.quailEgg) {
-        const needsFlow = profile.outboundPcs > 10 || profile.stock > 20;
+        const needsFlow = profile.outboundPcs >= 30 || profile.stock > 20;
         return needsFlow ? ['flow'] : ['shelf'];
     }
 
@@ -391,13 +382,17 @@
     if (profile.boxWeightG >= 7000 && profile.stock >= 50) return ['flow', 'flat'];
     if (profile.category.kimchi || profile.temp === 'frozen' && /^F/.test(profile.sourceZone || '')) return ['flow', 'flat'];
     
+    const flowNotAllowed = !profile.category.quailEgg && profile.temp !== 'frozen' && profile.outboundPcs <= 10 && profile.stock <= 20;
+
     const demand = percentile(profile.touch, statistics.touches);
     const inventory = percentile(profile.stock, statistics.stocks);
     const priority = demand * 0.70 + inventory * 0.30;
     
     if (priority >= 0.75 && profile.outboundPcs >= 100) return ['gate'];
-    if (priority >= 0.40) return ['flow', 'flat'];
-    return ['shelf', 'showcase', 'flow'];
+    if (priority >= 0.40) {
+        return flowNotAllowed ? ['shelf', 'showcase', 'flat'] : ['flow', 'flat'];
+    }
+    return flowNotAllowed ? ['shelf', 'showcase'] : ['shelf', 'showcase', 'flow'];
   }
 
   function familyScore(cell, preferred) {
@@ -486,12 +481,16 @@
     if (c.egg && !eggCellAllowed(candidate, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09, A10) 및 규격별 단수 제한' };
 
     if (c.quailEgg) {
-        const needsFlow = profile.outboundPcs > 10 || profile.stock > 20;
+        const needsFlow = profile.outboundPcs >= 30 || profile.stock > 20;
         if (needsFlow) {
-            if (rackFamily(candidate) !== 'flow') return { ok: false, reason: '메추리알 대량(출고>10 또는 재고>20)은 플로우랙 전용' };
+            if (rackFamily(candidate) !== 'flow') return { ok: false, reason: '메추리알 대량(출고 30 이상 또는 재고 20 초과)은 플로우랙 전용' };
         } else {
             if (!inRange(location(candidate), 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 일반 재고는 A07-04~07 선반랙 전용' };
         }
+    }
+
+    if (!c.quailEgg && rackFamily(candidate) === 'flow' && profile.temp !== 'frozen' && profile.outboundPcs <= 10 && profile.stock <= 20) {
+      return { ok: false, reason: '플로우랙 부적합 (출고 10 이하 & 재고 20 이하)' };
     }
 
     if (rackFamily(candidate) === 'flow' && profile.itemWeightG > 1000) {
@@ -510,11 +509,7 @@
     const reasons = sourceViolations.slice();
     const preferred = context.preferredFamilies;
     
-    if (profile.category.quailEgg) {
-        const needsFlow = profile.outboundPcs > 10 || profile.stock > 20;
-        if (needsFlow) reasons.push('메추리알 대량 플로우랙 보관');
-        else reasons.push('메추리알 일반 A07 선반랙 보관');
-    } else if (preferred.includes(rackFamily(target))) {
+    if (preferred.includes(rackFamily(target))) {
         let rName = rackFamily(target) === 'gate' ? '게이트랙' : rackFamily(target) === 'flow' || rackFamily(target) === 'flat' ? '플로우랙' : '선반랙';
         reasons.push(`${rName} 배치 권장`);
     }
