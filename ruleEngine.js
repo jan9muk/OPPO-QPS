@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.19.1 - Quail Egg Specific Rules)
+ * QPS cell-allocation rule engine (V2.19.1 - Distance Map & Golden Zone & Heavy Safety Rules)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -20,6 +20,69 @@
   };
 
   const FAMILY_RANK = { gate: 1, flow: 2, flat: 2, shelf: 3, showcase: 3, other: 9 };
+
+  // X/Y축: 구역별 물리적 거리 순위 맵 (작성자: 현장 마스터)
+  const DISTANCE_MAP = {
+    'A01': [['05'], ['06'], ['01','03'], ['02','04']],
+    'A02': [['02'], ['01'], ['03','05'], ['04','06']],
+    'A03': [['05','06'], ['01','03'], ['02','04']],
+    'A04': [['02','03'], ['01'], ['04','06'], ['05','07']],
+    'A05': [['02','01'], ['03','05'], ['04','06']],
+    'A06': [['05'], ['06'], ['01','03'], ['02','04']],
+    'A07': [['02'], ['01','03'], ['04','06'], ['05','07']],
+    'A08': [['01','03','05','07'], ['02','04','06','08']],
+    'A09': [['010106','010107','010108','010109','010110'], ['010104','010105','010111','010112'], ['010101','010102','010103','010113','010114']],
+    'A10': [['010105','010106','010107','010108','010109','010110'], ['010101','010102','010103','010104']],
+    'B01': [['02'], ['01'], ['03','05'], ['04','06']],
+    'B02': [['05'], ['06'], ['01','03'], ['02','04']],
+    'B03': [['02'], ['01'], ['03','05'], ['04','06']],
+    'B04': [['05'], ['06'], ['01','03'], ['02','04']],
+    'B05': [['02'], ['01'], ['03','05'], ['04','06']],
+    'B06': [['05'], ['06'], ['01','03'], ['02','04']],
+    'B07': [['02'], ['03'], ['01'], ['04','06'], ['05','07']],
+    'B08': [['01','03'], ['05','07'], ['02','04'], ['06','08']],
+    'B09': [['01','02'], ['03','05'], ['04','06']],
+    'B10': [['05'], ['06'], ['01','03'], ['02','04']],
+    'C01': [['05'], ['06'], ['01','03'], ['02','04']],
+    'C02': [['02'], ['01'], ['03','05'], ['04','06']],
+    'C03': [['05','06'], ['01','03'], ['02','04']],
+    'C04': [['03'], ['02'], ['01'], ['04','06'], ['05','07']],
+    'C05': [['02'], ['01'], ['03','05'], ['04','06']],
+    'C06': [['05'], ['06'], ['01','03'], ['02','04']],
+    'C07': [['02'], ['03'], ['01'], ['04','06'], ['05','07']],
+    'C08': [['01','03'], ['05','07'], ['02','04'], ['06','08']],
+    'C09': [['02','03'], ['01','04']],
+    'C10': [['010105','010106','010107','010108','010109'], ['010103','010104','010110','010111'], ['010101','010102']],
+    'D01': [['03','05'], ['04','06'], ['01'], ['02']],
+    'D02': [['01','03'], ['05'], ['02','04'], ['06']],
+    'D03': [['02'], ['01'], ['03','05'], ['04','06']],
+    'D04': [['05'], ['06'], ['01','03'], ['02','04']],
+    'D05': [['02','01'], ['03','05'], ['04','06']],
+    'D06': [['05'], ['06'], ['01','03'], ['02','04']],
+    'D07': [['01','02'], ['03','05'], ['04','06']],
+    'D08': [['01','03'], ['05','07'], ['02','04'], ['06','08'], ['09','11'], ['10','12']],
+    'D09': [['01','03'], ['05','07'], ['02','04'], ['06','08'], ['09','11'], ['10','12']],
+    'D10': [['05','07'], ['01','03'], ['06','08'], ['02','04'], ['09','11'], ['10','12']],
+    'E01': [['01','02'], ['03','05'], ['04','06']],
+    'E02': [['05'], ['06'], ['01','03'], ['02','04']],
+    'E03': [['01','03'], ['02','04'], ['05','07'], ['06','08']],
+    'E04': [['07'], ['01','03','05'], ['02','04'], ['06','08']],
+    'E05': [['01','03'], ['02','04'], ['06'], ['05','07']],
+    'E06': [['01','03','05','07'], ['02','04','06','08']],
+    'E07': [['01','03'], ['05'], ['02','04'], ['06']],
+    'F01': [['04'], ['03'], ['02'], ['01']],
+    'F02': [['04'], ['03'], ['02'], ['01']],
+    'F03': [['04'], ['03'], ['02'], ['01']],
+    'F04': [['04'], ['03'], ['02'], ['01']],
+    'F05': [['04'], ['03'], ['02'], ['01']],
+    'F06': [['04'], ['03'], ['02'], ['01']],
+    'F07': [['03'], ['02','04'], ['01']],
+    'F08': [['03'], ['02','04'], ['01']],
+    'F09': [['03'], ['02','04'], ['01']],
+    'F10': [['02'], ['01','03'], ['04']],
+    'F11': [['02'], ['01','03'], ['04']],
+    'F12': [['02','03'], ['01'], ['04']]
+  };
 
   const OPTIONAL_FIELDS = {
     vendor: ['업체코드', '업체명', '공급업체', '공급사', '거래처', 'vendor', 'supplier'],
@@ -238,21 +301,70 @@
   function isFZone(zone) { return /^F(?:0[1-9]|1[0-2])$/.test(zone); }
   function isChilledDedicated(zone) { return ['D01', 'D02'].includes(zone); }
   function isFrozenDedicated(zone) { return CONFIG.productZones.frozen.has(zone); }
-  function isBackSpaceLimited(cell) {
-    const loc = location(cell);
-    return inRange(loc, 'A02-030101', 'A02-040505') || inRange(loc, 'C05-050101', 'C05-060505') || inRange(loc, 'D03-030101', 'D03-040505');
+
+  // [신규] X/Y축: 작업대 기준 물리적 거리 감점 산출 로직
+  function getDistanceScore(cell) {
+    const loc = location(cell); // e.g. A01-050105
+    if (loc.length < 10) return -99;
+    
+    const zone = loc.substring(0, 3);
+    const rack = loc.slice(-6, -4); // 동
+    const level = loc.slice(-4, -2); // 층
+    const bay = loc.slice(-2); // 호
+    
+    const zoneMap = DISTANCE_MAP[zone];
+    if (!zoneMap) return -99; // 맵에 없는 존은 패널티
+
+    // 1단계: 게이트랙 등 세밀한 구분을 위한 6자리(동.층.호) 완전 일치 탐색
+    const sixDigitMatch = rack + level + bay;
+    for (let i = 0; i < zoneMap.length; i++) {
+      if (zoneMap[i].includes(sixDigitMatch)) {
+        return -(i * 15); // 순위당 -15점씩 깎음
+      }
+    }
+
+    // 2단계: 일반적인 랙 구분을 위한 2자리(동 번호) 탐색
+    for (let i = 0; i < zoneMap.length; i++) {
+      if (zoneMap[i].includes(rack)) {
+        return -(i * 15);
+      }
+    }
+
+    return -99; // 못 찾으면 패널티
   }
-  function isRemoteShelf(cell) {
-    const loc = location(cell);
-    return inRange(loc, 'B08-050101', 'B08-080505') || inRange(loc, 'D08-090101', 'D08-120505') || inRange(loc, 'D09-090101', 'D09-120505') || inRange(loc, 'D10-090101', 'D10-120505');
+
+  // [신규] Z축: 높이/골든존 가산점 산출 로직
+  function getZAxisScore(cell) {
+    const family = rackFamily(cell);
+    const temp = thermalClass(cell);
+    const loc = location(cell); 
+    if (loc.length < 10) return 0;
+
+    const rack = loc.slice(-6, -4);
+    const level = Number(loc.slice(-4, -2));
+    
+    let score = 0;
+
+    if (family === 'flow') {
+      if (temp === 'chilled' && (level === 2 || level === 3)) score += 30;
+      else if (temp === 'frozen' && (level >= 2 && level <= 4)) score += 30;
+    } 
+    else if (family === 'shelf') {
+      if (level >= 2 && level <= 4) score += 30;
+    } 
+    else if (family === 'showcase') {
+      if (temp === 'chilled' && (level >= 1 && level <= 4)) {
+        score += 30;
+      } else if (temp === 'frozen') {
+        if (level === 1 || level === 3 || level === 5) score += 30;
+      }
+    } 
+    else if (family === 'flat') {
+      if (temp === 'frozen' && rack === '07' && level === 1) score += 30;
+    }
+
+    return score;
   }
-  function fNearWorkstation(cell) {
-    const loc = location(cell), zone = text(cell.zone);
-    if (/^F0[1-9]$/.test(zone)) return inRange(loc, `${zone}-030101`, `${zone}-040506`);
-    if (/^F1[0-2]$/.test(zone)) return inRange(loc, `${zone}-020101`, `${zone}-030506`);
-    return false;
-  }
-  function fTieOrder(cell) { return isFZone(cell.zone) ? zoneNumber(cell.zone) : 0; }
 
   function eggCellAllowed(cell, profile) {
     const loc = location(cell), level = levelOf(cell), zone = text(cell.zone);
@@ -274,6 +386,7 @@
     }
     return profile.event && zone === 'A09';
   }
+  
   function livestockCellAllowed(cell) {
     const loc = location(cell);
     return (inRange(loc, 'D01-010101', 'D06-060505') || inRange(loc, 'D07-030101', 'D07-060505'));
@@ -309,17 +422,6 @@
     return profile.category.seasonal || profile.event || touch >= 100 || stock > 100;
   }
   
-  function physicalCellAllowed(cell, profile) {
-    const loc = location(cell), zone = text(cell.zone), level = levelOf(cell), family = rackFamily(cell);
-    if (zone === 'A10' && CONFIG.a10OddCellsOnly && /[02468]$/.test(loc)) return { ok: false, reason: 'A10은 끝자리가 홀수인 셀만 사용' };
-    if (zone === 'A10' && !a10Eligible(profile, profile.touch, profile.stock)) return { ok: false, reason: 'A10은 대량 출고·대량 재고 품목 우선' };
-
-    if (profile.fragile && profile.category.frozenMeat && level !== 1) return { ok: false, reason: '낙손 우려 냉동 육류는 1단 배치' };
-    if (!profile.fragile && profile.boxWeightG >= 7000 && profile.stock >= 50 && (family !== 'flow' || level !== 2)) return { ok: false, reason: '7kg 이상·재고 50PCS 이상은 플로우랙 2단' };
-    if (!profile.fragile && profile.itemWeightG >= 500 && !(level === 1 || level === 2)) return { ok: false, reason: '500g 이상 낱개 상품은 1~2단' };
-    return { ok: true };
-  }
-
   function productProfileFor(cell, profiles, allData) {
     const base = profiles.get(cell.sku) || { sku: cell.sku, name: text(cell.productName), group: '', category: categorize({ name: text(cell.productName), group: '' }) };
     return Object.assign({}, base, {
@@ -348,13 +450,20 @@
       mandatory.push('플로우랙 부적합 (출고 10 이하 & 재고 20 이하)');
     }
 
+    const loc = location(cell);
+    const level = loc.length >= 10 ? Number(loc.slice(-4, -2)) : 0;
+    
     if (rackFamily(cell) === 'flow' && profile.itemWeightG > 1000) {
-      const level = levelOf(cell);
       if (profile.temp !== 'frozen' && level === 4) {
         mandatory.push('플로우랙 4단 중량(1kg) 초과');
       } else if (profile.temp === 'frozen' && level === 5) {
         mandatory.push('냉동 플로우랙 5단 중량(1kg) 초과');
       }
+    }
+
+    // [신규 안전 로직] 중량물 현재 상태 진단
+    if ((profile.boxWeightG > 7000 || profile.itemWeightG > 3000) && level > 2) {
+      mandatory.push('중량물(박스 7kg 또는 단품 3kg 초과) 안전 수칙: 1~2단 하단 보관 필수');
     }
 
     const zone = text(cell.zone);
@@ -439,17 +548,19 @@
     return Math.min(40, count * 8);
   }
 
+  // [신규 연동] 타겟 스코어에 물리적 거리 및 높이 점수 합산
   function targetScore(candidate, source, profile, context) {
     let score = familyScore(candidate, context.preferredFamilies);
     if (candidate.zone === source.zone) score += 30;
     else if (text(candidate.zone).slice(0, 1) === text(source.zone).slice(0, 1)) score += 10;
     if (candidate.ws && candidate.ws === source.ws) score += 20;
-    if (isBackSpaceLimited(candidate) || isRemoteShelf(candidate)) score -= CONFIG.priorityPenalty;
-    if (fNearWorkstation(candidate)) score += 55;
-    if (isFZone(candidate.zone)) score += fTieOrder(candidate) * 2; 
     
     score += vendorClusterScore(candidate, profile, context.vendorCounts);
     
+    // 마이크로 동선 합산 (거리 감점 + 높이 가점)
+    score += getDistanceScore(candidate);
+    score += getZAxisScore(candidate);
+
     const balance = balanceStats(context, source.ws, candidate.ws, profile.touch);
     score += balance.score;
 
@@ -493,13 +604,20 @@
       return { ok: false, reason: '플로우랙 부적합 (출고 10 이하 & 재고 20 이하)' };
     }
 
+    const loc = location(candidate);
+    const level = loc.length >= 10 ? Number(loc.slice(-4, -2)) : 0;
+
     if (rackFamily(candidate) === 'flow' && profile.itemWeightG > 1000) {
-      const level = levelOf(candidate);
       if (profile.temp !== 'frozen' && level === 4) {
         return { ok: false, reason: '플로우랙 4단 중량(1kg) 초과 상품' };
       } else if (profile.temp === 'frozen' && level === 5) {
         return { ok: false, reason: '냉동 플로우랙 5단 중량(1kg) 초과 상품' };
       }
+    }
+
+    // [신규 안전 방어벽] 무거운 상품 3단 이상 금지
+    if ((profile.boxWeightG > 7000 || profile.itemWeightG > 3000) && level > 2) {
+      return { ok: false, reason: '중량물(박스 7kg 또는 단품 3kg 초과) 안전 수칙: 1~2단 하단 보관 필수' };
     }
 
     return { ok: true };
@@ -519,7 +637,6 @@
     if (profile.category.zeroToFive && profile.temp !== 'frozen') reasons.push('0~5℃ 보관 권장 품목');
     if (profile.vendor && vendorClusterScore(target, profile, context.vendorCounts) > 0) reasons.push('동일 업체 인접 구역 군집화');
     if (scoreInfo.balance.score > 1) reasons.push('W/S SKU수 편차 완화');
-    if (fNearWorkstation(target)) reasons.push('F존 W/S 인접 셀 우선');
     return Array.from(new Set(reasons)).join(' · ');
   }
 
@@ -634,6 +751,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.19.1-quail-egg-rules' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.19.1-distance-map-rules' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
