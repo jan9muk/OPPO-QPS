@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.19.1 - Distance Map & Golden Zone & Heavy Safety Rules)
+ * QPS cell-allocation rule engine (V2.19.2 - Distance Map & Golden Zone Priority Enhanced)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -21,7 +21,6 @@
 
   const FAMILY_RANK = { gate: 1, flow: 2, flat: 2, shelf: 3, showcase: 3, other: 9 };
 
-  // X/Y축: 구역별 물리적 거리 순위 맵 (작성자: 현장 마스터)
   const DISTANCE_MAP = {
     'A01': [['05'], ['06'], ['01','03'], ['02','04']],
     'A02': [['02'], ['01'], ['03','05'], ['04','06']],
@@ -302,38 +301,34 @@
   function isChilledDedicated(zone) { return ['D01', 'D02'].includes(zone); }
   function isFrozenDedicated(zone) { return CONFIG.productZones.frozen.has(zone); }
 
-  // [신규] X/Y축: 작업대 기준 물리적 거리 감점 산출 로직
   function getDistanceScore(cell) {
-    const loc = location(cell); // e.g. A01-050105
+    const loc = location(cell);
     if (loc.length < 10) return -99;
     
     const zone = loc.substring(0, 3);
-    const rack = loc.slice(-6, -4); // 동
-    const level = loc.slice(-4, -2); // 층
-    const bay = loc.slice(-2); // 호
+    const rack = loc.slice(-6, -4);
+    const level = loc.slice(-4, -2);
+    const bay = loc.slice(-2);
     
     const zoneMap = DISTANCE_MAP[zone];
-    if (!zoneMap) return -99; // 맵에 없는 존은 패널티
+    if (!zoneMap) return -99;
 
-    // 1단계: 게이트랙 등 세밀한 구분을 위한 6자리(동.층.호) 완전 일치 탐색
     const sixDigitMatch = rack + level + bay;
     for (let i = 0; i < zoneMap.length; i++) {
       if (zoneMap[i].includes(sixDigitMatch)) {
-        return -(i * 15); // 순위당 -15점씩 깎음
+        return -(i * 15);
       }
     }
 
-    // 2단계: 일반적인 랙 구분을 위한 2자리(동 번호) 탐색
     for (let i = 0; i < zoneMap.length; i++) {
       if (zoneMap[i].includes(rack)) {
         return -(i * 15);
       }
     }
 
-    return -99; // 못 찾으면 패널티
+    return -99;
   }
 
-  // [신규] Z축: 높이/골든존 가산점 산출 로직
   function getZAxisScore(cell) {
     const family = rackFamily(cell);
     const temp = thermalClass(cell);
@@ -461,7 +456,6 @@
       }
     }
 
-    // [신규 안전 로직] 중량물 현재 상태 진단
     if ((profile.boxWeightG > 7000 || profile.itemWeightG > 3000) && level > 2) {
       mandatory.push('중량물(박스 7kg 또는 단품 3kg 초과) 안전 수칙: 1~2단 하단 보관 필수');
     }
@@ -548,7 +542,6 @@
     return Math.min(40, count * 8);
   }
 
-  // [신규 연동] 타겟 스코어에 물리적 거리 및 높이 점수 합산
   function targetScore(candidate, source, profile, context) {
     let score = familyScore(candidate, context.preferredFamilies);
     if (candidate.zone === source.zone) score += 30;
@@ -557,7 +550,6 @@
     
     score += vendorClusterScore(candidate, profile, context.vendorCounts);
     
-    // 마이크로 동선 합산 (거리 감점 + 높이 가점)
     score += getDistanceScore(candidate);
     score += getZAxisScore(candidate);
 
@@ -615,7 +607,6 @@
       }
     }
 
-    // [신규 안전 방어벽] 무거운 상품 3단 이상 금지
     if ((profile.boxWeightG > 7000 || profile.itemWeightG > 3000) && level > 2) {
       return { ok: false, reason: '중량물(박스 7kg 또는 단품 3kg 초과) 안전 수칙: 1~2단 하단 보관 필수' };
     }
@@ -725,6 +716,11 @@
       if (target) {
         targetCellFmt = location(target);
       }
+      
+      // 골든존 혜택 적용 로직 추가: 골든존 가점이 있으면 랭크 숫자 감소(상향 조정)
+      const zScore = getZAxisScore(source);
+      let rankNum = FAMILY_RANK[rackFamily(source)] || 9;
+      if (zScore > 0) rankNum = Math.max(1, rankNum - 1); 
 
       recommendations.push({
         sku: source.sku,
@@ -735,7 +731,7 @@
         temp: thermalClass(source),
         currentCell: location(source),
         currentRack: text(source.rackType) || rackFamily(source),
-        currentRank: FAMILY_RANK[rackFamily(source)] || 9,
+        currentRank: rankNum,
         targetRack: target ? (text(target.rackType) || rackFamily(source)) : '적합 공셀 없음',
         targetCell: targetCellFmt,
         reason: target
@@ -751,6 +747,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.19.1-distance-map-rules' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.19.2-layout-fixes' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
