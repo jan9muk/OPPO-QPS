@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.19.2 - Distance Map & Golden Zone Priority Enhanced)
+ * QPS cell-allocation rule engine (V2.19.3 - Capture Support & Distance Map / Golden Zone)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -717,7 +717,6 @@
         targetCellFmt = location(target);
       }
       
-      // 골든존 혜택 적용 로직 추가: 골든존 가점이 있으면 랭크 숫자 감소(상향 조정)
       const zScore = getZAxisScore(source);
       let rankNum = FAMILY_RANK[rackFamily(source)] || 9;
       if (zScore > 0) rankNum = Math.max(1, rankNum - 1); 
@@ -747,6 +746,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.19.2-layout-fixes' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.19.3-capture-support' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
