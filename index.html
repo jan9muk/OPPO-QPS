@@ -1,6 +1,6 @@
-<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>QPS Dashboard v8.5.28</title><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><style>body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}.title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}.status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}.empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}/* HUD 패널 스타일 */.hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}.hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}.hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}.hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}.val-tph{color:#34d399} .val-avg{color:#a855f7} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}.machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px;margin-bottom:18px}.machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}.metrics{display:flex;gap:12px;flex-wrap:nowrap;justify-content:space-between;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;flex:1;}.metric b{display:block;color:#1f2937;font-size:20px;margin-top:2px}.metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}.aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}.zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:40px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}.spark-stack{display:grid;gap:10px;position:relative;}
-/* 툴팁 및 막대그래프 영역 수정 */
-.spark-row{display:grid;grid-template-columns:60px 1fr 115px;gap:16px;align-items:center;min-height:36px;position:relative;}
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>QPS Dashboard v8.5.29</title><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><style>body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}.title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}.status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}.empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}/* HUD 패널 스타일 */.hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}.hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}.hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}.hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}.val-tph{color:#34d399} .val-avg{color:#a855f7} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}.machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px;margin-bottom:18px}.machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}.metrics{display:flex;gap:12px;flex-wrap:nowrap;justify-content:space-between;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;flex:1;}.metric b{display:block;color:#1f2937;font-size:20px;margin-top:2px}.metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}.aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}.zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}.spark-stack{display:grid;gap:10px;position:relative;}
+/* 막대그래프 영역 유동적 확보를 위해 그리드 비율 수정 */
+.spark-row{display:grid;grid-template-columns:55px 1fr 80px;gap:8px;align-items:center;min-height:36px;position:relative;}
 .spark-row.blank{visibility:hidden}
 .ws-label{font-size:13px;font-weight:700;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .spark-track{width:100%;height:10px;background:#eef2f7;border-radius:999px;overflow:hidden;border:1px solid #e2e8f0;position:relative;}
@@ -13,9 +13,16 @@
 .spark-row:hover .ws-tooltip{display:block;}
 .ws-tooltip-grid{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;text-align:left;}
 .ws-tooltip-grid span:nth-child(even){text-align:right;font-weight:700;}
-.footer-note{margin-top:14px;font-size:12px;color:#6b7280}.subhead{font-size:18px;font-weight:800;margin-bottom:10px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border-bottom:1px solid #e5e7eb;padding:8px 10px;text-align:left;vertical-align:top}th{background:#f8fafc}.pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:700}.pill.bad{background:#fef2f2;color:#b91c1c}#loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.68);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:9999}.loader-box{width:220px;height:140px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.08);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;text-align:center;}.loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}.loader-text{font-size:13px;color:#6b7280;font-weight:700;line-height:1.4;}@keyframes spin{to{transform:rotate(360deg)}}@media (max-width:1280px){.machine-grid,.zones{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}.btn-pass{background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-pass:hover{background:#fee2e2}.btn-reset{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;color:#475569;font-weight:bold;transition:0.2s}.btn-reset:hover{background:#e2e8f0}.accordion-header{cursor:pointer; user-select:none;}.accordion-header:hover{color:#2563eb;}.btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-restore:hover{background:#dcfce7}</style></head><body><div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div><div class="card">
-  <div class="title">QPS Dashboard v8.5.28</div>
-  <div class="subtitle">생산성 지표 세분화(토트당 SKU 추가) 및 진척도 상대 스케일(편차 %p) 시각화 적용</div></div><div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
+.footer-note{margin-top:14px;font-size:12px;color:#6b7280}.subhead{font-size:18px;font-weight:800;margin-bottom:10px}
+/* 테이블 텍스트 래핑 방지 (white-space: nowrap) 적용 */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border-bottom:1px solid #e5e7eb;padding:8px 10px;text-align:left;vertical-align:middle;white-space:nowrap;}
+th{background:#f8fafc}
+/* 랭크 알약 스타일 검은색으로 통일 */
+.pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#f1f5f9;color:#0f172a;font-size:11px;font-weight:800}
+#loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.68);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:9999}.loader-box{width:220px;height:140px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.08);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;text-align:center;}.loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}.loader-text{font-size:13px;color:#6b7280;font-weight:700;line-height:1.4;}@keyframes spin{to{transform:rotate(360deg)}}@media (max-width:1280px){.machine-grid,.zones{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}.btn-pass{background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-pass:hover{background:#fee2e2}.btn-reset{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;color:#475569;font-weight:bold;transition:0.2s}.btn-reset:hover{background:#e2e8f0}.accordion-header{cursor:pointer; user-select:none;}.accordion-header:hover{color:#2563eb;}.btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-restore:hover{background:#dcfce7}</style></head><body><div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div><div class="card">
+  <div class="title">QPS Dashboard v8.5.29</div>
+  <div class="subtitle">반응형 레이아웃 해상도 버그 수정, 셀 텍스트 줄바꿈 방지 및 골든존 랙 우선순위 직관성 개선</div></div><div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
   <div class="row">
     <div class="group">
       <label>박스상품 상세정보 RAW</label>
@@ -64,14 +71,14 @@
   <div class="zones" id="progressZonesArea"></div>
 
   <!-- 메인 추천 카드 -->
-  <div class="card">
+  <div class="card" style="overflow-x:auto;">
     <div class="subhead" style="display:flex; justify-content:space-between; align-items:center;">
       <span>셀 이동 추천</span>
     </div>
     <table>
       <thead>
         <tr>
-          <th>순번</th><th>SKU</th><th>상품명</th><th>현재고(PCS)</th><th>지시 토트 수</th><th>지시 PCS</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>현재 우선순위</th><th>권장 랙</th><th>추천 셀</th><th>사유</th><th>관리</th>
+          <th>순번</th><th>SKU</th><th>상품명</th><th>현재고(PCS)</th><th>지시 토트 수</th><th>지시 PCS</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>랙 우선순위</th><th>권장 랙</th><th>추천 셀</th><th>사유</th><th>관리</th>
         </tr>
       </thead>
       <tbody id="recommendBody"></tbody>
@@ -79,7 +86,7 @@
   </div>
 
   <!-- 패스 목록 아코디언 카드 (상시 노출) -->
-  <div class="card" id="passCard">
+  <div class="card" id="passCard" style="overflow-x:auto;">
     <div class="subhead accordion-header" style="display:flex; justify-content:space-between; align-items:center;" onclick="togglePassList()">
       <span>셀 이동 패스 목록 (<span id="passCount">0</span>) <span id="passToggleIcon">▼</span></span>
       <button class="btn-reset" onclick="event.stopPropagation(); resetIgnored()">패스 목록 전체 초기화</button>
@@ -201,14 +208,12 @@ function getLoadColor(val, avg, max) {
   }
 }
 
-// 진척도 컬러 스케일 최적화 (절대값 50%가 아닌, 평균치를 기준으로 색상 변화 증폭)
+// 진척도 컬러 스케일 최적화
 function getProgressColor(progress, avg) {
   if (progress >= avg) {
-      // 평균보다 앞서면 녹색. 15% 이상 앞서면 최대 찐녹색
       const pct = Math.min(100, (progress - avg) * 666); 
       return `color-mix(in srgb, #10b981 ${pct}%, #e2e8f0)`; 
   } else {
-      // 평균보다 뒤처지면 붉은색. 15% 이상 뒤처지면 최대 찐빨강
       const pct = Math.min(100, (avg - progress) * 666); 
       return `color-mix(in srgb, #dc2626 ${pct}%, #e2e8f0)`; 
   }
@@ -609,9 +614,9 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
     const machineAvgTouch = machineWsCount > 0 ? st.totalTouches / machineWsCount : 0;
     const inboundPct = totalInboundAll > 0 ? ((st.inboundTotes / totalInboundAll) * 100).toFixed(1) : "0.0";
     
-    // 평균선 Left Offset 계산: Grid fixed width (60+16+16+115 = 207px), Left offset (60+16 = 76px)
+    // 평균선 Left Offset 계산
     const avgPct = max > 0 ? (machineAvgTouch / max) * 100 : 0;
-    const lineHTML = `<div class="avg-line" title="W/S별 SKU 평균" style="left: calc(76px + (100% - 207px) * ${avgPct / 100});"></div>`;
+    const lineHTML = `<div class="avg-line" title="W/S별 SKU 평균" style="left: calc(63px + (100% - 143px) * ${avgPct / 100});"></div>`;
 
     return `<div class="card aps-block">
       <div class="aps-head">
@@ -637,7 +642,7 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
               <div class="spark-track"><div class="spark-fill" style="width:${touchWidth}%;background:${touchBarColor};"></div></div>
               <div class="spark-value" style="text-align:right; line-height:1.2; display:flex; flex-direction:column; justify-content:center;">
                 <div style="color:#64748b; font-size:10px;">토트 <b style="font-size:12px; color:#475569;">${fmt(m.inboundToteCount)}</b></div>
-                <div style="color:#64748b; font-size:10px;">SKU&nbsp;&nbsp;<b style="font-size:12px; color:#1f2937;">${fmt(touch)}</b></div>
+                <div style="color:#64748b; font-size:10px;">SKU <b style="font-size:12px; color:#1f2937;">${fmt(touch)}</b></div>
               </div>
               <div class="ws-tooltip">
                 <div style="font-weight:800; margin-bottom:10px; border-bottom:1px solid #4b5563; padding-bottom:6px;">${formatWsName(ws)} 부하 상세</div>
@@ -676,7 +681,7 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
     
     // 평균선 Left Offset 계산
     const avgPct = machineAvgProgress * 100;
-    const lineHTML = `<div class="avg-line" title="평균 완료율 기준선" style="left: calc(76px + (100% - 207px) * ${avgPct / 100});"></div>`;
+    const lineHTML = `<div class="avg-line" title="평균 완료율 기준선" style="left: calc(63px + (100% - 143px) * ${avgPct / 100});"></div>`;
 
     return `<div class="card aps-block">
       <div class="aps-head">
@@ -693,7 +698,6 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
           const compWidth=progress*100;
           const touch=m.totalTouches||0;
           
-          // 평균을 기준으로 색상 강도를 증폭시킴
           const progBarColor=getProgressColor(progress, machineAvgProgress);
           
           const isBottom3 = bottom3Ws.has(ws);
@@ -704,7 +708,6 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
           const skuPerTote = m.inboundToteCount > 0 ? (touch / m.inboundToteCount).toFixed(2) : "0.00";
           const pcsPerTote = m.inboundToteCount > 0 ? (m.totalTouchPcs / m.inboundToteCount).toFixed(2) : "0.00";
           
-          // 평균 대비 편차치 텍스트 계산
           const dev = progress - machineAvgProgress;
           const devText = dev >= 0 ? `+${(dev*100).toFixed(1)}%p` : `${(dev*100).toFixed(1)}%p`;
           const devColor = dev >= 0 ? '#10b981' : '#ef4444';
@@ -747,7 +750,7 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
   });
 
   const renderDisplay = displayRecs.slice(0, 20);
-  $('#recommendBody').innerHTML = renderDisplay.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${fmt(r.pcs)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill ${r.currentRank<=2?'bad':''}">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('') || '<tr><td colspan="14">추천 결과 없음</td></tr>';
+  $('#recommendBody').innerHTML = renderDisplay.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${fmt(r.pcs)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('') || '<tr><td colspan="14">추천 결과 없음</td></tr>';
 
   $('#passCount').textContent = passedRecs.length;
   if(passedRecs.length > 0) {
