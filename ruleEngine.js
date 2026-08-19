@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.19.5 - Optimized Eviction/Entry Buffers)
+ * QPS cell-allocation rule engine (V2.19.6 - Fix Smoked Meat & Zero-Stock Eviction Priority)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -166,7 +166,8 @@
       egg: (group === '계란' || isEggByName) && !isProcessedEgg && !isQuailEgg,
       quailEgg: isQuailEgg,
       iceCream: group === '아이스크림', 
-      livestock: ['수입육', '우육', '돈육', '계육', '양념육', '훈제육'].includes(group)
+      // [수정점] 가공육인 '훈제육'을 원육(축산물 허가구역) 로직에서 제외
+      livestock: ['수입육', '우육', '돈육', '계육', '양념육'].includes(group)
     };
     
     const isSeafoodOrPoultry = ['대중선어', '구색선어', '생선회', '갑각류', '패류', '연체류'].includes(group) || (group === '계육' && !isProcessedChicken);
@@ -394,7 +395,6 @@
     
     if (c.egg && !eggCellAllowed(cell, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사/대량 시 A09, A10) 및 규격별 단수 제한' };
     
-    // [수정점] 메추리알 퇴출/진입 기준 이원화 (버퍼존 도입)
     if (c.quailEgg) {
         const highVolume = profile.outboundPcs >= 30 && profile.stock >= 60;
         const lowVolume = profile.outboundPcs <= 10 && profile.stock <= 20;
@@ -440,7 +440,6 @@
       mandatory.push('게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)');
     }
 
-    // [수정점] 일반 플로우랙 방 뺄 때(퇴출)는 엄격하게: 악성 재고일 때만 쫓아냄
     const deadStock = profile.outboundPcs <= 10 && profile.stock <= 20;
     if (!profile.category.quailEgg && rackFamily(cell) === 'flow' && profile.temp !== 'frozen' && deadStock) {
       mandatory.push('플로우랙 부적합 (출고 10 이하 & 재고 20 이하로 퇴출 필요)');
@@ -477,7 +476,6 @@
   }
 
   function desiredFamilies(profile, statistics) {
-    // [수정점] 추천 로직: 높은 기준 충족 시에만 권장
     const flowAllowed = profile.outboundPcs >= 30 && profile.stock >= 60;
 
     if (profile.category.quailEgg) {
@@ -586,7 +584,6 @@
 
     if (c.egg && !eggCellAllowed(candidate, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09, A10) 및 규격별 단수 제한' };
 
-    // [수정점] 타겟 추천 시 진입 장벽: 높은 기준 반영
     const flowAllowedForTarget = profile.outboundPcs >= 30 && profile.stock >= 60;
 
     if (c.quailEgg) {
@@ -669,7 +666,16 @@
       if (!source.sku || seen.has(source.sku) || !['chilled', 'frozen'].includes(thermalClass(source))) continue;
       seen.add(source.sku);
       const profile = productProfileFor(source, profiles, allData);
-      if (profile.touch <= 0 && profile.outboundPcs <= 0) continue;
+      
+      // [수정점] 공갈 재고(출고0, 재고0)라도 프리미엄 랙/잘못된 온도대 점유 중이면 방을 빼도록 필터링 완화
+      if (profile.touch <= 0 && profile.outboundPcs <= 0) {
+          const fam = rackFamily(source);
+          const needsEviction = ['gate', 'flow', 'flat'].includes(fam) ||
+                                (profile.temp !== 'frozen' && isFrozenDedicated(source.zone)) ||
+                                (profile.temp === 'frozen' && !isFrozenDedicated(source.zone));
+          if (!needsEviction) continue; // 일반 선반랙의 악성 재고는 무시
+      }
+
       profile.sourceZone = source.zone;
       activeSources.push({ source, profile });
     }
@@ -726,6 +732,16 @@
       let rankNum = FAMILY_RANK[rackFamily(source)] || 9;
       if (zScore > 0) rankNum = Math.max(1, rankNum - 1); 
 
+      // [수정점] 퇴출 우선순위 가중치 (출고/재고가 0에 가까울수록 시급도 대폭 상승)
+      let urgency = 0;
+      if (isMandatoryMove) {
+          if (sourceViolations.some(v => v.includes('퇴출 필요'))) {
+              urgency = Math.max(0, (10 - profile.outboundPcs) * 10 + (20 - profile.stock));
+          } else if (sourceViolations.some(v => v.includes('게이트랙 부적합'))) {
+              urgency = Math.max(0, (100 - profile.outboundPcs) + (50 - profile.stock));
+          }
+      }
+
       recommendations.push({
         sku: source.sku,
         productName: profile.name || source.productName || '',
@@ -742,15 +758,23 @@
           ? recommendationReasons(source, target, profile, context, sourceViolations, best.scoreInfo)
           : sourceViolations.join(' · '),
         mandatory: isMandatoryMove ? 1 : 0,
+        urgency: urgency,
         improvement: best ? best.scoreInfo.score - sourceScore : -999
       });
     }
     
+    // [수정점] 정렬 시 urgency(시급도)를 점수 개선도보다 우선적으로 판단
     return recommendations
-      .sort((a, b) => (b.mandatory - a.mandatory) || (b.improvement - a.improvement) || (b.toteCount - a.toteCount) || (b.pcs - a.pcs))
+      .sort((a, b) => 
+        (b.mandatory - a.mandatory) || 
+        (b.urgency - a.urgency) || 
+        (b.improvement - a.improvement) || 
+        (b.toteCount - a.toteCount) || 
+        (b.pcs - a.pcs)
+      )
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.19.5-optimized-buffer' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.19.6-smoked-meat-and-urgency' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
