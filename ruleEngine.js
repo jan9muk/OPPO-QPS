@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.19.4 - Flow Rack Strict Rules)
+ * QPS cell-allocation rule engine (V2.19.5 - Optimized Eviction/Entry Buffers)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -394,14 +394,12 @@
     
     if (c.egg && !eggCellAllowed(cell, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사/대량 시 A09, A10) 및 규격별 단수 제한' };
     
+    // [수정점] 메추리알 퇴출/진입 기준 이원화 (버퍼존 도입)
     if (c.quailEgg) {
-        // [수정점] 플로우랙 기준 상향 연동
-        const needsFlow = profile.outboundPcs >= 30 && profile.stock >= 60;
-        if (needsFlow) {
-            if (rackFamily(cell) !== 'flow') return { ok: false, reason: '메추리알 대량(출고 30 이상 & 재고 60 이상)은 플로우랙 전용' };
-        } else {
-            if (!inRange(location(cell), 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 일반 재고는 A07-04~07 선반랙 전용' };
-        }
+        const highVolume = profile.outboundPcs >= 30 && profile.stock >= 60;
+        const lowVolume = profile.outboundPcs <= 10 && profile.stock <= 20;
+        if (highVolume && rackFamily(cell) !== 'flow') return { ok: false, reason: '메추리알 대량(출고 30 & 재고 60 이상)은 플로우랙 전용' };
+        if (lowVolume && !inRange(location(cell), 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 소량(출고 10 & 재고 20 이하)은 A07 선반랙 전용' };
     }
 
     if (c.iceCream && zone !== 'E07') return { ok: false, reason: '아이스크림류는 E07 전용 구역 배치 필요' };
@@ -442,10 +440,10 @@
       mandatory.push('게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)');
     }
 
-    // [수정점] 일반 플로우랙 기준 상향 체크
-    const flowAllowed = profile.outboundPcs >= 30 && profile.stock >= 60;
-    if (!profile.category.quailEgg && rackFamily(cell) === 'flow' && profile.temp !== 'frozen' && !flowAllowed) {
-      mandatory.push('플로우랙 부적합 (출고 30 미만 또는 재고 60 미만)');
+    // [수정점] 일반 플로우랙 방 뺄 때(퇴출)는 엄격하게: 악성 재고일 때만 쫓아냄
+    const deadStock = profile.outboundPcs <= 10 && profile.stock <= 20;
+    if (!profile.category.quailEgg && rackFamily(cell) === 'flow' && profile.temp !== 'frozen' && deadStock) {
+      mandatory.push('플로우랙 부적합 (출고 10 이하 & 재고 20 이하로 퇴출 필요)');
     }
 
     const loc = location(cell);
@@ -479,7 +477,7 @@
   }
 
   function desiredFamilies(profile, statistics) {
-    // [수정점] 공통 플로우랙 상향 조건
+    // [수정점] 추천 로직: 높은 기준 충족 시에만 권장
     const flowAllowed = profile.outboundPcs >= 30 && profile.stock >= 60;
 
     if (profile.category.quailEgg) {
@@ -490,7 +488,6 @@
     if (profile.boxWeightG >= 7000 && profile.stock >= 50) return ['flow', 'flat'];
     if (profile.category.kimchi || (profile.temp === 'frozen' && /^F/.test(profile.sourceZone || ''))) return ['flow', 'flat'];
     
-    // [수정점] 플로우랙 할당 차단 플래그 생성
     const flowNotAllowed = !profile.category.quailEgg && profile.temp !== 'frozen' && !flowAllowed;
 
     const demand = percentile(profile.touch, statistics.touches);
@@ -589,19 +586,19 @@
 
     if (c.egg && !eggCellAllowed(candidate, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09, A10) 및 규격별 단수 제한' };
 
-    // [수정점] 추천 공셀 평가 시 새로운 플로우랙 기준 반영
-    const flowAllowed = profile.outboundPcs >= 30 && profile.stock >= 60;
+    // [수정점] 타겟 추천 시 진입 장벽: 높은 기준 반영
+    const flowAllowedForTarget = profile.outboundPcs >= 30 && profile.stock >= 60;
 
     if (c.quailEgg) {
-        if (flowAllowed) {
-            if (rackFamily(candidate) !== 'flow') return { ok: false, reason: '메추리알 대량(출고 30 이상 & 재고 60 이상)은 플로우랙 전용' };
+        if (flowAllowedForTarget) {
+            if (rackFamily(candidate) !== 'flow') return { ok: false, reason: '메추리알 대량(출고 30 & 재고 60 이상)은 플로우랙 전용' };
         } else {
-            if (!inRange(location(candidate), 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 일반 재고는 A07-04~07 선반랙 전용' };
+            if (!inRange(location(candidate), 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 소량은 A07 선반랙 전용' };
         }
     }
 
-    if (!c.quailEgg && rackFamily(candidate) === 'flow' && profile.temp !== 'frozen' && !flowAllowed) {
-      return { ok: false, reason: '플로우랙 부적합 (출고 30 미만 또는 재고 60 미만)' };
+    if (!c.quailEgg && rackFamily(candidate) === 'flow' && profile.temp !== 'frozen' && !flowAllowedForTarget) {
+      return { ok: false, reason: '플로우랙 진입 불가 (출고 30 미만 또는 재고 60 미만)' };
     }
 
     const loc = location(candidate);
@@ -754,6 +751,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.19.4-flow-rack-rules' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.19.5-optimized-buffer' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
