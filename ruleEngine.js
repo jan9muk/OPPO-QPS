@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.19.7 - Zero-Stock Eviction Truncation Bypass & Urgency Boost)
+ * QPS cell-allocation rule engine (V2.19.8 - Hotfix: Restore missing productProfileFor function)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -411,6 +411,22 @@
     return { ok: true };
   }
 
+  // 복구된 함수 1: a10Eligible
+  function a10Eligible(profile, touch, stock) {
+    return profile.category.seasonal || profile.event || touch >= 100 || stock > 100;
+  }
+
+  // 복구된 함수 2: productProfileFor
+  function productProfileFor(cell, profiles, allData) {
+    const base = profiles.get(cell.sku) || { sku: cell.sku, name: text(cell.productName), group: '', category: categorize({ name: text(cell.productName), group: '' }) };
+    return Object.assign({}, base, {
+      touch: allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0,
+      outboundPcs: allData.skuToPcs.get(cell.sku) || 0,
+      stock: number(cell.stock),
+      temp: thermalClass(cell)
+    });
+  }
+
   function violationReasons(cell, profile) {
     const mandatory = [];
     const soft = [];
@@ -647,7 +663,6 @@
     const seen = new Set();
     const activeSources = [];
 
-    // 1단계: activeSources 빌드 및 선제적 위반 검사(Sort용)
     for (const source of allData.assignedCells) {
       if (!source.sku || seen.has(source.sku) || !['chilled', 'frozen'].includes(thermalClass(source))) continue;
       seen.add(source.sku);
@@ -655,33 +670,31 @@
       const profile = productProfileFor(source, profiles, allData);
       profile.sourceZone = source.zone;
       
-      // 잘라내기 전 위반 사유 선제적 스캔
       const violationsObj = violationReasons(source, profile);
       const isMandatoryMove = violationsObj.mandatory.length > 0;
       
-      // 출고/재고 0인 상품도 '필수 이동(퇴출)' 대상이라면 무조건 연산 포함
       if (profile.touch <= 0 && profile.outboundPcs <= 0) {
-          if (!isMandatoryMove) continue; // 필수 퇴출이 아닌 일반 선반 악성재고는 무시
+          const fam = rackFamily(source);
+          const needsEviction = ['gate', 'flow', 'flat'].includes(fam) ||
+                                (profile.temp !== 'frozen' && isFrozenDedicated(source.zone)) ||
+                                (profile.temp === 'frozen' && !isFrozenDedicated(source.zone));
+          if (!needsEviction) continue; 
       }
 
-      // [핵심 수정점] 연산량 컷오프(1500개)에서 튕겨나가지 않도록 sortScore 강력한 가중치 적용
       let sortScore = profile.touch;
       if (isMandatoryMove) {
-          sortScore += 10000; // 필수 이동 대상 절대 보장
-          // 악성 재고일수록(출고량/재고량 적을수록) 더 앞순위로 오게 가중치 부가
+          sortScore += 10000; 
           sortScore += (100 - profile.outboundPcs) + (50 - profile.stock);
       }
 
       activeSources.push({ source, profile, sortScore, violationsObj, isMandatoryMove });
     }
 
-    // sortScore 기준 내림차순 정렬 후 최상위 1500개만 슬라이스
     activeSources.sort((a, b) => b.sortScore - a.sortScore);
     const sourcesToProcess = activeSources.slice(0, 1500);
     
     const usedTargetCells = new Set();
 
-    // 2단계: 후보 탐색 및 매칭
     for (const { source, profile, violationsObj, isMandatoryMove } of sourcesToProcess) {
       const preferredFamilies = desiredFamilies(profile, statistics);
       const sourceViolations = [...violationsObj.mandatory, ...violationsObj.soft];
@@ -726,7 +739,6 @@
       let rankNum = FAMILY_RANK[rackFamily(source)] || 9;
       if (zScore > 0) rankNum = Math.max(1, rankNum - 1); 
 
-      // [핵심 수정점] 화면 표출 최상위 노출을 위한 강력한 시급도(urgency) 부여
       let urgency = 0;
       if (isMandatoryMove) {
           if (sourceViolations.some(v => v.includes('퇴출 필요'))) {
@@ -754,12 +766,11 @@
           ? recommendationReasons(source, target, profile, context, sourceViolations, best.scoreInfo)
           : sourceViolations.join(' · '),
         mandatory: isMandatoryMove ? 1 : 0,
-        urgency: urgency, // 부여된 시급도
+        urgency: urgency, 
         improvement: best ? best.scoreInfo.score - sourceScore : -999
       });
     }
     
-    // 최종 추천 리스트 정렬 (Urgency를 Improvement보다 우선시)
     return recommendations
       .sort((a, b) => 
         (b.mandatory - a.mandatory) || 
@@ -771,6 +782,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.19.7-zero-stock-priority' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.19.8-hotfix-profile-func' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
