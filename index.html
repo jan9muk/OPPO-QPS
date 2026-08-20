@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>QPS Dashboard v8.5.32</title><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script><style>body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}.title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}.status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}.empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}/* HUD 패널 스타일 */.hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}.hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}.hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}.hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}.val-tph{color:#34d399} .val-avg{color:#a855f7} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}.machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px;margin-bottom:18px}.machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}.metrics{display:flex;gap:12px;flex-wrap:nowrap;justify-content:space-between;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;flex:1;}.metric b{display:block;color:#1f2937;font-size:20px;margin-top:2px}.metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}.aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}.zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}.spark-stack{display:grid;gap:10px;position:relative;}
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>QPS Dashboard v8.5.33</title><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script><style>body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}.title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}.status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}.empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}/* HUD 패널 스타일 */.hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}.hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}.hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}.hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}.val-tph{color:#34d399} .val-avg{color:#a855f7} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}.machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px;margin-bottom:18px}.machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}.metrics{display:flex;gap:12px;flex-wrap:nowrap;justify-content:space-between;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;flex:1;}.metric b{display:block;color:#1f2937;font-size:20px;margin-top:2px}.metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}.aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}.zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}.spark-stack{display:grid;gap:10px;position:relative;}
 .spark-row{display:grid;grid-template-columns:55px 1fr 80px;gap:8px;align-items:center;min-height:36px;position:relative;}
 .spark-row.blank{visibility:hidden}
 .ws-label{font-size:13px;font-weight:700;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -15,9 +15,10 @@ table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{border-bottom:1px solid #e5e7eb;padding:8px 10px;text-align:left;vertical-align:middle;white-space:nowrap;}
 th{background:#f8fafc}
 .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#f1f5f9;color:#0f172a;font-size:11px;font-weight:800}
-#loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.68);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:9999}.loader-box{width:220px;height:140px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.08);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;text-align:center;}.loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}.loader-text{font-size:13px;color:#6b7280;font-weight:700;line-height:1.4;}@keyframes spin{to{transform:rotate(360deg)}}@media (max-width:1280px){.machine-grid,.zones{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}.btn-pass{background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-pass:hover{background:#fee2e2}.btn-reset{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;color:#475569;font-weight:bold;transition:0.2s}.btn-reset:hover{background:#e2e8f0}.accordion-header{cursor:pointer; user-select:none;}.accordion-header:hover{color:#2563eb;}.btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-restore:hover{background:#dcfce7}</style></head><body><div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div><div class="card">
-  <div class="title">QPS Dashboard v8.5.32</div>
-  <div class="subtitle">요약 카드 지표 소수점 2자리 적용 및 추천 건수 최적화</div></div><div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
+.insight-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:12px}
+#loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.68);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:9999}.loader-box{width:220px;height:140px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.08);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;text-align:center;}.loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}.loader-text{font-size:13px;color:#6b7280;font-weight:700;line-height:1.4;}@keyframes spin{to{transform:rotate(360deg)}}@media (max-width:1280px){.machine-grid,.zones,.insight-grid{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}.btn-pass{background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-pass:hover{background:#fee2e2}.btn-reset{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;color:#475569;font-weight:bold;transition:0.2s}.btn-reset:hover{background:#e2e8f0}.accordion-header{cursor:pointer; user-select:none;}.accordion-header:hover{color:#2563eb;}.btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-restore:hover{background:#dcfce7}</style></head><body><div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div><div class="card">
+  <div class="title">QPS Dashboard v8.5.33</div>
+  <div class="subtitle">실시간 현장 개입 포인트(병목 타겟, 절대 잔여량, 다건 토트) 3종 추출 기능 통합</div></div><div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
   <div class="row">
     <div class="group">
       <label>박스상품 상세정보 RAW</label>
@@ -66,6 +67,9 @@ th{background:#f8fafc}
 
   <!-- 캡처 타겟 영역 -->
   <div id="captureTarget" style="padding:20px; background:#f5f7fb; margin:-20px -20px 0 -20px; border-radius:16px;">
+    <!-- 실시간 현장 의사결정 인사이트 영역 -->
+    <div id="insightArea"></div>
+    
     <div class="machine-grid" id="machineSummary"></div>
     <div class="zones" id="loadZonesArea"></div>
     <div class="zones" id="progressZonesArea"></div>
@@ -354,6 +358,7 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
 
   const touchMap = new Map();
   const toteStatusMap = new Map(); 
+  const toteToSkus = new Map(); // 각 토트가 포함하는 SKU 추적용 추가
   let latestDataTimeMs = 0;
 
   for(const row of boxRows){
@@ -404,6 +409,9 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
       skuToToteCount.set(sku, (skuToToteCount.get(sku)||0)+1);
     }
     
+    if(!toteToSkus.has(toteKey)) toteToSkus.set(toteKey, new Set());
+    toteToSkus.get(toteKey).add(sku);
+
     const entry = touchMap.get(key);
     entry.pcs += pcs;
     
@@ -462,6 +470,36 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
     };
   }
 
+  // 병목 추적용 추가 데이터 연산 (미완료 토트 기반 인사이트)
+  const skuIncompleteTotes = new Map();
+  const wsIncompleteComplexTotes = new Map();
+  const wsIncompleteTotes = new Map();
+
+  for(const [toteKey, toteObj] of toteStatusMap.entries()) {
+    if(!toteObj.isComplete) {
+      const skusInTote = toteToSkus.get(toteKey) || new Set();
+      const isComplex = skusInTote.size >= 5; // 다건(5종 이상) 기준
+
+      skusInTote.forEach(sku => {
+        if(!skuIncompleteTotes.has(sku)) skuIncompleteTotes.set(sku, new Set());
+        skuIncompleteTotes.get(sku).add(toteKey);
+
+        const wsSet = skuToWsSet.get(sku);
+        if(wsSet) {
+          wsSet.forEach(ws => {
+            if(!wsIncompleteTotes.has(ws)) wsIncompleteTotes.set(ws, new Set());
+            wsIncompleteTotes.get(ws).add(toteKey);
+
+            if(isComplex) {
+              if(!wsIncompleteComplexTotes.has(ws)) wsIncompleteComplexTotes.set(ws, new Set());
+              wsIncompleteComplexTotes.get(ws).add(toteKey);
+            }
+          });
+        }
+      });
+    }
+  }
+
   return {
     skuToPcs,
     skuToToteCount,
@@ -474,7 +512,11 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
     total2FTotes,       
     comp2FTotes,   
     comp2FTimes,
-    latestDataTimeMs 
+    latestDataTimeMs,
+    // 병목 추적용 데이터 내보내기
+    skuIncompleteTotes,
+    wsIncompleteTotes,
+    wsIncompleteComplexTotes
   };
 }function computeZoneStats(wsMetrics){
   const res={};
@@ -592,8 +634,79 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
 }function drawScreen(allData){
   updateHUD(allData);
 
+  // 현장 인사이트(의사결정) 3종 추출 및 HTML 렌더링
+  const skuImpact = [];
+  if(allData.skuIncompleteTotes) {
+      allData.skuIncompleteTotes.forEach((totes, sku) => {
+          skuImpact.push({sku, name: allData.skuMeta.get(sku)?.name||'', count: totes.size});
+      });
+  }
+  skuImpact.sort((a,b) => b.count - a.count);
+  const topSkus = skuImpact.slice(0, 3);
+  const htmlSku = topSkus.length ? topSkus.map((s, i) => `
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">
+          <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:140px;" title="${s.name}"><b>${i+1}.</b> ${s.name}</span>
+          <span style="color:#dc2626; font-weight:700;">토트 ${fmt(s.count)}개 대기</span>
+      </div>
+  `).join('') : '<div style="font-size:12px; color:#6b7280;">정체된 SKU 없음</div>';
+
+  const wsLoad = [];
+  Object.entries(allData.wsMetrics).forEach(([ws, m]) => {
+      const remain = m.totalTouches - m.completeTouches;
+      if(remain > 0) wsLoad.push({ws, remain});
+  });
+  wsLoad.sort((a,b) => b.remain - a.remain);
+  const topLoadWs = wsLoad.slice(0, 3);
+  const htmlLoad = topLoadWs.length ? topLoadWs.map((w, i) => `
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">
+          <span><b>${i+1}.</b> ${formatWsName(w.ws)} 작업대</span>
+          <span style="color:#ea580c; font-weight:700;">잔여 ${fmt(w.remain)}건</span>
+      </div>
+  `).join('') : '<div style="font-size:12px; color:#6b7280;">잔여 물량 없음</div>';
+
+  const wsComplexity = [];
+  if(allData.wsIncompleteTotes) {
+      allData.wsIncompleteTotes.forEach((totes, ws) => {
+          if(totes.size >= 5) { // 의미 있는 모수가 있는 작업대만 추출
+              const cCount = allData.wsIncompleteComplexTotes.get(ws)?.size || 0;
+              const ratio = cCount / totes.size;
+              if(cCount > 0) wsComplexity.push({ws, ratio, cCount, total: totes.size});
+          }
+      });
+  }
+  wsComplexity.sort((a,b) => b.ratio - a.ratio || b.cCount - a.cCount);
+  const topComplexWs = wsComplexity.slice(0, 3);
+  const htmlComplex = topComplexWs.length ? topComplexWs.map((w, i) => `
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">
+          <span><b>${i+1}.</b> ${formatWsName(w.ws)} 작업대</span>
+          <span style="color:#ca8a04; font-weight:700;">${fmtPctInt(w.ratio)} (${w.cCount}/${w.total}개)</span>
+      </div>
+  `).join('') : '<div style="font-size:12px; color:#6b7280;">적체된 다건 토트 없음</div>';
+
+  $('#insightArea').innerHTML = `
+      <div class="card" style="border: 2px solid #fecaca; background: #fef2f2; margin-bottom: 24px;">
+          <div class="subhead" style="color: #b91c1c; display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
+              🚨 현장 실시간 개입 포인트 <span style="font-size:12px; font-weight:normal; color:#ef4444; margin-left:8px;">* 미완료 상태인 토트와 SKU를 추적하여 산출한 우선순위 인사이트입니다.</span>
+          </div>
+          <div class="insight-grid">
+              <div style="background: #fff; padding: 14px; border-radius: 12px; border: 1px solid #f87171; box-shadow: 0 4px 6px rgba(220, 38, 38, 0.05);">
+                  <div style="font-size:14px; font-weight: 800; color: #991b1b; margin-bottom: 12px; border-bottom: 1px dashed #fca5a5; padding-bottom: 6px;">🎯 병목 유발 타겟 SKU (혈 뚫기)</div>
+                  ${htmlSku}
+              </div>
+              <div style="background: #fff; padding: 14px; border-radius: 12px; border: 1px solid #fdba74; box-shadow: 0 4px 6px rgba(234, 88, 12, 0.05);">
+                  <div style="font-size:14px; font-weight: 800; color: #c2410c; margin-bottom: 12px; border-bottom: 1px dashed #fdba74; padding-bottom: 6px;">🔥 절대 잔여량 경보 (헬퍼 투입)</div>
+                  ${htmlLoad}
+              </div>
+              <div style="background: #fff; padding: 14px; border-radius: 12px; border: 1px solid #fde047; box-shadow: 0 4px 6px rgba(202, 138, 4, 0.05);">
+                  <div style="font-size:14px; font-weight: 800; color: #a16207; margin-bottom: 12px; border-bottom: 1px dashed #fde047; padding-bottom: 6px;">⚠️ 다건 적체 경보 (5종 이상 복합)</div>
+                  ${htmlComplex}
+              </div>
+          </div>
+      </div>
+  `;
+
+  // 기존 렌더링 로직 계속
   const activeWsList = Object.values(allData.wsMetrics).filter(m => m.totalTouches > 0);
-  
   const touchValues=activeWsList.map(v=>v.totalTouches);
   const max=touchValues.length?Math.max(...touchValues):0;
   const stats=computeZoneStats(allData.wsMetrics);
@@ -602,7 +715,6 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
 
   $('#machineSummary').innerHTML=machineList.map(machine=>{
     const st=stats[machine];
-    // [수정점] 소수점 2자리 표기 적용
     const skuPerTote = st.inboundTotes ? (st.totalTouches / st.inboundTotes).toFixed(2) : '0.00';
     return `
       <div class="card machine-card">
