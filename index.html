@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>QPS Dashboard v8.5.34</title><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script><style>body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}.title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}.status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}.empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}/* HUD 패널 스타일 */.hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}.hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}.hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}.hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}.val-tph{color:#34d399} .val-avg{color:#a855f7} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}.machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px;margin-bottom:18px}.machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}.metrics{display:flex;gap:12px;flex-wrap:nowrap;justify-content:space-between;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;flex:1;}.metric b{display:block;color:#1f2937;font-size:20px;margin-top:2px}.metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}.aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}.zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}.spark-stack{display:grid;gap:10px;position:relative;}
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>QPS Dashboard v8.5.35</title><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script><style>body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}.title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}.status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}.empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}/* HUD 패널 스타일 */.hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}.hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}.hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}.hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}.val-tph{color:#34d399} .val-avg{color:#a855f7} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}.machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px;margin-bottom:18px}.machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}.metrics{display:flex;gap:12px;flex-wrap:nowrap;justify-content:space-between;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;flex:1;}.metric b{display:block;color:#1f2937;font-size:20px;margin-top:2px}.metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}.aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}.zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}.spark-stack{display:grid;gap:10px;position:relative;}
 .spark-row{display:grid;grid-template-columns:55px 1fr 80px;gap:8px;align-items:center;min-height:36px;position:relative;}
 .spark-row.blank{visibility:hidden}
 .ws-label{font-size:13px;font-weight:700;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -17,7 +17,7 @@ th{background:#f8fafc}
 .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#f1f5f9;color:#0f172a;font-size:11px;font-weight:800}
 .insight-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:12px}
 #loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.68);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:9999}.loader-box{width:220px;height:140px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.08);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;text-align:center;}.loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}.loader-text{font-size:13px;color:#6b7280;font-weight:700;line-height:1.4;}@keyframes spin{to{transform:rotate(360deg)}}@media (max-width:1280px){.machine-grid,.zones,.insight-grid{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}.btn-pass{background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-pass:hover{background:#fee2e2}.btn-reset{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;color:#475569;font-weight:bold;transition:0.2s}.btn-reset:hover{background:#e2e8f0}.accordion-header{cursor:pointer; user-select:none;}.accordion-header:hover{color:#2563eb;}.btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-restore:hover{background:#dcfce7}</style></head><body><div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div><div class="card">
-  <div class="title">QPS Dashboard v8.5.34</div>
+  <div class="title">QPS Dashboard v8.5.35</div>
   <div class="subtitle">인사이트 카드 가시성 개선(전체 텍스트, W/S 표기) 및 물성 악화(다건) 로직 작업대 기준 최적화</div></div><div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
   <div class="row">
     <div class="group">
@@ -60,7 +60,7 @@ th{background:#f8fafc}
       <div class="hud-value val-inbound" id="hudInboundTph">0<span class="hud-unit">totes/hr</span></div>
     </div>
     <div class="hud-box">
-      <div class="hud-label">2층 잔여 물리적 토트</div>
+      <div class="hud-label">2층 피킹 잔여 토트</div>
       <div class="hud-value val-remain" id="hudRemain">0<span class="hud-unit">totes</span></div>
     </div>
   </div>
@@ -358,7 +358,7 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
 
   const touchMap = new Map();
   const toteStatusMap = new Map(); 
-  const wsToteToSkus = new Map(); // 각 작업대별 토트에서 피킹해야 할 실제 SKU 추적용 (버그 수정됨)
+  const wsToteToSkus = new Map(); 
   let latestDataTimeMs = 0;
 
   for(const row of boxRows){
@@ -420,7 +420,6 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
     if(candidateWs) {
       for(const ws of candidateWs) {
           entry.wsSet.add(ws);
-          // 작업대별로 해당 토트에 담아야 할 진짜 SKU를 기록
           const wsToteKey = `${ws}||${toteKey}`;
           if(!wsToteToSkus.has(wsToteKey)) wsToteToSkus.set(wsToteKey, new Set());
           wsToteToSkus.get(wsToteKey).add(sku);
@@ -473,7 +472,6 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
     };
   }
 
-  // 인사이트를 위한 데이터 정제
   const skuIncompleteTotes = new Map();
   for(const [wsToteKey, skus] of wsToteToSkus.entries()) {
     const [ws, toteKey] = wsToteKey.split('||');
@@ -488,7 +486,7 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
 
   const wsIncompleteComplexTotes = new Map();
   const wsIncompleteTotes = new Map();
-  const COMPLEX_THRESHOLD = 3; // 토트 1개당 평균 1.1~1.5 SKU임을 감안하여, 한 작업대에서 3개 이상 피킹하는 것을 '물성 악화(다건)'로 정의
+  const COMPLEX_THRESHOLD = 3; 
 
   for(const [wsToteKey, skus] of wsToteToSkus.entries()) {
     const [ws, toteKey] = wsToteKey.split('||');
@@ -639,7 +637,6 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
 }function drawScreen(allData){
   updateHUD(allData);
 
-  // 현장 인사이트(의사결정) 3종 추출 및 HTML 렌더링
   const skuImpact = [];
   if(allData.skuIncompleteTotes) {
       allData.skuIncompleteTotes.forEach((totes, sku) => {
@@ -669,7 +666,7 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
       if(remain > 0) wsLoad.push({ws, remain});
   });
   wsLoad.sort((a,b) => b.remain - a.remain);
-  const topLoadWs = wsLoad.slice(0, 3);
+  const topLoadWs = wsLoad.slice(0, 5);
   const htmlLoad = topLoadWs.length ? topLoadWs.map((w, i) => `
       <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">
           <span><b>${i+1}.</b> ${formatWsName(w.ws)} 작업대</span>
@@ -688,7 +685,7 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
       });
   }
   wsComplexity.sort((a,b) => b.ratio - a.ratio || b.cCount - a.cCount);
-  const topComplexWs = wsComplexity.slice(0, 3);
+  const topComplexWs = wsComplexity.slice(0, 5);
   const htmlComplex = topComplexWs.length ? topComplexWs.map((w, i) => `
       <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">
           <span><b>${i+1}.</b> ${formatWsName(w.ws)} 작업대</span>
@@ -699,7 +696,7 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
   $('#insightArea').innerHTML = `
       <div class="card" style="border: 2px solid #fecaca; background: #fef2f2; margin-bottom: 24px;">
           <div class="subhead" style="color: #b91c1c; display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
-              🚨 현장 실시간 개입 포인트 <span style="font-size:12px; font-weight:normal; color:#ef4444; margin-left:8px;">* 미완료 상태인 토트와 SKU를 추적하여 산출한 우선순위 인사이트입니다.</span>
+              🚨 현장 확인 포인트 <span style="font-size:12px; font-weight:normal; color:#ef4444; margin-left:8px;">* 미완료 상태인 토트와 SKU를 추적하여 산출한 우선순위 인사이트입니다.</span>
           </div>
           <div class="insight-grid">
               <div style="background: #fff; padding: 14px; border-radius: 12px; border: 1px solid #f87171; box-shadow: 0 4px 6px rgba(220, 38, 38, 0.05);">
@@ -707,18 +704,17 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
                   ${htmlSku}
               </div>
               <div style="background: #fff; padding: 14px; border-radius: 12px; border: 1px solid #fdba74; box-shadow: 0 4px 6px rgba(234, 88, 12, 0.05);">
-                  <div style="font-size:14px; font-weight: 800; color: #c2410c; margin-bottom: 12px; border-bottom: 1px dashed #fdba74; padding-bottom: 6px;">🔥 잔여 토트량 순위</div>
+                  <div style="font-size:14px; font-weight: 800; color: #c2410c; margin-bottom: 12px; border-bottom: 1px dashed #fdba74; padding-bottom: 6px;">🔥 피킹잔여 토트 수량 상위 작업대</div>
                   ${htmlLoad}
               </div>
               <div style="background: #fff; padding: 14px; border-radius: 12px; border: 1px solid #fde047; box-shadow: 0 4px 6px rgba(202, 138, 4, 0.05);">
-                  <div style="font-size:14px; font-weight: 800; color: #a16207; margin-bottom: 12px; border-bottom: 1px dashed #fde047; padding-bottom: 6px;">⚠️ 물성 악화 작업대 순위 <span style="font-size:11px; font-weight:normal;">(3종 이상 복합)</span></div>
+                  <div style="font-size:14px; font-weight: 800; color: #a16207; margin-bottom: 12px; border-bottom: 1px dashed #fde047; padding-bottom: 6px;">⚠️ 물성악화 작업대 순위 <span style="font-size:11px; font-weight:normal;">(1토트 당 3SKU 이상 피킹 필요한 토트)</span></div>
                   ${htmlComplex}
               </div>
           </div>
       </div>
   `;
 
-  // 기존 렌더링 로직 계속
   const activeWsList = Object.values(allData.wsMetrics).filter(m => m.totalTouches > 0);
   const touchValues=activeWsList.map(v=>v.totalTouches);
   const max=touchValues.length?Math.max(...touchValues):0;
