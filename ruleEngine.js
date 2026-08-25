@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.25.0 - Fixed: Global Hysteresis Buffer to eliminate all Ping-Pong loops)
+ * QPS cell-allocation rule engine (V2.26.0 - Added: Flow-rack eviction quota to prevent task starvation)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -423,7 +423,7 @@
     const category = categoryZoneAllowed(sourcePc, profile);
     if (!category.ok) mandatory.push(category.reason);
 
-    // 김치류 Hysteresis 강제 퇴출 (하한선 버퍼)
+    // 김치류 Hysteresis 강제 퇴출
     if (profile.category.kimchi) {
         if (!['C08', 'C09'].includes(sourcePc.zone)) {
             mandatory.push('김치류 지정 구역(C08, C09) 이탈 (강제 이동 필요)');
@@ -438,12 +438,10 @@
         }
     }
 
-    // 게이트랙 Hysteresis 강제 퇴출 (하한선 버퍼)
     if (sourcePc.family === 'gate' && profile.outboundPcs <= 70 && profile.stock <= 50) {
       mandatory.push('게이트랙 기준 미달 (물량 급감으로 퇴출 필요)');
     }
 
-    // 일반 상품 플로우랙 Hysteresis 강제 퇴출 (하한선 버퍼 15/20)
     const deadStock = profile.outboundPcs <= 15 && profile.stock <= 20;
     if (!profile.category.quailEgg && !profile.category.kimchi && sourcePc.family === 'flow' && profile.temp !== 'frozen' && deadStock && profile.stock > 0) {
       mandatory.push('플로우랙 부적합 (출고 15 이하 & 재고 20 이하로 퇴출 필요)');
@@ -465,7 +463,6 @@
       mandatory.push('중량물(박스 7kg 또는 단품 3kg 초과) 안전 수칙: 1~2단 하단 보관 필수');
     }
 
-    // 선반랙 Hysteresis 초과 경고 (60개 이상일 때만 경고, 타겟셀 평가는 50개부터 감점)
     if (sourcePc.family === 'shelf' && profile.stock >= 60 && !profile.category.egg && !profile.category.quailEgg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(sourcePc.zone)) {
       soft.push('현재고 60개 이상으로 선반랙 한계 초과');
     }
@@ -480,20 +477,17 @@
     return index < 0 ? 0 : 1 - (index / Math.max(1, sorted.length - 1));
   }
 
-  // [신규] 모든 핑퐁을 차단하는 State-Aware 선호 랙 산정
   function desiredFamilies(profile, statistics) {
     const currentFam = profile.sourceFamily;
     const isFlow = currentFam === 'flow';
     const isGate = currentFam === 'gate';
 
-    // 1. 김치 Hysteresis
     if (profile.category.kimchi) {
         if (profile.outboundPcs >= 40 && profile.stock >= 50) return ['flow'];
         if (isFlow && !(profile.outboundPcs <= 15 && profile.stock <= 20)) return ['flow']; 
         return ['shelf'];
     }
 
-    // 2. 일반 & 메추리알 플로우랙 Hysteresis
     let flowAllowed = profile.outboundPcs >= 30 && profile.stock >= 60;
     if (isFlow && !(profile.outboundPcs <= 15 && profile.stock <= 20)) {
         flowAllowed = true; 
@@ -513,7 +507,6 @@
     const inventory = percentile(profile.stock, statistics.stocks);
     const priority = demand * 0.70 + inventory * 0.30;
     
-    // 3. 게이트랙 Hysteresis
     let gateAllowed = priority >= 0.75 && profile.outboundPcs >= 100;
     if (isGate && !(profile.outboundPcs <= 70 && profile.stock <= 50)) {
         gateAllowed = true; 
@@ -639,8 +632,6 @@
     const balance = balanceStats(context, sourcePc.cell.ws, pc.cell.ws, profile.touch);
     score += balance.score;
 
-    // [신규] 선반랙 과적 핑퐁 방지 Hysteresis 적용
-    // 다른 빈 선반랙으로의 이동(Target)은 50개부터 억제하지만, 현재 위치(Source) 평가는 65개까지 감점 면제
     const shelfLimit = (pc.loc === sourcePc.loc) ? 65 : 50;
     if (pc.family === 'shelf' && profile.stock >= shelfLimit && !profile.category.egg && !profile.category.quailEgg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(pc.zone)) {
       score -= 50;
@@ -742,7 +733,6 @@
 
       const profile = productProfileFor(source, profiles, allData);
       profile.sourceZone = sourcePc.zone;
-      // [신규] Hysteresis 처리를 위해 현재 패밀리 속성 마킹
       profile.sourceFamily = sourcePc.family; 
 
       if (profile.stock === 0 && profile.outboundPcs === 0) {
@@ -857,17 +847,36 @@
       });
     }
     
-    return recommendations
-      .sort((a, b) => 
+    const sortedRecommendations = recommendations.sort((a, b) => 
         (b.mandatory - a.mandatory) || 
         (b.urgency - a.urgency) || 
         (b.improvement - a.improvement) || 
         (b.toteCount - a.toteCount) || 
         (b.pcs - a.pcs)
-      )
-      .slice(0, CONFIG.maxRecommendations);
+    );
+
+    // [핵심] 플로우랙 퇴출 항목 최대 10개 제한 (Task Quota)
+    const finalRecs = [];
+    let flowEvictionCount = 0;
+
+    for (const r of sortedRecommendations) {
+        const isFlowEviction = (r.currentRack.toLowerCase().includes('flow') || r.currentRack.includes('플로우')) && r.reason.includes('퇴출');
+        
+        if (isFlowEviction) {
+            if (flowEvictionCount < 10) {
+                finalRecs.push(r);
+                flowEvictionCount++;
+            }
+        } else {
+            finalRecs.push(r);
+        }
+
+        if (finalRecs.length >= CONFIG.maxRecommendations) break;
+    }
+
+    return finalRecs;
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.25.0' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.26.0' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
