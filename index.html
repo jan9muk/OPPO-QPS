@@ -1,117 +1,182 @@
-<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>QPS Dashboard v8.5.35</title><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script><style>body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}.title{font-size:28px;font-weight:800}.subtitle{font-size:14px;color:#6b7280;margin-top:4px}.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}.group{display:flex;flex-direction:column;gap:6px;min-width:260px}.group label{font-size:12px;color:#6b7280;font-weight:700} input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}.status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}.debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}.empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}.section{display:none}/* HUD 패널 스타일 */.hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}.hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}.hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}.hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}.hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}.val-tph{color:#34d399} .val-avg{color:#a855f7} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}.machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px;margin-bottom:18px}.machine-card{padding:16px 18px}.machine-name{font-size:22px;font-weight:800}.metrics{display:flex;gap:12px;flex-wrap:nowrap;justify-content:space-between;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}.metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;flex:1;}.metric b{display:block;color:#1f2937;font-size:20px;margin-top:2px}.metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}.aps-block{padding:14px}.aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}.aps-title{font-size:20px;font-weight:800}.zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px}.zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}.spark-stack{display:grid;gap:10px;position:relative;}
-.spark-row{display:grid;grid-template-columns:55px 1fr 80px;gap:8px;align-items:center;min-height:36px;position:relative;}
-.spark-row.blank{visibility:hidden}
-.ws-label{font-size:13px;font-weight:700;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.spark-track{width:100%;height:10px;background:#eef2f7;border-radius:999px;overflow:hidden;border:1px solid #e2e8f0;position:relative;}
-.spark-fill{height:100%;border-radius:999px;transition:width 0.3s ease;}
-.spark-value{text-align:right;font-size:11px;font-weight:700;color:#475569;white-space:nowrap;line-height:1.45}
-.avg-line{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px dashed #0f766e;z-index:5;pointer-events:none;opacity:0.8;}
-.ws-tooltip{display:none;position:absolute;left:50px;bottom:80%;z-index:50;background:rgba(17,24,39,0.95);color:#fff;padding:12px 16px;border-radius:8px;font-size:12px;width:max-content;pointer-events:none;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1);border:1px solid #374151;}
-.spark-row:hover .ws-tooltip{display:block;}
-.ws-tooltip-grid{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;text-align:left;}
-.ws-tooltip-grid span:nth-child(even){text-align:right;font-weight:700;}
-.footer-note{margin-top:14px;font-size:12px;color:#6b7280}.subhead{font-size:18px;font-weight:800;margin-bottom:10px}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{border-bottom:1px solid #e5e7eb;padding:8px 10px;text-align:left;vertical-align:middle;white-space:nowrap;}
-th{background:#f8fafc}
-.pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#f1f5f9;color:#0f172a;font-size:11px;font-weight:800}
-.insight-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:12px}
-#loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.68);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:9999}.loader-box{width:220px;height:140px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.08);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;text-align:center;}.loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}.loader-text{font-size:13px;color:#6b7280;font-weight:700;line-height:1.4;}@keyframes spin{to{transform:rotate(360deg)}}@media (max-width:1280px){.machine-grid,.zones,.insight-grid{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}.btn-pass{background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-pass:hover{background:#fee2e2}.btn-reset{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;color:#475569;font-weight:bold;transition:0.2s}.btn-reset:hover{background:#e2e8f0}.accordion-header{cursor:pointer; user-select:none;}.accordion-header:hover{color:#2563eb;}.btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}.btn-restore:hover{background:#dcfce7}</style></head><body><div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div><div class="card">
-  <div class="title">QPS Dashboard v8.5.35</div>
-  <div class="subtitle">인사이트 카드 가시성 개선(전체 텍스트, W/S 표기) 및 물성 악화(다건) 로직 작업대 기준 최적화</div></div><div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
-  <div class="row">
-    <div class="group">
-      <label>박스상품 상세정보 RAW</label>
-      <input type="file" id="boxFile" accept=".xlsx,.xls">
-    </div>
-    <div class="group">
-      <label>셀할당현황 RAW</label>
-      <input type="file" id="cellFile" accept=".xlsx,.xls">
-    </div>
-    <div class="group">
-      <label>작업 시작 시간 설정</label>
-      <select id="startTimeSelect" onchange="if(window.qpsAllData) tryBuild();">
-        <option value="13">13:00 시작</option>
-        <option value="14">14:00 시작</option>
-      </select>
-    </div>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QPS Dashboard v8.6.0</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:16px;margin-bottom:16px}
+    .title{font-size:28px;font-weight:800}
+    .subtitle{font-size:14px;color:#6b7280;margin-top:4px}
+    .row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}
+    .group{display:flex;flex-direction:column;gap:6px;min-width:260px}
+    .group label{font-size:12px;color:#6b7280;font-weight:700}
+    input[type="file"], select{padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}
+    .status{font-size:13px;color:#6b7280;min-height:18px;margin-top:10px}
+    .debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}
+    .empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}
+    .section{display:none}
+    .hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+    .hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}
+    .hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}
+    .hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+    .hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}
+    .val-tph{color:#34d399} .val-avg{color:#a855f7} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}
+    .machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px;margin-bottom:18px}
+    .machine-card{padding:16px 18px}
+    .machine-name{font-size:22px;font-weight:800}
+    .metrics{display:flex;gap:12px;flex-wrap:nowrap;justify-content:space-between;align-items:flex-start;color:#6b7280;font-size:13px;margin-top:10px}
+    .metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;flex:1;}
+    .metric b{display:block;color:#1f2937;font-size:20px;margin-top:2px}
+    .metric .share{display:block;font-size:11px;color:#9ca3af;margin-top:4px;font-weight:700}
+    .aps-block{padding:14px}
+    .aps-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}
+    .aps-title{font-size:20px;font-weight:800}
+    .zone-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+    .zone-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;padding:6px 8px 10px;font-size:16px;font-weight:800}
+    .spark-stack{display:grid;gap:10px;position:relative;}
+    .spark-row{display:grid;grid-template-columns:55px 1fr 80px;gap:8px;align-items:center;min-height:36px;position:relative;}
+    .spark-row.blank{visibility:hidden}
+    .ws-label{font-size:13px;font-weight:700;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .spark-track{width:100%;height:10px;background:#eef2f7;border-radius:999px;overflow:hidden;border:1px solid #e2e8f0;position:relative;}
+    .spark-fill{height:100%;border-radius:999px;transition:width 0.3s ease;}
+    .spark-value{text-align:right;font-size:11px;font-weight:700;color:#475569;white-space:nowrap;line-height:1.45}
+    .avg-line{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px dashed #0f766e;z-index:5;pointer-events:none;opacity:0.8;}
+    .ws-tooltip{display:none;position:absolute;left:50px;bottom:80%;z-index:50;background:rgba(17,24,39,0.95);color:#fff;padding:12px 16px;border-radius:8px;font-size:12px;width:max-content;pointer-events:none;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1);border:1px solid #374151;}
+    .spark-row:hover .ws-tooltip{display:block;}
+    .ws-tooltip-grid{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;text-align:left;}
+    .ws-tooltip-grid span:nth-child(even){text-align:right;font-weight:700;}
+    .footer-note{margin-top:14px;font-size:12px;color:#6b7280}
+    .subhead{font-size:18px;font-weight:800;margin-bottom:10px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{border-bottom:1px solid #e5e7eb;padding:8px 10px;text-align:left;vertical-align:middle;white-space:nowrap;}
+    th{background:#f8fafc}
+    .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#f1f5f9;color:#0f172a;font-size:11px;font-weight:800}
+    .insight-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:12px}
+    #loadingOverlay{position:fixed;inset:0;background:rgba(255,255,255,.68);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:9999}
+    .loader-box{width:220px;height:140px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.08);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;text-align:center;}
+    .loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}
+    .loader-text{font-size:13px;color:#6b7280;font-weight:700;line-height:1.4;}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media (max-width:1280px){.machine-grid,.zones,.insight-grid{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}
+    .btn-pass{background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}
+    .btn-pass:hover{background:#fee2e2}
+    .btn-reset{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;color:#475569;font-weight:bold;transition:0.2s}
+    .btn-reset:hover{background:#e2e8f0}
+    .accordion-header{cursor:pointer; user-select:none;}
+    .accordion-header:hover{color:#2563eb;}
+    .btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}
+    .btn-restore:hover{background:#dcfce7}
+  </style>
+</head>
+<body>
+  <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
+  <div class="card">
+    <div class="title">QPS Dashboard v8.6.0</div>
+    <div class="subtitle">이기종 데이터 비동기화 방지 및 메모리 렌더링 최적화 적용</div>
   </div>
-  <div class="status" id="status" style="margin-bottom: 4px;">두 파일을 한 번에 드래그 앤 드롭하여 업로드할 수 있습니다.</div>
   
-  <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:8px;">
-    <div style="font-size:12px; color:#6b7280;">
-      * 로컬 브라우저에 데이터가 자동 캐싱됩니다. 파일을 이곳에 드래그 앤 드롭하여 덮어쓰거나 캐시를 비워주세요. <button class="btn-reset" onclick="clearCacheAndReload()" style="padding:4px 8px; font-size:11px; margin-left:8px;">강제 캐시 초기화</button>
+  <div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
+    <div class="row">
+      <div class="group" style="flex:1;">
+        <label>데이터 세트 동시 업로드 (박스상품 + 셀할당 파일)</label>
+        <!-- 단일 파일 업로드를 방지하기 위해 multiple 속성을 사용 -->
+        <input type="file" id="multiFile" accept=".xlsx,.xls" multiple>
+      </div>
+      <div class="group">
+        <label>작업 시작 시간 설정</label>
+        <select id="startTimeSelect" onchange="if(window.qpsAllData) tryBuild();">
+          <option value="13">13:00 시작</option>
+          <option value="14">14:00 시작</option>
+        </select>
+      </div>
     </div>
-    <button id="btnCapture" class="btn-reset" style="background:#2563eb; color:#fff; border-color:#1d4ed8; padding:8px 16px; font-weight:800; cursor:pointer;" onclick="captureAndCopyToClipboard()">📸 화면 캡처</button>
-  </div>
-</div><div id="emptyState" class="card empty">데이터를 표시하려면 최신 파일을 업로드하거나, 저장소에 box_latest.xlsx / cell_latest.xlsx 파일이 존재해야 합니다.</div><div id="content" class="section">
-  <!-- 글로벌 HUD 패널 -->
-  <div class="hud-panel" id="hudPanel">
-    <div class="hud-box">
-      <div class="hud-label">실시간 처리 속도 (최근 1시간)</div>
-      <div class="hud-value val-tph" id="hudInstantTph">0<span class="hud-unit">totes/hr</span></div>
-    </div>
-    <div class="hud-box">
-      <div class="hud-label">시간당 평균 처리량 (누적)</div>
-      <div class="hud-value val-avg" id="hudAvgTph">0<span class="hud-unit">totes/hr</span></div>
-    </div>
-    <div class="hud-box">
-      <div class="hud-label">신규 지시 인입 속도 (Inbound 2F)</div>
-      <div class="hud-value val-inbound" id="hudInboundTph">0<span class="hud-unit">totes/hr</span></div>
-    </div>
-    <div class="hud-box">
-      <div class="hud-label">2층 피킹 잔여 토트</div>
-      <div class="hud-value val-remain" id="hudRemain">0<span class="hud-unit">totes</span></div>
-    </div>
-  </div>
-
-  <!-- 캡처 타겟 영역 -->
-  <div id="captureTarget" style="padding:20px; background:#f5f7fb; margin:-20px -20px 0 -20px; border-radius:16px;">
-    <!-- 실시간 현장 의사결정 인사이트 영역 -->
-    <div id="insightArea"></div>
+    <div class="status" id="status" style="margin-bottom: 4px;">* 데이터 정합성을 위해 2개의 파일을 한 번에 선택하거나, 이곳에 드래그 앤 드롭해 주세요.</div>
     
-    <div class="machine-grid" id="machineSummary"></div>
-    <div class="zones" id="loadZonesArea"></div>
-    <div class="zones" id="progressZonesArea"></div>
-  </div>
-
-  <!-- 메인 추천 카드 -->
-  <div class="card" style="overflow-x:auto; margin-top:20px;">
-    <div class="subhead" style="display:flex; justify-content:space-between; align-items:center;">
-      <span>셀 이동 추천</span>
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:8px;">
+      <div style="font-size:12px; color:#6b7280;">
+        * 로컬 브라우저에 데이터가 자동 캐싱됩니다. 초기화가 필요한 경우 강제 캐시 초기화를 눌러주세요. 
+        <button class="btn-reset" onclick="clearCacheAndReload()" style="padding:4px 8px; font-size:11px; margin-left:8px;">강제 캐시 초기화</button>
+      </div>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th>순번</th><th>SKU</th><th>상품명</th><th>현재고(PCS)</th><th>지시 토트 수</th><th>지시 PCS</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>랙 우선순위</th><th>권장 랙</th><th>추천 셀</th><th>사유</th><th>관리</th>
-        </tr>
-      </thead>
-      <tbody id="recommendBody"></tbody>
-    </table>
   </div>
-
-  <!-- 패스 목록 아코디언 카드 (상시 노출) -->
-  <div class="card" id="passCard" style="overflow-x:auto;">
-    <div class="subhead accordion-header" style="display:flex; justify-content:space-between; align-items:center;" onclick="togglePassList()">
-      <span>셀 이동 패스 목록 (<span id="passCount">0</span>) <span id="passToggleIcon">▼</span></span>
-      <button class="btn-reset" onclick="event.stopPropagation(); resetIgnored()">패스 목록 전체 초기화</button>
+  
+  <div id="emptyState" class="card empty">데이터를 표시하려면 박스상품 상세정보와 셀할당현황 파일을 동시에 업로드해 주세요.</div>
+  
+  <div id="content" class="section">
+    <!-- 글로벌 HUD 패널 -->
+    <div class="hud-panel" id="hudPanel">
+      <div class="hud-box">
+        <div class="hud-label">실시간 처리 속도 (최근 1시간)</div>
+        <div class="hud-value val-tph" id="hudInstantTph">0<span class="hud-unit">totes/hr</span></div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">시간당 평균 처리량 (누적)</div>
+        <div class="hud-value val-avg" id="hudAvgTph">0<span class="hud-unit">totes/hr</span></div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">신규 지시 인입 속도 (Inbound 2F)</div>
+        <div class="hud-value val-inbound" id="hudInboundTph">0<span class="hud-unit">totes/hr</span></div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">2층 피킹 잔여 토트</div>
+        <div class="hud-value val-remain" id="hudRemain">0<span class="hud-unit">totes</span></div>
+      </div>
     </div>
-    <div id="passListContent" style="display:none; margin-top:14px;">
+
+    <!-- UI 콘텐츠 영역 -->
+    <div style="padding:20px; background:#f5f7fb; margin:-20px -20px 0 -20px; border-radius:16px;">
+      <div id="insightArea"></div>
+      <div class="machine-grid" id="machineSummary"></div>
+      <div class="zones" id="loadZonesArea"></div>
+      <div class="zones" id="progressZonesArea"></div>
+    </div>
+
+    <!-- 메인 추천 카드 -->
+    <div class="card" style="overflow-x:auto; margin-top:20px;">
+      <div class="subhead" style="display:flex; justify-content:space-between; align-items:center;">
+        <span>셀 이동 추천</span>
+      </div>
       <table>
         <thead>
           <tr>
-            <th>SKU</th><th>상품명</th><th>사유</th><th>관리</th>
+            <th>순번</th><th>SKU</th><th>상품명</th><th>현재고(PCS)</th><th>지시 토트 수</th><th>지시 PCS</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>랙 우선순위</th><th>권장 랙</th><th>추천 셀</th><th>사유</th><th>관리</th>
           </tr>
         </thead>
-        <tbody id="passedBody">
-          <tr><td colspan="4" style="text-align:center;color:#6b7280;padding:20px;">패스된 항목이 없습니다.</td></tr>
-        </tbody>
+        <tbody id="recommendBody"></tbody>
       </table>
     </div>
+
+    <!-- 패스 목록 아코디언 카드 (상시 노출) -->
+    <div class="card" id="passCard" style="overflow-x:auto;">
+      <div class="subhead accordion-header" style="display:flex; justify-content:space-between; align-items:center;" onclick="togglePassList()">
+        <span>셀 이동 패스 목록 (<span id="passCount">0</span>) <span id="passToggleIcon">▼</span></span>
+        <button class="btn-reset" onclick="event.stopPropagation(); resetIgnored()">패스 목록 전체 초기화</button>
+      </div>
+      <div id="passListContent" style="display:none; margin-top:14px;">
+        <table>
+          <thead>
+            <tr>
+              <th>SKU</th><th>상품명</th><th>사유</th><th>관리</th>
+            </tr>
+          </thead>
+          <tbody id="passedBody">
+            <tr><td colspan="4" style="text-align:center;color:#6b7280;padding:20px;">패스된 항목이 없습니다.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="footer-note" id="footNote"></div>
+  </div>
+  
+  <div class="card">
+    <div class="debug" id="debugLog">대기 중</div>
   </div>
 
-  <div class="footer-note" id="footNote"></div></div><div class="card">
-  <div class="debug" id="debugLog">대기 중</div></div><script>
+<script>
 const DB_STORE = 'qps_raw_cache';
 const dbPromise = new Promise((res, rej) => {
   const req = indexedDB.open('QPS_DB', 1);
@@ -155,7 +220,14 @@ const zoneDefs = {
     {zone:'E존',order:[null,'APS3-07','APS3-06','APS3-05','APS3-04',null,null,'APS3-03','APS3-02','APS3-01',null,null]},
     {zone:'F존',order:['APS3-08','APS3-09','APS3-10','APS3-11','APS3-12','APS3-13','APS3-14','APS3-15','APS3-16','APS3-17','APS3-18','APS3-19']}
   ]}
-};const machineList=['APS1','APS2','APS3'];let boxRows=null, cellRows=null, boxMeta=null, cellMeta=null;window.qpsAllData = null; const $=s=>document.querySelector(s);const COMPLETE_STATUS=['피킹완료','패킹완료','출하완료'];const EXCLUDE_STATUS=['전체취소','전체결품'];
+};
+
+const machineList=['APS1','APS2','APS3'];
+let boxRows=null, cellRows=null, boxMeta=null, cellMeta=null;
+window.qpsAllData = null; 
+const $=s=>document.querySelector(s);
+const COMPLETE_STATUS=['피킹완료','패킹완료','출하완료'];
+const EXCLUDE_STATUS=['전체취소','전체결품'];
 
 function setStatus(msg,isError=false){
   const el=$('#status');
@@ -172,28 +244,36 @@ function showLoading(on, text='불러오는 중'){
   if(on) $('.loader-text').textContent=text;
 }
 
-function fmt(n){return (n??0).toLocaleString('ko-KR');}function fmtPct(n){return `${(n*100).toFixed(1)}%`;}function fmtPctInt(n){return `${Math.round(n*100)}%`;}function toNumber(v){
+function fmt(n){return (n??0).toLocaleString('ko-KR');}
+function fmtPct(n){return `${(n*100).toFixed(1)}%`;}
+function fmtPctInt(n){return `${Math.round(n*100)}%`;}
+function toNumber(v){
   if(v==null||v==='') return 0;
   if(typeof v==='number') return isFinite(v)?v:0;
   const num=Number(String(v).replace(/,/g,'').trim());
   return isFinite(num)?num:0;
-}function normalizeWs(v){
+}
+function normalizeWs(v){
   if(v==null) return null;
   const s=String(v).toUpperCase().replace(/\s+/g,'').replace(/_/g,'-');
   const m=s.match(/APS\s*([123])[- ]?(\d{1,2})/i);
   return m?`APS${m[1]}-${String(m[2]).padStart(2,'0')}`:null;
-}function normalizeSheetName(v){return String(v||'').replace(/\s+/g,'').toLowerCase();}function normalizeSku(v){
+}
+function normalizeSheetName(v){return String(v||'').replace(/\s+/g,'').toLowerCase();}
+function normalizeSku(v){
   if(v==null) return '';
   let s=String(v).trim();
   s=s.replace(/\.0+$/,'').replace(/[^\d]/g,'');
   if(!s) return '';
   return s.padStart(13,'0');
-}function normalizeTemp(code){
+}
+function normalizeTemp(code){
   const s=String(code||'').trim();
   if(s==='WET 냉동') return 'frozen';
   if(s==='WET 일반'||s==='WET 냉장') return 'chilled';
   return 'unknown';
-}function tempLabel(temp){
+}
+function tempLabel(temp){
   if(temp==='frozen') return '냉동';
   if(temp==='chilled') return '냉장';
   return '기타';
@@ -212,7 +292,6 @@ function mixColor(color1, color2, weight) {
   const b = Math.round(rgb1[2] * p + rgb2[2] * (1 - p));
   return `rgb(${r}, ${g}, ${b})`;
 }
-
 function getLoadColor(val, avg, max) {
   if (val === 0) return '#e2e8f0';
   if (val > avg) {
@@ -225,7 +304,6 @@ function getLoadColor(val, avg, max) {
       return mixColor('#2563eb', '#e2e8f0', pct);
   }
 }
-
 function getProgressColor(progress, avg) {
   if (progress >= avg) {
       const pct = Math.min(100, (progress - avg) * 666); 
@@ -238,13 +316,17 @@ function getProgressColor(progress, avg) {
 
 function ensureXLSX(){
   if(typeof XLSX==='undefined') throw new Error('XLSX 라이브러리 로딩 실패');
-}function readSheetRows(workbook,sheetName){
+}
+function readSheetRows(workbook,sheetName){
   const ws=workbook.Sheets[sheetName];
   return XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
-}function headersOfRows(rows){return rows&&rows.length?Object.keys(rows[0]):[];}function findStatusColumns(headers){
+}
+function headersOfRows(rows){return rows&&rows.length?Object.keys(rows[0]):[];}
+function findStatusColumns(headers){
   const candidates=headers.filter(h=>String(h).includes('WMS배송진행상태'));
   return {all:candidates, primary:candidates[candidates.length-1] || null};
-}function findBestSheet(workbook,type){
+}
+function findBestSheet(workbook,type){
   const required=type==='box'
     ? ['물류상품ID','피킹지시수량']
     : ['작업대','물류상품ID','보관위치','랙유형','물류분류코드','현재고'];
@@ -269,7 +351,8 @@ function ensureXLSX(){
     if(required.every(h=>headers.includes(h))) return {sheetName:name,rows};
   }
   return candidate;
-}async function readExcelRows(file,type){
+}
+async function readExcelRows(file,type){
   ensureXLSX();
   const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
   const found=findBestSheet(wb,type);
@@ -279,7 +362,6 @@ function ensureXLSX(){
     rows:found?found.rows:[]
   };
 }
-
 async function fetchRemoteExcel(url, type) {
   try {
       const res = await fetch(url);
@@ -295,12 +377,14 @@ async function fetchRemoteExcel(url, type) {
   }
 }
 
-function getProductName(row){return String(row['물류상품명']||row['상품명']||'').trim();}function makeToteKey(row){
+function getProductName(row){return String(row['물류상품명']||row['상품명']||'').trim();}
+function makeToteKey(row){
   const d=String(row['배송번호']||'').trim();
   const b=String(row['배송박스순번']||'').trim();
   if(!d || !b) return '';
   return `${d}__${b}`;
-}function parseExcelDate(v) {
+}
+function parseExcelDate(v) {
   if (!v) return null;
   if (typeof v === 'number') {
     return new Date((v - 25569) * 86400 * 1000);
@@ -308,7 +392,9 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
   const d = new Date(v);
   if (!isNaN(d.getTime())) return d;
   return null;
-}function buildAllData(boxRows,cellRows){
+}
+
+function buildAllData(boxRows,cellRows){
   const boxHeaders=headersOfRows(boxRows);
   const statusCols=findStatusColumns(boxHeaders);
   const statusCol=statusCols.primary;
@@ -521,7 +607,8 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
     wsIncompleteComplexTotes,
     skuToWsSet
   };
-}function computeZoneStats(wsMetrics){
+}
+function computeZoneStats(wsMetrics){
   const res={};
   for(const machine of machineList){
     const def=zoneDefs[machine];
@@ -560,15 +647,18 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
     res[machine].pcsPerTouch=machineTouches ? machinePcs/machineTouches : 0;
   }
   return res;
-}window.ignoreSku = function(sku) {
+}
+window.ignoreSku = function(sku) {
   const ignored = new Set(JSON.parse(localStorage.getItem('qps_ignored_skus') || '[]'));
   ignored.add(sku);
   localStorage.setItem('qps_ignored_skus', JSON.stringify([...ignored]));
   if(window.qpsAllData) drawScreen(window.qpsAllData);
-};window.resetIgnored = function() {
+};
+window.resetIgnored = function() {
   localStorage.removeItem('qps_ignored_skus');
   if(window.qpsAllData) drawScreen(window.qpsAllData);
-};window.togglePassList = function() {
+};
+window.togglePassList = function() {
   const content = $('#passListContent');
   const icon = $('#passToggleIcon');
   if(content.style.display === 'none') {
@@ -578,16 +668,19 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
     content.style.display = 'none';
     icon.textContent = '▼';
   }
-};window.restoreSku = function(sku) {
+};
+window.restoreSku = function(sku) {
   const ignored = new Set(JSON.parse(localStorage.getItem('qps_ignored_skus') || '[]'));
   ignored.delete(sku);
   localStorage.setItem('qps_ignored_skus', JSON.stringify([...ignored]));
   if(window.qpsAllData) drawScreen(window.qpsAllData);
-};function formatWsName(ws){
+};
+function formatWsName(ws){
   if(!ws) return '';
   const m = ws.match(/APS(\d+)-0*(\d+)/);
   return m ? `${m[1]}-${m[2]}` : ws;
-}function updateHUD(allData) {
+}
+function updateHUD(allData) {
   const latestTime = allData.latestDataTimeMs;
   const targetHour = parseInt($('#startTimeSelect').value, 10);
   
@@ -634,7 +727,8 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
   $('#hudInstantTph').innerHTML = `${fmt(Math.round(instantTph))}<span class="hud-unit">totes/hr</span>`;
   $('#hudAvgTph').innerHTML = `${fmt(Math.round(avgTph))}<span class="hud-unit">totes/hr</span>`;
   $('#hudInboundTph').innerHTML = `${fmt(Math.round(inTph))}<span class="hud-unit">totes/hr</span>`;
-}function drawScreen(allData){
+}
+function drawScreen(allData){
   updateHUD(allData);
 
   const skuImpact = [];
@@ -739,7 +833,6 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
       </div>`;
   }).join('');
 
-  // 1. 작업대별 부하 렌더링
   $('#loadZonesArea').innerHTML = machineList.map(machine=>{
     const def = zoneDefs[machine];
     const st = stats[machine];
@@ -795,7 +888,6 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
     }</div></div>`;
   }).join('');
 
-  // 2. 피킹 진척도 렌더링
   $('#progressZonesArea').innerHTML = machineList.map(machine=>{
     const def = zoneDefs[machine];
     const st = stats[machine];
@@ -896,7 +988,8 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
   $('#footNote').textContent = `박스상품 상세정보: ${boxInfo} · 셀할당현황: ${cellInfo}`;
   $('#emptyState').style.display = 'none';
   $('#content').style.display = 'block';
-}function validateRows(rows,type){
+}
+function validateRows(rows,type){
   if(!rows||!rows.length) return `${type} 시트에 데이터가 없습니다.`;
   const headers=headersOfRows(rows);
   if(type==='박스상품 상세정보'){
@@ -911,7 +1004,8 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
     }
   }
   return null;
-}async function tryBuild(){
+}
+async function tryBuild(){
   if(!(boxRows&&cellRows)) return;
   showLoading(true, '대시보드 화면 생성 중...');
   try{
@@ -948,50 +1042,40 @@ function getProductName(row){return String(row['물류상품명']||row['상품�
   }
 }
 
-async function handleBoxFile(file, skipBuild = false) {
-  showLoading(true, '박스상품 데이터 처리 중...\n잠시만 기다려주세요.');
-  try{
-    appendDebug(`박스상품 파일 선택: ${file.name}`);
-    const result=await readExcelRows(file,'box');
-    boxRows=result.rows;
-    boxMeta={fileName:file.name,sheetName:result.sheetName};
-    await idbSave('boxData', {rows: boxRows, meta: boxMeta});
-    const msg=`박스상품 캐시 업로드 완료 / 시트: ${result.sheetName||'미탐지'}`;
-    setStatus(msg);
-    appendDebug(msg);
-  }catch(err){
-    console.error(err);
-    boxRows=null;
-    setStatus('박스상품 상세정보 파일 읽기 실패: '+(err.message||err), true);
-  }finally{
-    if(!skipBuild) {
-        showLoading(false);
-        await tryBuild();
-    }
-  }
-}
+async function handleFilesSimultaneously(files) {
+    const boxF = files.find(f => f.name.includes('박스') || f.name.includes('상세') || f.name.includes('출하') || f.name.includes('상품'));
+    const cellF = files.find(f => f.name.includes('셀') || f.name.includes('할당'));
 
-async function handleCellFile(file, skipBuild = false) {
-  showLoading(true, '셀할당현황 데이터 처리 중...\n잠시만 기다려주세요.');
-  try{
-    appendDebug(`셀할당 파일 선택: ${file.name}`);
-    const result=await readExcelRows(file,'cell');
-    cellRows=result.rows;
-    cellMeta={fileName:file.name,sheetName:result.sheetName};
-    await idbSave('cellData', {rows: cellRows, meta: cellMeta});
-    const msg=`셀할당 캐시 업로드 완료 / 시트: ${result.sheetName||'미탐지'}`;
-    setStatus(msg);
-    appendDebug(msg);
-  }catch(err){
-    console.error(err);
-    cellRows=null;
-    setStatus('셀할당현황 파일 읽기 실패: '+(err.message||err), true);
-  }finally{
-    if(!skipBuild) {
+    if (!boxF || !cellF) {
+        setStatus('데이터 비동기화 방지를 위해 박스상품 파일과 셀할당현황 파일을 반드시 동시에 업로드해야 합니다.', true);
+        return;
+    }
+
+    showLoading(true, '두 파일을 동시에 분석 중입니다...');
+    try {
+        const [boxRes, cellRes] = await Promise.all([
+            readExcelRows(boxF, 'box'),
+            readExcelRows(cellF, 'cell')
+        ]);
+        
+        boxRows = boxRes.rows;
+        boxMeta = {fileName: boxF.name, sheetName: boxRes.sheetName};
+        cellRows = cellRes.rows;
+        cellMeta = {fileName: cellF.name, sheetName: cellRes.sheetName};
+
+        await idbClear();
+        await idbSave('boxData', {rows: boxRows, meta: boxMeta});
+        await idbSave('cellData', {rows: cellRows, meta: cellMeta});
+
+        setStatus('박스상품 및 셀할당현황 동기화 업로드 완료');
+        appendDebug('동시 업로드 및 데이터 매핑 성공');
+    } catch (err) {
+        console.error(err);
+        setStatus('파일 읽기 실패: ' + (err.message || err), true);
+    } finally {
         showLoading(false);
         await tryBuild();
     }
-  }
 }
 
 document.addEventListener('DOMContentLoaded', async ()=>{
@@ -1036,12 +1120,11 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   }
 });
 
-$('#boxFile').addEventListener('change', async e=>{
-  if(e.target.files[0]) await handleBoxFile(e.target.files[0]);
-});
-
-$('#cellFile').addEventListener('change', async e=>{
-  if(e.target.files[0]) await handleCellFile(e.target.files[0]);
+$('#multiFile').addEventListener('change', async e=>{
+  const files = Array.from(e.target.files);
+  if (files.length > 0) {
+      await handleFilesSimultaneously(files);
+  }
 });
 
 const dz = $('#dropZone');
@@ -1052,85 +1135,15 @@ dz.addEventListener('drop', async e => {
   dz.style.borderColor = 'transparent'; dz.style.background = '#fff';
   const files = Array.from(e.dataTransfer.files);
   
-  const boxF = files.find(f => f.name.includes('박스') || f.name.includes('상세') || f.name.includes('출하') || f.name.includes('상품'));
-  const cellF = files.find(f => f.name.includes('셀') || f.name.includes('할당'));
-  
-  if(boxF && cellF) {
-      showLoading(true, '두 파일을 동시에 분석 중입니다...');
-      await handleBoxFile(boxF, true);
-      await handleCellFile(cellF, true);
-      showLoading(false);
-      await tryBuild();
-  } else if (boxF) {
-      await handleBoxFile(boxF);
-  } else if (cellF) {
-      await handleCellFile(cellF);
-  } else if (files.length === 2) {
-      showLoading(true, '두 파일을 동시에 분석 중입니다...');
-      await handleBoxFile(files[0], true);
-      await handleCellFile(files[1], true);
-      showLoading(false);
-      await tryBuild();
-  } else if (files.length > 0) {
-      setStatus('파일을 식별할 수 없습니다. 파일명에 "박스", "출하", "셀" 등을 포함해주세요.', true);
+  if (files.length > 0) {
+      await handleFilesSimultaneously(files);
   }
 });
-
-window.captureAndCopyToClipboard = async function() {
-  if(typeof html2canvas === 'undefined') {
-    alert('캡처 라이브러리가 로드되지 않았습니다. 외부망(인터넷) 연결을 확인해 주세요.');
-    return;
-  }
-  const target = $('#captureTarget');
-  if(!target || !window.qpsAllData) {
-    alert('데이터가 로딩되지 않아 캡처할 영역이 없습니다.');
-    return;
-  }
-
-  const btn = $('#btnCapture');
-  const originalText = btn.innerHTML;
-  btn.innerHTML = '캡처 중... (잠시 대기)';
-  btn.style.opacity = '0.7';
-  btn.disabled = true;
-
-  try {
-    const canvas = await html2canvas(target, {
-      backgroundColor: '#f5f7fb',
-      scale: 1.5, 
-      useCORS: true,
-      logging: false
-    });
-
-    canvas.toBlob(async function(blob) {
-      if (!blob) {
-        alert('이미지 데이터를 생성할 수 없습니다.');
-        btn.innerHTML = originalText;
-        btn.style.opacity = '1';
-        btn.disabled = false;
-        return;
-      }
-      try {
-        const item = new ClipboardItem({ 'image/png': blob });
-        await navigator.clipboard.write([item]);
-        alert('클립보드에 화면이 복사되었습니다. 카카오톡 등에서 Ctrl+V를 눌러 공유해 주세요.');
-      } catch(err) {
-        console.error('Clipboard write failed:', err);
-        alert('클립보드 복사에 실패했습니다.\n사내 보안 정책에 의해 차단되었거나, HTTPS 환경이 아닐 수 있습니다.');
-      } finally {
-        btn.innerHTML = originalText;
-        btn.style.opacity = '1';
-        btn.disabled = false;
-      }
-    }, 'image/png');
-  } catch(err) {
-    console.error(err);
-    alert('이미지 렌더링 중 오류가 발생했습니다: ' + (err.message || '알 수 없는 오류'));
-    btn.innerHTML = originalText;
-    btn.style.opacity = '1';
-    btn.disabled = false;
-  }
-};
-</script><script>
+</script>
+<script>
   const script = document.createElement('script');
   script.src = 'ruleEngine.js?v=' + new Date().getTime();
-  document.body.appendChild(script);</script></body></html>
+  document.body.appendChild(script);
+</script>
+</body>
+</html>
