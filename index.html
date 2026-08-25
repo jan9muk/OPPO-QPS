@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QPS Dashboard v8.9.0</title>
+  <title>QPS Dashboard v8.10.0</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -62,7 +62,7 @@
     .loader{width:46px;height:46px;border:5px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}
     .loader-text{font-size:13px;color:#6b7280;font-weight:700;line-height:1.4;}
     @keyframes spin{to{transform:rotate(360deg)}}
-    @media (max-width:1280px){.machine-grid,.zones,.insight-grid{grid-template-columns:1fr}.metrics{flex-wrap:wrap}}
+    
     .btn-pass{background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}
     .btn-pass:hover{background:#fee2e2}
     .btn-reset{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;color:#475569;font-weight:bold;transition:0.2s}
@@ -72,7 +72,6 @@
     .btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}
     .btn-restore:hover{background:#dcfce7}
 
-    /* 동적 히트맵 렌더링 스타일 수정 */
     .heatmap-container { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; overflow-x: auto; padding-bottom: 140px; }
     .rack-block { border: 2px solid #e2e8f0; background: #fff; border-radius: 8px; padding: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); min-width: max-content; }
     .rack-title { font-size: 14px; font-weight: 800; color: #1e293b; margin-bottom: 8px; text-align: center; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
@@ -93,13 +92,37 @@
     .legend-item { display: flex; align-items: center; gap: 4px; }
     .legend-color { width: 12px; height: 12px; border-radius: 3px; }
     .ws-anchor-bar { flex: 1 1 100%; text-align: center; background: #f0fdf4; border: 1px dashed #bbf7d0; color: #0f766e; font-weight: 700; padding: 10px; border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
+
+    /* 모바일 반응형 최적화 */
+    @media (max-width:1280px){
+      .machine-grid,.zones,.insight-grid{grid-template-columns:1fr}
+      .metrics{flex-wrap:wrap}
+    }
+    @media (max-width: 768px){
+      body { padding: 10px; }
+      .hud-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
+      .hud-value { font-size: 26px; }
+      .hud-unit { font-size: 12px; display: block; margin-top: 2px; margin-left: 0; }
+      .hud-label { font-size: 11px; }
+      .zone-columns { grid-template-columns: 1fr; gap: 16px; }
+      .group { min-width: 100%; }
+      .title { font-size: 22px; }
+      .metric b { font-size: 16px; }
+      .insight-grid { gap: 10px; }
+      .subhead { font-size: 16px; }
+      .ws-anchor-bar { font-size: 12px; padding: 8px; }
+    }
+    @media (max-width: 480px){
+      .hud-panel { grid-template-columns: 1fr; gap: 16px; }
+      .metrics { grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    }
   </style>
 </head>
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
   <div class="card">
-    <div class="title">QPS Dashboard v8.9.0</div>
-    <div class="subtitle">히트맵 패스목록 하단 이동 및 랙 단위 W/S 인접도(거리) 자동 표기 반영</div>
+    <div class="title">QPS Dashboard v8.10.0</div>
+    <div class="subtitle">이모지 제거, 물성악화 기준(2SKU) 현실화 및 모바일 뷰 최적화 적용</div>
   </div>
   
   <div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
@@ -191,10 +214,10 @@
       </div>
     </div>
 
-    <!-- 존 히트맵 뷰어 (하단 이동) -->
+    <!-- 존 히트맵 뷰어 -->
     <div class="card" style="border: 2px solid #dbeafe; margin-bottom: 24px; padding: 18px;">
-      <div class="subhead" style="display:flex; justify-content:space-between; align-items:center;">
-        <span style="color:#1e3a8a;">🔍 존(Zone) 출고량/재고 밀집도 히트맵</span>
+      <div class="subhead" style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px;">
+        <span style="color:#1e3a8a;">존(Zone) 출고량/재고 밀집도 히트맵</span>
         <div style="display:flex; gap:10px; align-items:center;">
           <select id="zoneSelect" onchange="renderZoneHeatmap(this.value)" style="padding:6px 12px; font-weight:bold; border-color:#93c5fd; font-size:13px;">
             <option value="">존 선택 (로딩 대기)</option>
@@ -268,7 +291,6 @@ const zoneDefs = {
   ]}
 };
 
-// 물리적 랙 거리를 뱃지로 그리기 위해 ruleEngine.js의 맵 데이터를 가져옴
 const DISTANCE_MAP = {
   'A01': [['05'], ['06'], ['01','03'], ['02','04']],
   'A02': [['02'], ['01'], ['03','05'], ['04','06']],
@@ -685,7 +707,8 @@ function buildAllData(boxRows,cellRows){
 
   const wsIncompleteComplexTotes = new Map();
   const wsIncompleteTotes = new Map();
-  const COMPLEX_THRESHOLD = 3; 
+  // 1토트 당 2SKU 이상으로 임계값 하향 조정 (작업자 리소스 체감 반영)
+  const COMPLEX_THRESHOLD = 2; 
 
   for(const [wsToteKey, skus] of wsToteToSkus.entries()) {
     const [ws, toteKey] = wsToteKey.split('||');
@@ -843,7 +866,6 @@ function updateHUD(allData) {
   $('#hudInboundTph').innerHTML = `${fmt(Math.round(inTph))}<span class="hud-unit">totes/hr</span>`;
 }
 
-// 랙 단위 물리적 인접도(거리) 자동 산출 및 표시 로직 추가
 window.renderZoneHeatmap = function(zone) {
   const area = $('#heatmapArea');
   if(!zone) {
@@ -874,16 +896,13 @@ window.renderZoneHeatmap = function(zone) {
     return;
   }
 
-  // 작업대 앵커 가이드 표시
-  let html = `<div class="ws-anchor-bar">💡 각 랙(Rack) 타이틀의 'W/S 최인접' 뱃지를 통해 작업대와의 거리를 직관적으로 확인하세요.</div>`;
+  let html = `<div class="ws-anchor-bar">🚶 각 랙(Rack) 타이틀의 'W/S 최인접' 뱃지를 통해 작업대와의 거리를 직관적으로 확인하세요.</div>`;
 
   const zoneMap = DISTANCE_MAP[zone] || [];
 
   sortedRacks.forEach(r => {
-    // 랙별 W/S 인접도 거리 계산 (ruleEngine.js의 DISTANCE_MAP 매핑)
     let distRank = -1;
     for (let i = 0; i < zoneMap.length; i++) {
-        // 일반 랙(예:'05') 또는 A09 같은 다단구조(예:'010106') 대응
         if (zoneMap[i].some(v => v === r || (v.length === 6 && v.substring(0, 2) === r))) {
             distRank = i;
             break;
@@ -1027,22 +1046,23 @@ function drawScreen(allData){
       </div>
   `).join('') : '<div style="font-size:12px; color:#6b7280;">적체된 다건 토트 없음</div>';
 
+  // 이모지 제거 적용
   $('#insightArea').innerHTML = `
       <div class="card" style="border: 2px solid #fecaca; background: #fef2f2; margin-bottom: 24px;">
           <div class="subhead" style="color: #b91c1c; display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
-              🚨 현장 확인 포인트 <span style="font-size:12px; font-weight:normal; color:#ef4444; margin-left:8px;">* 미완료 상태인 토트와 SKU를 추적하여 산출한 우선순위 인사이트입니다.</span>
+              현장 확인 포인트 <span style="font-size:12px; font-weight:normal; color:#ef4444; margin-left:8px;">* 미완료 상태인 토트와 SKU를 추적하여 산출한 우선순위 인사이트입니다.</span>
           </div>
           <div class="insight-grid">
               <div style="background: #fff; padding: 14px; border-radius: 12px; border: 1px solid #f87171; box-shadow: 0 4px 6px rgba(220, 38, 38, 0.05);">
-                  <div style="font-size:14px; font-weight: 800; color: #991b1b; margin-bottom: 12px; border-bottom: 1px dashed #fca5a5; padding-bottom: 6px;">🎯 피킹잔여 고빈도 SKU</div>
+                  <div style="font-size:14px; font-weight: 800; color: #991b1b; margin-bottom: 12px; border-bottom: 1px dashed #fca5a5; padding-bottom: 6px;">피킹잔여 고빈도 SKU</div>
                   ${htmlSku}
               </div>
               <div style="background: #fff; padding: 14px; border-radius: 12px; border: 1px solid #fdba74; box-shadow: 0 4px 6px rgba(234, 88, 12, 0.05);">
-                  <div style="font-size:14px; font-weight: 800; color: #c2410c; margin-bottom: 12px; border-bottom: 1px dashed #fdba74; padding-bottom: 6px;">🔥 피킹잔여 토트 수량 상위 작업대</div>
+                  <div style="font-size:14px; font-weight: 800; color: #c2410c; margin-bottom: 12px; border-bottom: 1px dashed #fdba74; padding-bottom: 6px;">피킹잔여 토트 수량 상위 작업대</div>
                   ${htmlLoad}
               </div>
               <div style="background: #fff; padding: 14px; border-radius: 12px; border: 1px solid #fde047; box-shadow: 0 4px 6px rgba(202, 138, 4, 0.05);">
-                  <div style="font-size:14px; font-weight: 800; color: #a16207; margin-bottom: 12px; border-bottom: 1px dashed #fde047; padding-bottom: 6px;">⚠️ 물성악화 작업대 순위 <span style="font-size:11px; font-weight:normal;">(1토트 당 3SKU 이상 피킹 필요한 토트)</span></div>
+                  <div style="font-size:14px; font-weight: 800; color: #a16207; margin-bottom: 12px; border-bottom: 1px dashed #fde047; padding-bottom: 6px;">물성악화 작업대 순위 <span style="font-size:11px; font-weight:normal;">(1토트 당 2SKU 이상 피킹 필요한 토트)</span></div>
                   ${htmlComplex}
               </div>
           </div>
