@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.22.0 - Added: Golden Zone ghost inventory priority eviction)
+ * QPS cell-allocation rule engine (V2.23.0 - Fixed: Ignore virtual/ghost inventory (stock=0 & outbound=0))
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -408,11 +408,6 @@
     const mandatory = [];
     const soft = [];
     
-    const isSourceGolden = getZAxisScore(sourcePc) > 0 || getDistanceScore(sourcePc) >= -15;
-    if (profile.outboundPcs === 0 && profile.stock === 0 && isSourceGolden) {
-      mandatory.push('골든존 공갈 재고(출고0/재고0) 강제 퇴출');
-    }
-    
     const a10MustMove = sourcePc.zone === 'A10' && profile.touch < 100 && profile.stock <= 100 && profile.hasIncomingPlan && profile.noIncomingInTwoWeeks;
     if (a10MustMove) mandatory.push('A10 이동 기준 충족: 일 출고 100건 미만·재고 100PCS 이하·2주 입고 예정 없음');
     
@@ -677,6 +672,11 @@
 
       const profile = productProfileFor(source, profiles, allData);
       profile.sourceZone = sourcePc.zone;
+
+      // [핵심 보완] 재고 0 & 출고량 0인 항목은 가상 할당(신상품 입고 대기 등)이거나 삭제 대상이므로 연산 완전 배제
+      if (profile.stock === 0 && profile.outboundPcs === 0) {
+          continue;
+      }
       
       const violationsObj = violationReasons(sourcePc, profile);
       const isMandatoryMove = violationsObj.mandatory.length > 0;
@@ -696,12 +696,8 @@
 
       let sortScore = profile.touch;
       if (isMandatoryMove) {
-          if (violationsObj.mandatory.some(v => v.includes('공갈 재고'))) {
-              sortScore += 50000; 
-          } else {
-              sortScore += 10000; 
-              sortScore += (100 - profile.outboundPcs) + (50 - profile.stock);
-          }
+          sortScore += 10000; 
+          sortScore += (100 - profile.outboundPcs) + (50 - profile.stock);
       }
 
       activeSources.push({ sourcePc, profile, sortScore, violationsObj, isMandatoryMove });
@@ -760,9 +756,7 @@
 
       let urgency = 0;
       if (isMandatoryMove) {
-          if (sourceViolations.some(v => v.includes('공갈 재고'))) {
-              urgency = 5000;
-          } else if (sourceViolations.some(v => v.includes('퇴출 필요'))) {
+          if (sourceViolations.some(v => v.includes('퇴출 필요'))) {
               urgency = 1000 + Math.max(0, (10 - profile.outboundPcs) * 10 + (20 - profile.stock));
           } else if (sourceViolations.some(v => v.includes('게이트랙 부적합'))) {
               urgency = 500 + Math.max(0, (100 - profile.outboundPcs) + (50 - profile.stock));
@@ -803,6 +797,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.22.0' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.23.0' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
