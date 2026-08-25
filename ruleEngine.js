@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.20.0 - Optimized: O(N^2) Pre-computation Tuning)
+ * QPS cell-allocation rule engine (V2.21.0 - Added: Short-term out-of-stock exclusion rule)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -628,7 +628,6 @@
       }
     }
 
-    // [최적화 적용] 빈 셀을 1회만 객체로 파싱하여 문자열 연산 과부하 방지
     const emptyNodes = allData.emptyCells.map(cell => {
         const loc = location(cell);
         return {
@@ -677,6 +676,14 @@
       const violationsObj = violationReasons(sourcePc, profile);
       const isMandatoryMove = violationsObj.mandatory.length > 0;
       
+      // [신규 룰 추가] 현 재고가 출고량의 50% 이하일 경우 이동 추천 원천 제외 (단기 품절 예상)
+      if (profile.outboundPcs > 0 && profile.stock <= (profile.outboundPcs * 0.5)) {
+          // 예외 방어 로직: 중량 초과(안전), 온도대 오배치 등 필수 강제 퇴출 대상이 아닌 경우에만 차단
+          if (!isMandatoryMove) {
+              continue;
+          }
+      }
+
       if (profile.touch <= 0 && profile.outboundPcs <= 0) {
           const needsEviction = ['gate', 'flow', 'flat'].includes(sourcePc.family) ||
                                 (profile.temp !== 'frozen' && isFrozenDedicated(sourcePc.zone)) ||
@@ -706,7 +713,6 @@
       const sourceScore = targetScore(sourcePc, sourcePc, profile, context).score;
       const candidates = [];
 
-      // [최적화 적용] 온도대별 분리된 빈 셀 배열만 순회
       const candidatesToCheck = emptyByTemp[profile.temp] || [];
 
       for (const pc of candidatesToCheck) {
@@ -788,6 +794,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.20.0-optimized' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.21.0' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
