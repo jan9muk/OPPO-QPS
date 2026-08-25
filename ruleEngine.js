@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.19.8 - Hotfix: Restore missing productProfileFor function)
+ * QPS cell-allocation rule engine (V2.20.0 - Optimized: O(N^2) Pre-computation Tuning)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -296,80 +296,64 @@
     if (/선반|shelf/.test(raw)) return 'shelf';
     return 'other';
   }
-  function hasFamily(cell, families) { return families.includes(rackFamily(cell)); }
-  function isFZone(zone) { return /^F(?:0[1-9]|1[0-2])$/.test(zone); }
+
   function isChilledDedicated(zone) { return ['D01', 'D02'].includes(zone); }
   function isFrozenDedicated(zone) { return CONFIG.productZones.frozen.has(zone); }
 
-  function getDistanceScore(cell) {
-    const loc = location(cell);
-    if (loc.length < 10) return -99;
+  function getDistanceScore(pc) {
+    if (pc.loc.length < 10) return -99;
     
-    const zone = loc.substring(0, 3);
-    const rack = loc.slice(-6, -4);
-    const level = loc.slice(-4, -2);
-    const bay = loc.slice(-2);
-    
-    const zoneMap = DISTANCE_MAP[zone];
+    const zoneKey = pc.zone.substring(0, 3);
+    const zoneMap = DISTANCE_MAP[zoneKey];
     if (!zoneMap) return -99;
 
-    const sixDigitMatch = rack + level + bay;
+    const rack = pc.distRack;
+    const sixDigitMatch = pc.distSix;
+
     for (let i = 0; i < zoneMap.length; i++) {
       if (zoneMap[i].includes(sixDigitMatch)) {
         return -(i * 15);
       }
     }
-
     for (let i = 0; i < zoneMap.length; i++) {
       if (zoneMap[i].includes(rack)) {
         return -(i * 15);
       }
     }
-
     return -99;
   }
 
-  function getZAxisScore(cell) {
-    const family = rackFamily(cell);
-    const temp = thermalClass(cell);
-    const loc = location(cell); 
-    if (loc.length < 10) return 0;
-
-    const rack = loc.slice(-6, -4);
-    const level = Number(loc.slice(-4, -2));
+  function getZAxisScore(pc) {
+    if (pc.loc.length < 10) return 0;
     
     let score = 0;
-
-    if (family === 'flow') {
-      if (temp === 'chilled' && (level === 2 || level === 3)) score += 30;
-      else if (temp === 'frozen' && (level >= 2 && level <= 4)) score += 30;
+    if (pc.family === 'flow') {
+      if (pc.temp === 'chilled' && (pc.level === 2 || pc.level === 3)) score += 30;
+      else if (pc.temp === 'frozen' && (pc.level >= 2 && pc.level <= 4)) score += 30;
     } 
-    else if (family === 'shelf') {
-      if (level >= 2 && level <= 4) score += 30;
+    else if (pc.family === 'shelf') {
+      if (pc.level >= 2 && pc.level <= 4) score += 30;
     } 
-    else if (family === 'showcase') {
-      if (temp === 'chilled' && (level >= 1 && level <= 4)) {
+    else if (pc.family === 'showcase') {
+      if (pc.temp === 'chilled' && (pc.level >= 1 && pc.level <= 4)) {
         score += 30;
-      } else if (temp === 'frozen') {
-        if (level === 1 || level === 3 || level === 5) score += 30;
+      } else if (pc.temp === 'frozen') {
+        if (pc.level === 1 || pc.level === 3 || pc.level === 5) score += 30;
       }
     } 
-    else if (family === 'flat') {
-      if (temp === 'frozen' && rack === '07' && level === 1) score += 30;
+    else if (pc.family === 'flat') {
+      if (pc.temp === 'frozen' && pc.distRack === '07' && pc.level === 1) score += 30;
     }
 
     return score;
   }
 
-  function eggCellAllowed(cell, profile) {
-    const loc = location(cell), level = levelOf(cell), zone = text(cell.zone);
-    
-    if ((profile.outboundPcs >= 100 || profile.stock >= 50) && (zone === 'A09' || zone === 'A10')) {
+  function eggCellAllowed(pc, profile) {
+    if ((profile.outboundPcs >= 100 || profile.stock >= 50) && (pc.zone === 'A09' || pc.zone === 'A10')) {
         return true;
     }
-
-    if (zone === 'A08') {
-      if (![2, 3, 4].includes(level)) return false; 
+    if (pc.zone === 'A08') {
+      if (![2, 3, 4].includes(pc.level)) return false; 
       const ranges = {
         10: ['A08-010101', 'A08-020505'],
         15: ['A08-030101', 'A08-040505'],
@@ -377,46 +361,39 @@
         30: ['A08-070101', 'A08-080505']
       };
       const range = ranges[profile.eggSize];
-      return !range || inRange(loc, range[0], range[1]);
+      return !range || inRange(pc.loc, range[0], range[1]);
     }
-    return profile.event && zone === 'A09';
+    return profile.event && pc.zone === 'A09';
   }
   
-  function livestockCellAllowed(cell) {
-    const loc = location(cell);
-    return (inRange(loc, 'D01-010101', 'D06-060505') || inRange(loc, 'D07-030101', 'D07-060505'));
+  function livestockCellAllowed(pc) {
+    return (inRange(pc.loc, 'D01-010101', 'D06-060505') || inRange(pc.loc, 'D07-030101', 'D07-060505'));
   }
 
-  function categoryZoneAllowed(cell, profile) {
-    const zone = text(cell.zone), c = profile.category;
-    if (profile.temp === 'frozen' && !isFrozenDedicated(zone)) return { ok: false, reason: '냉동 상품은 냉동 전용 구역에 배치 필요' };
-    if (profile.temp !== 'frozen' && isFrozenDedicated(zone)) return { ok: false, reason: '냉장/상온 상품은 냉동 전용 구역 제외' };
+  function categoryZoneAllowed(pc, profile) {
+    const c = profile.category;
+    if (profile.temp === 'frozen' && !isFrozenDedicated(pc.zone)) return { ok: false, reason: '냉동 상품은 냉동 전용 구역에 배치 필요' };
+    if (profile.temp !== 'frozen' && isFrozenDedicated(pc.zone)) return { ok: false, reason: '냉장/상온 상품은 냉동 전용 구역 제외' };
     
-    if (c.egg && !eggCellAllowed(cell, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사/대량 시 A09, A10) 및 규격별 단수 제한' };
+    if (c.egg && !eggCellAllowed(pc, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사/대량 시 A09, A10) 및 규격별 단수 제한' };
     
     if (c.quailEgg) {
         const highVolume = profile.outboundPcs >= 30 && profile.stock >= 60;
         const lowVolume = profile.outboundPcs <= 10 && profile.stock <= 20;
-        if (highVolume && rackFamily(cell) !== 'flow') return { ok: false, reason: '메추리알 대량(출고 30 & 재고 60 이상)은 플로우랙 전용' };
-        if (lowVolume && !inRange(location(cell), 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 소량(출고 10 & 재고 20 이하)은 A07 선반랙 전용' };
+        if (highVolume && pc.family !== 'flow') return { ok: false, reason: '메추리알 대량(출고 30 & 재고 60 이상)은 플로우랙 전용' };
+        if (lowVolume && !inRange(pc.loc, 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 소량(출고 10 & 재고 20 이하)은 A07 선반랙 전용' };
     }
 
-    if (c.iceCream && zone !== 'E07') return { ok: false, reason: '아이스크림류는 E07 전용 구역 배치 필요' };
-    if (!c.iceCream && zone === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 구역이므로 일반 냉동 상품 불가' };
+    if (c.iceCream && pc.zone !== 'E07') return { ok: false, reason: '아이스크림류는 E07 전용 구역 배치 필요' };
+    if (!c.iceCream && pc.zone === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 구역이므로 일반 냉동 상품 불가' };
 
-    if (c.zeroToFive && profile.temp !== 'frozen' && !isChilledDedicated(zone)) return { ok: false, reason: '0~5℃ 보관 필요 품목은 D01~D02 권장' };
+    if (c.zeroToFive && profile.temp !== 'frozen' && !isChilledDedicated(pc.zone)) return { ok: false, reason: '0~5℃ 보관 필요 품목은 D01~D02 권장' };
     
-    if (c.livestock && profile.temp !== 'frozen' && !livestockCellAllowed(cell)) return { ok: false, reason: '냉장 축산물 법정 허가 구역 외' };
+    if (c.livestock && profile.temp !== 'frozen' && !livestockCellAllowed(pc)) return { ok: false, reason: '냉장 축산물 법정 허가 구역 외' };
 
     return { ok: true };
   }
 
-  // 복구된 함수 1: a10Eligible
-  function a10Eligible(profile, touch, stock) {
-    return profile.category.seasonal || profile.event || touch >= 100 || stock > 100;
-  }
-
-  // 복구된 함수 2: productProfileFor
   function productProfileFor(cell, profiles, allData) {
     const base = profiles.get(cell.sku) || { sku: cell.sku, name: text(cell.productName), group: '', category: categorize({ name: text(cell.productName), group: '' }) };
     return Object.assign({}, base, {
@@ -427,42 +404,38 @@
     });
   }
 
-  function violationReasons(cell, profile) {
+  function violationReasons(sourcePc, profile) {
     const mandatory = [];
     const soft = [];
     
-    const a10MustMove = cell.zone === 'A10' && profile.touch < 100 && profile.stock <= 100 && profile.hasIncomingPlan && profile.noIncomingInTwoWeeks;
+    const a10MustMove = sourcePc.zone === 'A10' && profile.touch < 100 && profile.stock <= 100 && profile.hasIncomingPlan && profile.noIncomingInTwoWeeks;
     if (a10MustMove) mandatory.push('A10 이동 기준 충족: 일 출고 100건 미만·재고 100PCS 이하·2주 입고 예정 없음');
     
-    const category = categoryZoneAllowed(cell, profile);
+    const category = categoryZoneAllowed(sourcePc, profile);
     if (!category.ok) mandatory.push(category.reason);
 
-    if (rackFamily(cell) === 'gate' && profile.outboundPcs < 100 && profile.stock < 50) {
+    if (sourcePc.family === 'gate' && profile.outboundPcs < 100 && profile.stock < 50) {
       mandatory.push('게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)');
     }
 
     const deadStock = profile.outboundPcs <= 10 && profile.stock <= 20;
-    if (!profile.category.quailEgg && rackFamily(cell) === 'flow' && profile.temp !== 'frozen' && deadStock) {
+    if (!profile.category.quailEgg && sourcePc.family === 'flow' && profile.temp !== 'frozen' && deadStock) {
       mandatory.push('플로우랙 부적합 (출고 10 이하 & 재고 20 이하로 퇴출 필요)');
     }
-
-    const loc = location(cell);
-    const level = loc.length >= 10 ? Number(loc.slice(-4, -2)) : 0;
     
-    if (rackFamily(cell) === 'flow' && profile.itemWeightG > 1000) {
-      if (profile.temp !== 'frozen' && level === 4) {
+    if (sourcePc.family === 'flow' && profile.itemWeightG > 1000) {
+      if (profile.temp !== 'frozen' && sourcePc.level === 4) {
         mandatory.push('플로우랙 4단 중량(1kg) 초과');
-      } else if (profile.temp === 'frozen' && level === 5) {
+      } else if (profile.temp === 'frozen' && sourcePc.level === 5) {
         mandatory.push('냉동 플로우랙 5단 중량(1kg) 초과');
       }
     }
 
-    if ((profile.boxWeightG > 7000 || profile.itemWeightG > 3000) && level > 2) {
+    if ((profile.boxWeightG > 7000 || profile.itemWeightG > 3000) && sourcePc.level > 2) {
       mandatory.push('중량물(박스 7kg 또는 단품 3kg 초과) 안전 수칙: 1~2단 하단 보관 필수');
     }
 
-    const zone = text(cell.zone);
-    if (rackFamily(cell) === 'shelf' && profile.stock >= 50 && !profile.category.egg && !profile.category.quailEgg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(zone)) {
+    if (sourcePc.family === 'shelf' && profile.stock >= 50 && !profile.category.egg && !profile.category.quailEgg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(sourcePc.zone)) {
       soft.push('현재고 50개 이상으로 선반랙 부적합');
     }
 
@@ -500,8 +473,7 @@
     return flowNotAllowed ? ['shelf', 'showcase'] : ['shelf', 'showcase', 'flow'];
   }
 
-  function familyScore(cell, preferred) {
-    const family = rackFamily(cell);
+  function familyScore(family, preferred) {
     if (preferred.includes(family)) return 150;
     const preferredRank = Math.min(...preferred.map((x) => FAMILY_RANK[x] || 9));
     return Math.max(-80, 35 - Math.abs((FAMILY_RANK[family] || 9) - preferredRank) * 45);
@@ -538,32 +510,74 @@
     return result;
   }
 
-  function vendorClusterScore(candidate, profile, vendorCounts) {
+  function vendorClusterScore(pc, profile, vendorCounts) {
     if (!profile.vendor || !vendorCounts[profile.vendor]) return 0;
-    const count = vendorCounts[profile.vendor][candidate.zone] || 0;
+    const count = vendorCounts[profile.vendor][pc.zone] || 0;
     return Math.min(40, count * 8);
   }
 
-  function targetScore(candidate, source, profile, context) {
-    let score = familyScore(candidate, context.preferredFamilies);
-    if (candidate.zone === source.zone) score += 30;
-    else if (text(candidate.zone).slice(0, 1) === text(source.zone).slice(0, 1)) score += 10;
-    if (candidate.ws && candidate.ws === source.ws) score += 20;
+  function candidateEvaluation(pc, sourcePc, profile) {
+    if (pc.temp !== sourcePc.temp) return { ok: false, reason: '온도대 불일치' };
+    if (CONFIG.disabledZones.has(pc.zone)) return { ok: false, reason: 'E01~E02는 셀 할당 금지 구역' };
     
-    score += vendorClusterScore(candidate, profile, context.vendorCounts);
+    if (profile.category.livestock && profile.temp !== 'frozen' && !livestockCellAllowed(pc)) return { ok: false, reason: '냉장 축산물 법정 허가 구역 외' };
     
-    score += getDistanceScore(candidate);
-    score += getZAxisScore(candidate);
+    if (pc.family === 'gate' && profile.outboundPcs < 100) return { ok: false, reason: '게이트랙은 출고 100pcs 이상 전용' };
 
-    const balance = balanceStats(context, source.ws, candidate.ws, profile.touch);
+    const c = profile.category;
+    if (c.iceCream && pc.zone !== 'E07') return { ok: false, reason: '아이스크림은 E07 전용' };
+    if (!c.iceCream && pc.zone === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 셀' };
+
+    if (c.egg && !eggCellAllowed(pc, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09, A10) 및 규격별 단수 제한' };
+
+    const flowAllowedForTarget = profile.outboundPcs >= 30 && profile.stock >= 60;
+
+    if (c.quailEgg) {
+        if (flowAllowedForTarget) {
+            if (pc.family !== 'flow') return { ok: false, reason: '메추리알 대량(출고 30 & 재고 60 이상)은 플로우랙 전용' };
+        } else {
+            if (!inRange(pc.loc, 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 소량은 A07 선반랙 전용' };
+        }
+    }
+
+    if (!c.quailEgg && pc.family === 'flow' && profile.temp !== 'frozen' && !flowAllowedForTarget) {
+      return { ok: false, reason: '플로우랙 진입 불가 (출고 30 미만 또는 재고 60 미만)' };
+    }
+
+    if (pc.family === 'flow' && profile.itemWeightG > 1000) {
+      if (profile.temp !== 'frozen' && pc.level === 4) {
+        return { ok: false, reason: '플로우랙 4단 중량(1kg) 초과 상품' };
+      } else if (profile.temp === 'frozen' && pc.level === 5) {
+        return { ok: false, reason: '냉동 플로우랙 5단 중량(1kg) 초과 상품' };
+      }
+    }
+
+    if ((profile.boxWeightG > 7000 || profile.itemWeightG > 3000) && pc.level > 2) {
+      return { ok: false, reason: '중량물(박스 7kg 또는 단품 3kg 초과) 안전 수칙: 1~2단 하단 보관 필수' };
+    }
+
+    return { ok: true };
+  }
+
+  function targetScore(pc, sourcePc, profile, context) {
+    let score = familyScore(pc.family, context.preferredFamilies);
+    if (pc.zone === sourcePc.zone) score += 30;
+    else if (pc.zone.slice(0, 1) === sourcePc.zone.slice(0, 1)) score += 10;
+    if (pc.cell.ws && pc.cell.ws === sourcePc.cell.ws) score += 20;
+    
+    score += vendorClusterScore(pc, profile, context.vendorCounts);
+    
+    score += getDistanceScore(pc);
+    score += getZAxisScore(pc);
+
+    const balance = balanceStats(context, sourcePc.cell.ws, pc.cell.ws, profile.touch);
     score += balance.score;
 
-    const zone = text(candidate.zone);
-    if (rackFamily(candidate) === 'shelf' && profile.stock >= 50 && !profile.category.egg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(zone)) {
+    if (pc.family === 'shelf' && profile.stock >= 50 && !profile.category.egg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(pc.zone)) {
       score -= 50;
     }
 
-    const categoryCheck = categoryZoneAllowed(candidate, profile);
+    const categoryCheck = candidateEvaluation(pc, sourcePc, profile);
     if (!categoryCheck.ok) {
         score -= 200; 
     }
@@ -571,65 +585,19 @@
     return { score, balance };
   }
 
-  function candidateEvaluation(candidate, source, profile) {
-    if (thermalClass(candidate) !== thermalClass(source)) return { ok: false, reason: '온도대 불일치' };
-    if (CONFIG.disabledZones.has(text(candidate.zone))) return { ok: false, reason: 'E01~E02는 셀 할당 금지 구역' };
-    
-    if (profile.category.livestock && profile.temp !== 'frozen' && !livestockCellAllowed(candidate)) return { ok: false, reason: '냉장 축산물 법정 허가 구역 외' };
-    
-    if (rackFamily(candidate) === 'gate' && profile.outboundPcs < 100) return { ok: false, reason: '게이트랙은 출고 100pcs 이상 전용' };
-
-    const c = profile.category;
-    if (c.iceCream && text(candidate.zone) !== 'E07') return { ok: false, reason: '아이스크림은 E07 전용' };
-    if (!c.iceCream && text(candidate.zone) === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 셀' };
-
-    if (c.egg && !eggCellAllowed(candidate, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09, A10) 및 규격별 단수 제한' };
-
-    const flowAllowedForTarget = profile.outboundPcs >= 30 && profile.stock >= 60;
-
-    if (c.quailEgg) {
-        if (flowAllowedForTarget) {
-            if (rackFamily(candidate) !== 'flow') return { ok: false, reason: '메추리알 대량(출고 30 & 재고 60 이상)은 플로우랙 전용' };
-        } else {
-            if (!inRange(location(candidate), 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 소량은 A07 선반랙 전용' };
-        }
-    }
-
-    if (!c.quailEgg && rackFamily(candidate) === 'flow' && profile.temp !== 'frozen' && !flowAllowedForTarget) {
-      return { ok: false, reason: '플로우랙 진입 불가 (출고 30 미만 또는 재고 60 미만)' };
-    }
-
-    const loc = location(candidate);
-    const level = loc.length >= 10 ? Number(loc.slice(-4, -2)) : 0;
-
-    if (rackFamily(candidate) === 'flow' && profile.itemWeightG > 1000) {
-      if (profile.temp !== 'frozen' && level === 4) {
-        return { ok: false, reason: '플로우랙 4단 중량(1kg) 초과 상품' };
-      } else if (profile.temp === 'frozen' && level === 5) {
-        return { ok: false, reason: '냉동 플로우랙 5단 중량(1kg) 초과 상품' };
-      }
-    }
-
-    if ((profile.boxWeightG > 7000 || profile.itemWeightG > 3000) && level > 2) {
-      return { ok: false, reason: '중량물(박스 7kg 또는 단품 3kg 초과) 안전 수칙: 1~2단 하단 보관 필수' };
-    }
-
-    return { ok: true };
-  }
-
-  function recommendationReasons(source, target, profile, context, sourceViolations, scoreInfo) {
+  function recommendationReasons(sourcePc, targetPc, profile, context, sourceViolations, scoreInfo) {
     const reasons = sourceViolations.slice();
     const preferred = context.preferredFamilies;
     
-    if (preferred.includes(rackFamily(target))) {
-        let rName = rackFamily(target) === 'gate' ? '게이트랙' : rackFamily(target) === 'flow' || rackFamily(target) === 'flat' ? '플로우랙' : '선반랙';
+    if (preferred.includes(targetPc.family)) {
+        let rName = targetPc.family === 'gate' ? '게이트랙' : targetPc.family === 'flow' || targetPc.family === 'flat' ? '플로우랙' : '선반랙';
         reasons.push(`${rName} 배치 권장`);
     }
     
     if (profile.category.iceCream) reasons.push('E07 아이스크림 전용 구역 유지');
     if (profile.category.egg) reasons.push('계란 전용 A08 2~4단 및 규격별 구역');
     if (profile.category.zeroToFive && profile.temp !== 'frozen') reasons.push('0~5℃ 보관 권장 품목');
-    if (profile.vendor && vendorClusterScore(target, profile, context.vendorCounts) > 0) reasons.push('동일 업체 인접 구역 군집화');
+    if (profile.vendor && vendorClusterScore(targetPc, profile, context.vendorCounts) > 0) reasons.push('동일 업체 인접 구역 군집화');
     if (scoreInfo.balance.score > 1) reasons.push('W/S SKU수 편차 완화');
     return Array.from(new Set(reasons)).join(' · ');
   }
@@ -655,29 +623,64 @@
       const profile = productProfileFor(cell, profiles, allData);
       if (profile.vendor) {
         if (!vendorCounts[profile.vendor]) vendorCounts[profile.vendor] = {};
-        vendorCounts[profile.vendor][cell.zone] = (vendorCounts[profile.vendor][cell.zone] || 0) + 1;
+        const z = text(cell.zone);
+        vendorCounts[profile.vendor][z] = (vendorCounts[profile.vendor][z] || 0) + 1;
       }
     }
+
+    // [최적화 적용] 빈 셀을 1회만 객체로 파싱하여 문자열 연산 과부하 방지
+    const emptyNodes = allData.emptyCells.map(cell => {
+        const loc = location(cell);
+        return {
+            cell: cell,
+            loc: loc,
+            zone: text(cell.zone),
+            family: rackFamily(cell),
+            temp: thermalClass(cell),
+            level: loc.length >= 10 ? Number(loc.slice(-4, -2)) : 0,
+            distRack: loc.length >= 10 ? loc.slice(-6, -4) : '',
+            distSix: loc.length >= 10 ? loc.slice(-6) : ''
+        };
+    });
+
+    const emptyByTemp = { chilled: [], frozen: [] };
+    emptyNodes.forEach(pc => {
+        if (emptyByTemp[pc.temp]) emptyByTemp[pc.temp].push(pc);
+    });
 
     const recommendations = [];
     const seen = new Set();
     const activeSources = [];
 
     for (const source of allData.assignedCells) {
-      if (!source.sku || seen.has(source.sku) || !['chilled', 'frozen'].includes(thermalClass(source))) continue;
+      if (!source.sku || seen.has(source.sku)) continue;
+      const tc = thermalClass(source);
+      if (!['chilled', 'frozen'].includes(tc)) continue;
+      
       seen.add(source.sku);
       
+      const loc = location(source);
+      const sourcePc = {
+          cell: source,
+          loc: loc,
+          zone: text(source.zone),
+          family: rackFamily(source),
+          temp: tc,
+          level: loc.length >= 10 ? Number(loc.slice(-4, -2)) : 0,
+          distRack: loc.length >= 10 ? loc.slice(-6, -4) : '',
+          distSix: loc.length >= 10 ? loc.slice(-6) : ''
+      };
+
       const profile = productProfileFor(source, profiles, allData);
-      profile.sourceZone = source.zone;
+      profile.sourceZone = sourcePc.zone;
       
-      const violationsObj = violationReasons(source, profile);
+      const violationsObj = violationReasons(sourcePc, profile);
       const isMandatoryMove = violationsObj.mandatory.length > 0;
       
       if (profile.touch <= 0 && profile.outboundPcs <= 0) {
-          const fam = rackFamily(source);
-          const needsEviction = ['gate', 'flow', 'flat'].includes(fam) ||
-                                (profile.temp !== 'frozen' && isFrozenDedicated(source.zone)) ||
-                                (profile.temp === 'frozen' && !isFrozenDedicated(source.zone));
+          const needsEviction = ['gate', 'flow', 'flat'].includes(sourcePc.family) ||
+                                (profile.temp !== 'frozen' && isFrozenDedicated(sourcePc.zone)) ||
+                                (profile.temp === 'frozen' && !isFrozenDedicated(sourcePc.zone));
           if (!needsEviction) continue; 
       }
 
@@ -687,7 +690,7 @@
           sortScore += (100 - profile.outboundPcs) + (50 - profile.stock);
       }
 
-      activeSources.push({ source, profile, sortScore, violationsObj, isMandatoryMove });
+      activeSources.push({ sourcePc, profile, sortScore, violationsObj, isMandatoryMove });
     }
 
     activeSources.sort((a, b) => b.sortScore - a.sortScore);
@@ -695,48 +698,51 @@
     
     const usedTargetCells = new Set();
 
-    for (const { source, profile, violationsObj, isMandatoryMove } of sourcesToProcess) {
+    for (const { sourcePc, profile, violationsObj, isMandatoryMove } of sourcesToProcess) {
       const preferredFamilies = desiredFamilies(profile, statistics);
       const sourceViolations = [...violationsObj.mandatory, ...violationsObj.soft];
       
       const context = { allData, preferredFamilies, vendorCounts, wsMetricsArray, wsCount, wsAverage };
-      const sourceScore = targetScore(source, source, profile, context).score;
+      const sourceScore = targetScore(sourcePc, sourcePc, profile, context).score;
       const candidates = [];
 
-      for (const candidate of allData.emptyCells) {
-        if (usedTargetCells.has(location(candidate))) continue;
+      // [최적화 적용] 온도대별 분리된 빈 셀 배열만 순회
+      const candidatesToCheck = emptyByTemp[profile.temp] || [];
 
-        const evaluation = candidateEvaluation(candidate, source, profile);
+      for (const pc of candidatesToCheck) {
+        if (usedTargetCells.has(pc.loc)) continue;
+
+        const evaluation = candidateEvaluation(pc, sourcePc, profile);
         if (!evaluation.ok) continue; 
         
-        const scoreInfo = targetScore(candidate, source, profile, context);
-        const articleFiveOverride = preferredFamilies.includes(rackFamily(candidate));
+        const scoreInfo = targetScore(pc, sourcePc, profile, context);
+        const articleFiveOverride = preferredFamilies.includes(pc.family);
         
         if (!scoreInfo.balance.compliant && !articleFiveOverride && !sourceViolations.length) continue;
         
-        candidates.push({ cell: candidate, scoreInfo });
+        candidates.push({ pc, scoreInfo });
       }
       
-      candidates.sort((a, b) => b.scoreInfo.score - a.scoreInfo.score || location(a.cell).localeCompare(location(b.cell)));
+      candidates.sort((a, b) => b.scoreInfo.score - a.scoreInfo.score || a.pc.loc.localeCompare(b.pc.loc));
       const best = candidates[0];
       const materiallyBetter = best && best.scoreInfo.score >= sourceScore + 25;
       
       if (!best && !isMandatoryMove && !sourceViolations.length) continue;
       if (!isMandatoryMove && !materiallyBetter) continue;
 
-      const target = best && best.cell;
+      const targetPc = best && best.pc;
       
-      if (target) {
-          usedTargetCells.add(location(target));
+      if (targetPc) {
+          usedTargetCells.add(targetPc.loc);
       }
 
       let targetCellFmt = '-';
-      if (target) {
-        targetCellFmt = location(target);
+      if (targetPc) {
+        targetCellFmt = targetPc.loc;
       }
       
-      const zScore = getZAxisScore(source);
-      let rankNum = FAMILY_RANK[rackFamily(source)] || 9;
+      const zScore = getZAxisScore(sourcePc);
+      let rankNum = FAMILY_RANK[sourcePc.family] || 9;
       if (zScore > 0) rankNum = Math.max(1, rankNum - 1); 
 
       let urgency = 0;
@@ -751,19 +757,19 @@
       }
 
       recommendations.push({
-        sku: source.sku,
-        productName: profile.name || source.productName || '',
+        sku: sourcePc.cell.sku,
+        productName: profile.name || sourcePc.cell.productName || '',
         pcs: profile.outboundPcs,
         stock: profile.stock, 
         toteCount: profile.touch,
-        temp: thermalClass(source),
-        currentCell: location(source),
-        currentRack: text(source.rackType) || rackFamily(source),
+        temp: sourcePc.temp,
+        currentCell: sourcePc.loc,
+        currentRack: text(sourcePc.cell.rackType) || sourcePc.family,
         currentRank: rankNum,
-        targetRack: target ? (text(target.rackType) || rackFamily(source)) : '적합 공셀 없음',
+        targetRack: targetPc ? (text(targetPc.cell.rackType) || targetPc.family) : '적합 공셀 없음',
         targetCell: targetCellFmt,
-        reason: target
-          ? recommendationReasons(source, target, profile, context, sourceViolations, best.scoreInfo)
+        reason: targetPc
+          ? recommendationReasons(sourcePc, targetPc, profile, context, sourceViolations, best.scoreInfo)
           : sourceViolations.join(' · '),
         mandatory: isMandatoryMove ? 1 : 0,
         urgency: urgency, 
@@ -782,6 +788,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.19.8-hotfix-profile-func' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.20.0-optimized' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
