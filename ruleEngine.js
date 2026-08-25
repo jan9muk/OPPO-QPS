@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.23.0 - Fixed: Ignore virtual/ghost inventory (stock=0 & outbound=0))
+ * QPS cell-allocation rule engine (V2.24.0 - Added: Kimchi C08/C09 Exclusive Routing with Hysteresis Buffer to prevent Ping-Pong)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -161,12 +161,14 @@
     const isProcessedEgg = /연두부|장조림|소시지|소세지|과자|빵|볶음밥|말이|찜/.test(name) || ['두부/묵/콩가공품', '반찬', '햄/소시지', '간편식', '가공식품'].includes(group);
     
     const isProcessedChicken = /닭갈비|양념|볶음|훈제/.test(name);
+    const isKimchi = group.includes('김치') || name.includes('김치');
 
     const category = {
       egg: (group === '계란' || isEggByName) && !isProcessedEgg && !isQuailEgg,
       quailEgg: isQuailEgg,
       iceCream: group === '아이스크림', 
-      livestock: ['수입육', '우육', '돈육', '계육', '양념육'].includes(group)
+      livestock: ['수입육', '우육', '돈육', '계육', '양념육'].includes(group),
+      kimchi: isKimchi
     };
     
     const isSeafoodOrPoultry = ['대중선어', '구색선어', '생선회', '갑각류', '패류', '연체류'].includes(group) || (group === '계육' && !isProcessedChicken);
@@ -391,6 +393,16 @@
     
     if (c.livestock && profile.temp !== 'frozen' && !livestockCellAllowed(pc)) return { ok: false, reason: '냉장 축산물 법정 허가 구역 외' };
 
+    // [신규] 김치 전용 구역 및 Hysteresis (핑퐁 방지) 진입 임계값 방어막
+    if (c.kimchi) {
+        if (!['C08', 'C09'].includes(pc.zone)) return { ok: false, reason: '김치류는 C08, C09 전용 구역 배치 필수' };
+        
+        // Hysteresis Upper Bound: 출고량 40 & 재고 50 미만인 애매한 김치는 C09(플로우) 진입을 엄격히 차단하여 C08로 유도
+        if (pc.zone === 'C09' && (profile.outboundPcs < 40 || profile.stock < 50)) {
+            return { ok: false, reason: '저빈도 김치는 C09 진입 불가 (C08 선반랙 유지)' };
+        }
+    }
+
     return { ok: true };
   }
 
@@ -414,12 +426,29 @@
     const category = categoryZoneAllowed(sourcePc, profile);
     if (!category.ok) mandatory.push(category.reason);
 
+    // [신규] 김치 전용 구역 강제 퇴출 및 Hysteresis 임계값 (핑퐁 방지) 적용
+    if (profile.category.kimchi) {
+        if (!['C08', 'C09'].includes(sourcePc.zone)) {
+            mandatory.push('김치류 지정 구역(C08, C09) 이탈 (강제 이동 필요)');
+        } else if (sourcePc.zone === 'C09') {
+            // Hysteresis Lower Bound: 이미 C09에 들어온 김치는 출고량이 15 이하로 폭락해야만 C08로 쫓겨남
+            if (profile.outboundPcs <= 15 && profile.stock <= 20) {
+                mandatory.push('김치 물량 급감으로 C09 플로우랙 퇴출 (C08 이동 필요)');
+            }
+        } else if (sourcePc.zone === 'C08') {
+            // Hysteresis Upper Bound: C08에 있는 김치는 출고량이 60 이상으로 폭증해야만 C09 진입 자격 획득
+            if (profile.outboundPcs >= 60 && profile.stock >= 80) {
+                mandatory.push('김치 고빈도 물량 급증 (C09 플로우랙 명당 이동 필요)');
+            }
+        }
+    }
+
     if (sourcePc.family === 'gate' && profile.outboundPcs < 100 && profile.stock < 50) {
       mandatory.push('게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)');
     }
 
     const deadStock = profile.outboundPcs <= 10 && profile.stock <= 20;
-    if (!profile.category.quailEgg && sourcePc.family === 'flow' && profile.temp !== 'frozen' && deadStock && profile.stock > 0) {
+    if (!profile.category.quailEgg && !profile.category.kimchi && sourcePc.family === 'flow' && profile.temp !== 'frozen' && deadStock && profile.stock > 0) {
       mandatory.push('플로우랙 부적합 (출고 10 이하 & 재고 20 이하로 퇴출 필요)');
     }
     
@@ -450,6 +479,11 @@
   }
 
   function desiredFamilies(profile, statistics) {
+    if (profile.category.kimchi) {
+        if (profile.outboundPcs >= 40 && profile.stock >= 50) return ['flow']; // Prefers C09
+        return ['shelf']; // Prefers C08
+    }
+
     const flowAllowed = profile.outboundPcs >= 30 && profile.stock >= 60;
 
     if (profile.category.quailEgg) {
@@ -458,7 +492,7 @@
 
     if (profile.fragile && profile.category.frozenMeat) return ['shelf', 'showcase', 'flow'];
     if (profile.boxWeightG >= 7000 && profile.stock >= 50) return ['flow', 'flat'];
-    if (profile.category.kimchi || (profile.temp === 'frozen' && /^F/.test(profile.sourceZone || ''))) return ['flow', 'flat'];
+    if (profile.temp === 'frozen' && /^F/.test(profile.sourceZone || '')) return ['flow', 'flat'];
     
     const flowNotAllowed = !profile.category.quailEgg && profile.temp !== 'frozen' && !flowAllowed;
 
@@ -540,7 +574,7 @@
         }
     }
 
-    if (!c.quailEgg && pc.family === 'flow' && profile.temp !== 'frozen' && !flowAllowedForTarget) {
+    if (!c.quailEgg && !c.kimchi && pc.family === 'flow' && profile.temp !== 'frozen' && !flowAllowedForTarget) {
       return { ok: false, reason: '플로우랙 진입 불가 (출고 30 미만 또는 재고 60 미만)' };
     }
 
@@ -570,10 +604,24 @@
     score += getDistanceScore(pc);
     score += getZAxisScore(pc);
 
+    // [신규] 김치 내부 차등 가중치 (S급은 C09 골든존, A급은 C09 비골든존, 나머지는 C08)
+    if (profile.category.kimchi) {
+        if (pc.zone === 'C09') {
+            const isGolden = pc.level === 2 || pc.level === 3;
+            if (profile.outboundPcs >= 80) {
+                score += isGolden ? 200 : 50; // S급 김치는 무조건 골든존 선점
+            } else if (profile.outboundPcs >= 40) {
+                score += isGolden ? 50 : 150; // A급 김치는 S급에게 골든존을 양보하고 비골든존 선호
+            }
+        } else if (pc.zone === 'C08') {
+            score += 100; // C08 내에서는 기본 가점을 통해 거리/Z축 기준으로 세부 정렬됨
+        }
+    }
+
     const balance = balanceStats(context, sourcePc.cell.ws, pc.cell.ws, profile.touch);
     score += balance.score;
 
-    if (pc.family === 'shelf' && profile.stock >= 50 && !profile.category.egg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(pc.zone)) {
+    if (pc.family === 'shelf' && profile.stock >= 50 && !profile.category.egg && !profile.category.quailEgg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(pc.zone)) {
       score -= 50;
     }
 
@@ -596,6 +644,7 @@
     
     if (profile.category.iceCream) reasons.push('E07 아이스크림 전용 구역 유지');
     if (profile.category.egg) reasons.push('계란 전용 A08 2~4단 및 규격별 구역');
+    if (profile.category.kimchi && ['C08', 'C09'].includes(targetPc.zone)) reasons.push('김치 전용(C08/C09) 블록 분리 배치');
     if (profile.category.zeroToFive && profile.temp !== 'frozen') reasons.push('0~5℃ 보관 권장 품목');
     if (profile.vendor && vendorClusterScore(targetPc, profile, context.vendorCounts) > 0) reasons.push('동일 업체 인접 구역 군집화');
     if (scoreInfo.balance.score > 1) reasons.push('W/S SKU수 편차 완화');
@@ -673,7 +722,6 @@
       const profile = productProfileFor(source, profiles, allData);
       profile.sourceZone = sourcePc.zone;
 
-      // [핵심 보완] 재고 0 & 출고량 0인 항목은 가상 할당(신상품 입고 대기 등)이거나 삭제 대상이므로 연산 완전 배제
       if (profile.stock === 0 && profile.outboundPcs === 0) {
           continue;
       }
@@ -756,7 +804,7 @@
 
       let urgency = 0;
       if (isMandatoryMove) {
-          if (sourceViolations.some(v => v.includes('퇴출 필요'))) {
+          if (sourceViolations.some(v => v.includes('퇴출 필요') || v.includes('퇴출 (C08 이동'))) {
               urgency = 1000 + Math.max(0, (10 - profile.outboundPcs) * 10 + (20 - profile.stock));
           } else if (sourceViolations.some(v => v.includes('게이트랙 부적합'))) {
               urgency = 500 + Math.max(0, (100 - profile.outboundPcs) + (50 - profile.stock));
@@ -797,6 +845,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.23.0' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.24.0' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
