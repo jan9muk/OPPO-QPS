@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.21.0 - Added: Short-term out-of-stock exclusion rule)
+ * QPS cell-allocation rule engine (V2.22.0 - Added: Golden Zone ghost inventory priority eviction)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -408,6 +408,11 @@
     const mandatory = [];
     const soft = [];
     
+    const isSourceGolden = getZAxisScore(sourcePc) > 0 || getDistanceScore(sourcePc) >= -15;
+    if (profile.outboundPcs === 0 && profile.stock === 0 && isSourceGolden) {
+      mandatory.push('골든존 공갈 재고(출고0/재고0) 강제 퇴출');
+    }
+    
     const a10MustMove = sourcePc.zone === 'A10' && profile.touch < 100 && profile.stock <= 100 && profile.hasIncomingPlan && profile.noIncomingInTwoWeeks;
     if (a10MustMove) mandatory.push('A10 이동 기준 충족: 일 출고 100건 미만·재고 100PCS 이하·2주 입고 예정 없음');
     
@@ -419,7 +424,7 @@
     }
 
     const deadStock = profile.outboundPcs <= 10 && profile.stock <= 20;
-    if (!profile.category.quailEgg && sourcePc.family === 'flow' && profile.temp !== 'frozen' && deadStock) {
+    if (!profile.category.quailEgg && sourcePc.family === 'flow' && profile.temp !== 'frozen' && deadStock && profile.stock > 0) {
       mandatory.push('플로우랙 부적합 (출고 10 이하 & 재고 20 이하로 퇴출 필요)');
     }
     
@@ -676,9 +681,7 @@
       const violationsObj = violationReasons(sourcePc, profile);
       const isMandatoryMove = violationsObj.mandatory.length > 0;
       
-      // [신규 룰 추가] 현 재고가 출고량의 50% 이하일 경우 이동 추천 원천 제외 (단기 품절 예상)
       if (profile.outboundPcs > 0 && profile.stock <= (profile.outboundPcs * 0.5)) {
-          // 예외 방어 로직: 중량 초과(안전), 온도대 오배치 등 필수 강제 퇴출 대상이 아닌 경우에만 차단
           if (!isMandatoryMove) {
               continue;
           }
@@ -688,13 +691,17 @@
           const needsEviction = ['gate', 'flow', 'flat'].includes(sourcePc.family) ||
                                 (profile.temp !== 'frozen' && isFrozenDedicated(sourcePc.zone)) ||
                                 (profile.temp === 'frozen' && !isFrozenDedicated(sourcePc.zone));
-          if (!needsEviction) continue; 
+          if (!needsEviction && !isMandatoryMove) continue; 
       }
 
       let sortScore = profile.touch;
       if (isMandatoryMove) {
-          sortScore += 10000; 
-          sortScore += (100 - profile.outboundPcs) + (50 - profile.stock);
+          if (violationsObj.mandatory.some(v => v.includes('공갈 재고'))) {
+              sortScore += 50000; 
+          } else {
+              sortScore += 10000; 
+              sortScore += (100 - profile.outboundPcs) + (50 - profile.stock);
+          }
       }
 
       activeSources.push({ sourcePc, profile, sortScore, violationsObj, isMandatoryMove });
@@ -753,7 +760,9 @@
 
       let urgency = 0;
       if (isMandatoryMove) {
-          if (sourceViolations.some(v => v.includes('퇴출 필요'))) {
+          if (sourceViolations.some(v => v.includes('공갈 재고'))) {
+              urgency = 5000;
+          } else if (sourceViolations.some(v => v.includes('퇴출 필요'))) {
               urgency = 1000 + Math.max(0, (10 - profile.outboundPcs) * 10 + (20 - profile.stock));
           } else if (sourceViolations.some(v => v.includes('게이트랙 부적합'))) {
               urgency = 500 + Math.max(0, (100 - profile.outboundPcs) + (50 - profile.stock));
@@ -794,6 +803,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.21.0' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.22.0' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
