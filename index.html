@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QPS Dashboard v8.10.0</title>
+  <title>QPS Dashboard v8.11.0</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -121,8 +121,8 @@
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
   <div class="card">
-    <div class="title">QPS Dashboard v8.10.0</div>
-    <div class="subtitle">이모지 제거, 물성악화 기준(2SKU) 현실화 및 모바일 뷰 최적화 적용</div>
+    <div class="title">QPS Dashboard v8.11.0</div>
+    <div class="subtitle">작업 시작 시간 기본값 변경(14:00) 및 사용자 선택 로컬 스토리지 영구 저장 적용</div>
   </div>
   
   <div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
@@ -133,9 +133,9 @@
       </div>
       <div class="group">
         <label>작업 시작 시간 설정</label>
-        <select id="startTimeSelect" onchange="if(window.qpsAllData) tryBuild();">
+        <select id="startTimeSelect" onchange="saveStartTime(); if(window.qpsAllData) tryBuild();">
           <option value="13">13:00 시작</option>
-          <option value="14">14:00 시작</option>
+          <option value="14" selected>14:00 시작</option>
         </select>
       </div>
     </div>
@@ -707,7 +707,6 @@ function buildAllData(boxRows,cellRows){
 
   const wsIncompleteComplexTotes = new Map();
   const wsIncompleteTotes = new Map();
-  // 1토트 당 2SKU 이상으로 임계값 하향 조정 (작업자 리소스 체감 반영)
   const COMPLEX_THRESHOLD = 2; 
 
   for(const [wsToteKey, skus] of wsToteToSkus.entries()) {
@@ -817,6 +816,12 @@ function formatWsName(ws){
   const m = ws.match(/APS(\d+)-0*(\d+)/);
   return m ? `${m[1]}-${m[2]}` : ws;
 }
+
+// 시간 저장/불러오기 로직 추가
+window.saveStartTime = function() {
+    localStorage.setItem('qps_start_time', $('#startTimeSelect').value);
+};
+
 function updateHUD(allData) {
   const latestTime = allData.latestDataTimeMs;
   const targetHour = parseInt($('#startTimeSelect').value, 10);
@@ -1046,7 +1051,6 @@ function drawScreen(allData){
       </div>
   `).join('') : '<div style="font-size:12px; color:#6b7280;">적체된 다건 토트 없음</div>';
 
-  // 이모지 제거 적용
   $('#insightArea').innerHTML = `
       <div class="card" style="border: 2px solid #fecaca; background: #fef2f2; margin-bottom: 24px;">
           <div class="subhead" style="color: #b91c1c; display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
@@ -1344,6 +1348,13 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     appendDebug('XLSX 라이브러리 로딩 실패');
   }else{
     appendDebug('XLSX 라이브러리 로딩 성공');
+  }
+
+  // 초기 렌더링 시 로컬 스토리지에 저장된 시작 시간 복원
+  const savedTime = localStorage.getItem('qps_start_time');
+  if(savedTime) {
+      const timeSelect = $('#startTimeSelect');
+      if (timeSelect) timeSelect.value = savedTime;
   }
 
   try {
