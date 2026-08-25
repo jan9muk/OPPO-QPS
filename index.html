@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QPS Dashboard v8.7.0</title>
+  <title>QPS Dashboard v8.8.0</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -45,7 +45,7 @@
     .spark-value{text-align:right;font-size:11px;font-weight:700;color:#475569;white-space:nowrap;line-height:1.45}
     .avg-line{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px dashed #0f766e;z-index:5;pointer-events:none;opacity:0.8;}
     
-    /* 툴팁 공통 */
+    /* 기존 스파크라인용 툴팁 (좌측 배치) */
     .ws-tooltip{display:none;position:absolute;left:50px;bottom:80%;z-index:50;background:rgba(17,24,39,0.95);color:#fff;padding:12px 16px;border-radius:8px;font-size:12px;width:max-content;pointer-events:none;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1);border:1px solid #374151;}
     .spark-row:hover .ws-tooltip{display:block;}
     .ws-tooltip-grid{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;text-align:left;}
@@ -73,15 +73,19 @@
     .btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}
     .btn-restore:hover{background:#dcfce7}
 
-    /* 동적 히트맵 렌더링 스타일 */
-    .heatmap-container { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; overflow-x: auto; padding-bottom: 10px; }
+    /* 동적 히트맵 렌더링 스타일 수정 (툴팁 잘림 방지 및 W/S 앵커) */
+    .heatmap-container { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; overflow-x: auto; padding-bottom: 160px; /* 툴팁 하단 잘림 방지 */ }
     .rack-block { border: 2px solid #e2e8f0; background: #fff; border-radius: 8px; padding: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); min-width: max-content; }
     .rack-title { font-size: 14px; font-weight: 800; color: #1e293b; margin-bottom: 8px; text-align: center; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; }
     .rack-table { border-collapse: separate; border-spacing: 3px; margin: 0 auto; }
     .hm-wrap { position: relative; }
     .hm-cell { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; border-radius: 6px; cursor: pointer; transition: 0.1s; border: 1px solid rgba(0,0,0,0.05); }
     .hm-cell:hover { transform: scale(1.1); z-index: 10; box-shadow: 0 0 8px rgba(0,0,0,0.2); }
-    .hm-wrap:hover .ws-tooltip { display: block; left: 20px; bottom: 110%; }
+    
+    /* 히트맵 전용 툴팁 (아래쪽 중앙 정렬) */
+    .hm-tooltip { display: none; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 9999; background: rgba(17,24,39,0.95); color: #fff; padding: 12px 16px; border-radius: 8px; font-size: 12px; width: max-content; pointer-events: none; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); border: 1px solid #374151; }
+    .hm-wrap:hover .hm-tooltip { display: block; }
+    
     .hm-empty { background: #f1f5f9; color: #cbd5e1; }
     .hm-low { background: #e0f2fe; color: #0284c7; }
     .hm-mid { background: #fef08a; color: #a16207; }
@@ -90,13 +94,16 @@
     .legend-box { display: flex; gap: 12px; font-size: 11px; font-weight: 700; color: #64748b; margin-top: 10px; justify-content: flex-end; }
     .legend-item { display: flex; align-items: center; gap: 4px; }
     .legend-color { width: 12px; height: 12px; border-radius: 3px; }
+    
+    /* W/S (작업대) 인디케이터 */
+    .ws-anchor-bar { flex: 1 1 100%; text-align: center; background: #dcfce7; border: 2px solid #22c55e; color: #166534; font-weight: 900; padding: 12px; border-radius: 8px; margin-bottom: 8px; font-size: 16px; letter-spacing: 1px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
   </style>
 </head>
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
   <div class="card">
-    <div class="title">QPS Dashboard v8.7.0</div>
-    <div class="subtitle">동적 셀 히트맵(Zone Heatmap) 탑재 - 데이터 기반 구조적 렌더링 최적화 적용</div>
+    <div class="title">QPS Dashboard v8.8.0</div>
+    <div class="subtitle">히트맵 W/S(작업대) 앵커 추가 및 툴팁 렌더링 클리핑 버그 픽스</div>
   </div>
   
   <div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
@@ -149,7 +156,7 @@
     <div style="padding:20px; background:#f5f7fb; margin:-20px -20px 0 -20px; border-radius:16px;">
       <div id="insightArea"></div>
       
-      <!-- 신규: 동적 존 히트맵 뷰어 -->
+      <!-- 존 히트맵 뷰어 -->
       <div class="card" style="border: 2px solid #dbeafe; margin-bottom: 24px; padding: 18px;">
         <div class="subhead" style="display:flex; justify-content:space-between; align-items:center;">
           <span style="color:#1e3a8a;">🔍 존(Zone) 출고량/재고 밀집도 히트맵</span>
@@ -193,7 +200,7 @@
       </table>
     </div>
 
-    <!-- 패스 목록 아코디언 카드 (상시 노출) -->
+    <!-- 패스 목록 아코디언 카드 -->
     <div class="card" id="passCard" style="overflow-x:auto;">
       <div class="subhead accordion-header" style="display:flex; justify-content:space-between; align-items:center;" onclick="togglePassList()">
         <span>셀 이동 패스 목록 (<span id="passCount">0</span>) <span id="passToggleIcon">▼</span></span>
@@ -456,7 +463,7 @@ function buildAllData(boxRows,cellRows){
   const assignedCells=[];
   const emptyCells=[];
   
-  const zonesFound = new Set(); // 존 선택 드롭다운용
+  const zonesFound = new Set(); 
 
   for(const row of cellRows){
     const ws=normalizeWs(row['작업대']);
@@ -778,7 +785,7 @@ function updateHUD(allData) {
   $('#hudInboundTph').innerHTML = `${fmt(Math.round(inTph))}<span class="hud-unit">totes/hr</span>`;
 }
 
-// 신규: 동적 존 히트맵 렌더러
+// 존 히트맵 렌더러 (툴팁 및 W/S 앵커 개선 반영)
 window.renderZoneHeatmap = function(zone) {
   const area = $('#heatmapArea');
   if(!zone) {
@@ -793,7 +800,6 @@ window.renderZoneHeatmap = function(zone) {
   
   const racks = {};
   zoneCells.forEach(c => {
-     // A03-010302 -> 01(랙), 03(단), 02(열)
      const match = c.location.match(/-(\d{2})(\d{2})(\d{2})$/);
      if(match) {
          const rack = match[1], level = parseInt(match[2], 10), bay = parseInt(match[3], 10);
@@ -810,14 +816,16 @@ window.renderZoneHeatmap = function(zone) {
     return;
   }
 
-  let html = '';
+  // W/S(작업대) 앵커 추가
+  let html = `<div class="ws-anchor-bar">🚶 ${zone} 작업대(W/S) 및 메인 작업 동선 🚶</div>`;
+
   sortedRacks.forEach(r => {
     const rackData = racks[r];
     html += `<div class="rack-block">
                <div class="rack-title">랙 ${r}</div>
                <table class="rack-table">`;
     
-    // 위에서 아래로 단(Level) 렌더링 (가장 높은 단이 맨 위)
+    // 위에서 아래로 단(Level) 렌더링
     for(let l = rackData.maxL; l >= 1; l--) {
       html += `<tr>`;
       for(let b = 1; b <= rackData.maxB; b++) {
@@ -846,11 +854,12 @@ window.renderZoneHeatmap = function(zone) {
 
         const displayVal = c.isEmpty ? '-' : (touch > 999 ? '999+' : touch);
         
+        // 툴팁 클래스를 hm-tooltip으로 변경 (아래 방향으로 랜더링)
         html += `
           <td>
             <div class="hm-wrap">
               <div class="hm-cell ${colorClass}">${displayVal}</div>
-              <div class="ws-tooltip">
+              <div class="hm-tooltip">
                 <div style="font-weight:800; margin-bottom:8px; border-bottom:1px solid #4b5563; padding-bottom:6px;">${c.location}</div>
                 <div class="ws-tooltip-grid">
                   <span>상품명</span><span style="color:#fcd34d; font-size:11px;">${pName}</span>
@@ -874,11 +883,9 @@ window.renderZoneHeatmap = function(zone) {
 function drawScreen(allData){
   updateHUD(allData);
 
-  // 셀렉트 박스 업데이트
   const zs = $('#zoneSelect');
   if(zs.options.length <= 1) {
     zs.innerHTML = '<option value="">존(Zone) 선택</option>' + allData.zonesFound.map(z => `<option value="${z}">${z} 존</option>`).join('');
-    // 자동 초기 렌더링 (A03이 있으면 우선 선택)
     if(allData.zonesFound.includes('A03')) {
       zs.value = 'A03';
       renderZoneHeatmap('A03');
