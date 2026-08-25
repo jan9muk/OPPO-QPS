@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.24.0 - Added: Kimchi C08/C09 Exclusive Routing with Hysteresis Buffer to prevent Ping-Pong)
+ * QPS cell-allocation rule engine (V2.25.0 - Fixed: Global Hysteresis Buffer to eliminate all Ping-Pong loops)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -393,11 +393,8 @@
     
     if (c.livestock && profile.temp !== 'frozen' && !livestockCellAllowed(pc)) return { ok: false, reason: '냉장 축산물 법정 허가 구역 외' };
 
-    // [신규] 김치 전용 구역 및 Hysteresis (핑퐁 방지) 진입 임계값 방어막
     if (c.kimchi) {
         if (!['C08', 'C09'].includes(pc.zone)) return { ok: false, reason: '김치류는 C08, C09 전용 구역 배치 필수' };
-        
-        // Hysteresis Upper Bound: 출고량 40 & 재고 50 미만인 애매한 김치는 C09(플로우) 진입을 엄격히 차단하여 C08로 유도
         if (pc.zone === 'C09' && (profile.outboundPcs < 40 || profile.stock < 50)) {
             return { ok: false, reason: '저빈도 김치는 C09 진입 불가 (C08 선반랙 유지)' };
         }
@@ -426,32 +423,36 @@
     const category = categoryZoneAllowed(sourcePc, profile);
     if (!category.ok) mandatory.push(category.reason);
 
-    // [신규] 김치 전용 구역 강제 퇴출 및 Hysteresis 임계값 (핑퐁 방지) 적용
+    // 김치류 Hysteresis 강제 퇴출 (하한선 버퍼)
     if (profile.category.kimchi) {
         if (!['C08', 'C09'].includes(sourcePc.zone)) {
             mandatory.push('김치류 지정 구역(C08, C09) 이탈 (강제 이동 필요)');
         } else if (sourcePc.zone === 'C09') {
-            // Hysteresis Lower Bound: 이미 C09에 들어온 김치는 출고량이 15 이하로 폭락해야만 C08로 쫓겨남
             if (profile.outboundPcs <= 15 && profile.stock <= 20) {
                 mandatory.push('김치 물량 급감으로 C09 플로우랙 퇴출 (C08 이동 필요)');
             }
         } else if (sourcePc.zone === 'C08') {
-            // Hysteresis Upper Bound: C08에 있는 김치는 출고량이 60 이상으로 폭증해야만 C09 진입 자격 획득
             if (profile.outboundPcs >= 60 && profile.stock >= 80) {
                 mandatory.push('김치 고빈도 물량 급증 (C09 플로우랙 명당 이동 필요)');
             }
         }
     }
 
-    if (sourcePc.family === 'gate' && profile.outboundPcs < 100 && profile.stock < 50) {
-      mandatory.push('게이트랙 부적합 (일 출고 100 미만 & 현 재고 50 미만)');
+    // 게이트랙 Hysteresis 강제 퇴출 (하한선 버퍼)
+    if (sourcePc.family === 'gate' && profile.outboundPcs <= 70 && profile.stock <= 50) {
+      mandatory.push('게이트랙 기준 미달 (물량 급감으로 퇴출 필요)');
     }
 
-    const deadStock = profile.outboundPcs <= 10 && profile.stock <= 20;
+    // 일반 상품 플로우랙 Hysteresis 강제 퇴출 (하한선 버퍼 15/20)
+    const deadStock = profile.outboundPcs <= 15 && profile.stock <= 20;
     if (!profile.category.quailEgg && !profile.category.kimchi && sourcePc.family === 'flow' && profile.temp !== 'frozen' && deadStock && profile.stock > 0) {
-      mandatory.push('플로우랙 부적합 (출고 10 이하 & 재고 20 이하로 퇴출 필요)');
+      mandatory.push('플로우랙 부적합 (출고 15 이하 & 재고 20 이하로 퇴출 필요)');
     }
     
+    if (profile.category.quailEgg && sourcePc.family === 'flow' && deadStock) {
+      mandatory.push('메추리알 물량 급감 (선반랙으로 퇴출 필요)');
+    }
+
     if (sourcePc.family === 'flow' && profile.itemWeightG > 1000) {
       if (profile.temp !== 'frozen' && sourcePc.level === 4) {
         mandatory.push('플로우랙 4단 중량(1kg) 초과');
@@ -464,8 +465,9 @@
       mandatory.push('중량물(박스 7kg 또는 단품 3kg 초과) 안전 수칙: 1~2단 하단 보관 필수');
     }
 
-    if (sourcePc.family === 'shelf' && profile.stock >= 50 && !profile.category.egg && !profile.category.quailEgg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(sourcePc.zone)) {
-      soft.push('현재고 50개 이상으로 선반랙 부적합');
+    // 선반랙 Hysteresis 초과 경고 (60개 이상일 때만 경고, 타겟셀 평가는 50개부터 감점)
+    if (sourcePc.family === 'shelf' && profile.stock >= 60 && !profile.category.egg && !profile.category.quailEgg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(sourcePc.zone)) {
+      soft.push('현재고 60개 이상으로 선반랙 한계 초과');
     }
 
     return { mandatory, soft };
@@ -478,13 +480,24 @@
     return index < 0 ? 0 : 1 - (index / Math.max(1, sorted.length - 1));
   }
 
+  // [신규] 모든 핑퐁을 차단하는 State-Aware 선호 랙 산정
   function desiredFamilies(profile, statistics) {
+    const currentFam = profile.sourceFamily;
+    const isFlow = currentFam === 'flow';
+    const isGate = currentFam === 'gate';
+
+    // 1. 김치 Hysteresis
     if (profile.category.kimchi) {
-        if (profile.outboundPcs >= 40 && profile.stock >= 50) return ['flow']; // Prefers C09
-        return ['shelf']; // Prefers C08
+        if (profile.outboundPcs >= 40 && profile.stock >= 50) return ['flow'];
+        if (isFlow && !(profile.outboundPcs <= 15 && profile.stock <= 20)) return ['flow']; 
+        return ['shelf'];
     }
 
-    const flowAllowed = profile.outboundPcs >= 30 && profile.stock >= 60;
+    // 2. 일반 & 메추리알 플로우랙 Hysteresis
+    let flowAllowed = profile.outboundPcs >= 30 && profile.stock >= 60;
+    if (isFlow && !(profile.outboundPcs <= 15 && profile.stock <= 20)) {
+        flowAllowed = true; 
+    }
 
     if (profile.category.quailEgg) {
         return flowAllowed ? ['flow'] : ['shelf'];
@@ -494,13 +507,19 @@
     if (profile.boxWeightG >= 7000 && profile.stock >= 50) return ['flow', 'flat'];
     if (profile.temp === 'frozen' && /^F/.test(profile.sourceZone || '')) return ['flow', 'flat'];
     
-    const flowNotAllowed = !profile.category.quailEgg && profile.temp !== 'frozen' && !flowAllowed;
+    const flowNotAllowed = profile.temp !== 'frozen' && !flowAllowed;
 
     const demand = percentile(profile.touch, statistics.touches);
     const inventory = percentile(profile.stock, statistics.stocks);
     const priority = demand * 0.70 + inventory * 0.30;
     
-    if (priority >= 0.75 && profile.outboundPcs >= 100) return ['gate'];
+    // 3. 게이트랙 Hysteresis
+    let gateAllowed = priority >= 0.75 && profile.outboundPcs >= 100;
+    if (isGate && !(profile.outboundPcs <= 70 && profile.stock <= 50)) {
+        gateAllowed = true; 
+    }
+
+    if (gateAllowed) return ['gate'];
     if (priority >= 0.40) {
         return flowNotAllowed ? ['shelf', 'showcase', 'flat'] : ['flow', 'flat'];
     }
@@ -604,24 +623,26 @@
     score += getDistanceScore(pc);
     score += getZAxisScore(pc);
 
-    // [신규] 김치 내부 차등 가중치 (S급은 C09 골든존, A급은 C09 비골든존, 나머지는 C08)
     if (profile.category.kimchi) {
         if (pc.zone === 'C09') {
             const isGolden = pc.level === 2 || pc.level === 3;
             if (profile.outboundPcs >= 80) {
-                score += isGolden ? 200 : 50; // S급 김치는 무조건 골든존 선점
+                score += isGolden ? 200 : 50; 
             } else if (profile.outboundPcs >= 40) {
-                score += isGolden ? 50 : 150; // A급 김치는 S급에게 골든존을 양보하고 비골든존 선호
+                score += isGolden ? 50 : 150; 
             }
         } else if (pc.zone === 'C08') {
-            score += 100; // C08 내에서는 기본 가점을 통해 거리/Z축 기준으로 세부 정렬됨
+            score += 100; 
         }
     }
 
     const balance = balanceStats(context, sourcePc.cell.ws, pc.cell.ws, profile.touch);
     score += balance.score;
 
-    if (pc.family === 'shelf' && profile.stock >= 50 && !profile.category.egg && !profile.category.quailEgg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(pc.zone)) {
+    // [신규] 선반랙 과적 핑퐁 방지 Hysteresis 적용
+    // 다른 빈 선반랙으로의 이동(Target)은 50개부터 억제하지만, 현재 위치(Source) 평가는 65개까지 감점 면제
+    const shelfLimit = (pc.loc === sourcePc.loc) ? 65 : 50;
+    if (pc.family === 'shelf' && profile.stock >= shelfLimit && !profile.category.egg && !profile.category.quailEgg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(pc.zone)) {
       score -= 50;
     }
 
@@ -721,6 +742,8 @@
 
       const profile = productProfileFor(source, profiles, allData);
       profile.sourceZone = sourcePc.zone;
+      // [신규] Hysteresis 처리를 위해 현재 패밀리 속성 마킹
+      profile.sourceFamily = sourcePc.family; 
 
       if (profile.stock === 0 && profile.outboundPcs === 0) {
           continue;
@@ -806,7 +829,7 @@
       if (isMandatoryMove) {
           if (sourceViolations.some(v => v.includes('퇴출 필요') || v.includes('퇴출 (C08 이동'))) {
               urgency = 1000 + Math.max(0, (10 - profile.outboundPcs) * 10 + (20 - profile.stock));
-          } else if (sourceViolations.some(v => v.includes('게이트랙 부적합'))) {
+          } else if (sourceViolations.some(v => v.includes('게이트랙 부적합') || v.includes('기준 미달'))) {
               urgency = 500 + Math.max(0, (100 - profile.outboundPcs) + (50 - profile.stock));
           } else {
               urgency = 100;
@@ -845,6 +868,6 @@
       .slice(0, CONFIG.maxRecommendations);
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.24.0' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.25.0' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
