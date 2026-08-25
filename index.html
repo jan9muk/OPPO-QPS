@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QPS Dashboard v8.8.0</title>
+  <title>QPS Dashboard v8.9.0</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -45,7 +45,6 @@
     .spark-value{text-align:right;font-size:11px;font-weight:700;color:#475569;white-space:nowrap;line-height:1.45}
     .avg-line{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px dashed #0f766e;z-index:5;pointer-events:none;opacity:0.8;}
     
-    /* 기존 스파크라인용 툴팁 (좌측 배치) */
     .ws-tooltip{display:none;position:absolute;left:50px;bottom:80%;z-index:50;background:rgba(17,24,39,0.95);color:#fff;padding:12px 16px;border-radius:8px;font-size:12px;width:max-content;pointer-events:none;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1);border:1px solid #374151;}
     .spark-row:hover .ws-tooltip{display:block;}
     .ws-tooltip-grid{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;text-align:left;}
@@ -73,16 +72,15 @@
     .btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}
     .btn-restore:hover{background:#dcfce7}
 
-    /* 동적 히트맵 렌더링 스타일 수정 (툴팁 잘림 방지 및 W/S 앵커) */
-    .heatmap-container { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; overflow-x: auto; padding-bottom: 160px; /* 툴팁 하단 잘림 방지 */ }
+    /* 동적 히트맵 렌더링 스타일 수정 */
+    .heatmap-container { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; overflow-x: auto; padding-bottom: 140px; }
     .rack-block { border: 2px solid #e2e8f0; background: #fff; border-radius: 8px; padding: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); min-width: max-content; }
-    .rack-title { font-size: 14px; font-weight: 800; color: #1e293b; margin-bottom: 8px; text-align: center; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; }
+    .rack-title { font-size: 14px; font-weight: 800; color: #1e293b; margin-bottom: 8px; text-align: center; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
     .rack-table { border-collapse: separate; border-spacing: 3px; margin: 0 auto; }
     .hm-wrap { position: relative; }
     .hm-cell { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; border-radius: 6px; cursor: pointer; transition: 0.1s; border: 1px solid rgba(0,0,0,0.05); }
     .hm-cell:hover { transform: scale(1.1); z-index: 10; box-shadow: 0 0 8px rgba(0,0,0,0.2); }
     
-    /* 히트맵 전용 툴팁 (아래쪽 중앙 정렬) */
     .hm-tooltip { display: none; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 9999; background: rgba(17,24,39,0.95); color: #fff; padding: 12px 16px; border-radius: 8px; font-size: 12px; width: max-content; pointer-events: none; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); border: 1px solid #374151; }
     .hm-wrap:hover .hm-tooltip { display: block; }
     
@@ -94,16 +92,14 @@
     .legend-box { display: flex; gap: 12px; font-size: 11px; font-weight: 700; color: #64748b; margin-top: 10px; justify-content: flex-end; }
     .legend-item { display: flex; align-items: center; gap: 4px; }
     .legend-color { width: 12px; height: 12px; border-radius: 3px; }
-    
-    /* W/S (작업대) 인디케이터 */
-    .ws-anchor-bar { flex: 1 1 100%; text-align: center; background: #dcfce7; border: 2px solid #22c55e; color: #166534; font-weight: 900; padding: 12px; border-radius: 8px; margin-bottom: 8px; font-size: 16px; letter-spacing: 1px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
+    .ws-anchor-bar { flex: 1 1 100%; text-align: center; background: #f0fdf4; border: 1px dashed #bbf7d0; color: #0f766e; font-weight: 700; padding: 10px; border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
   </style>
 </head>
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
   <div class="card">
-    <div class="title">QPS Dashboard v8.8.0</div>
-    <div class="subtitle">히트맵 W/S(작업대) 앵커 추가 및 툴팁 렌더링 클리핑 버그 픽스</div>
+    <div class="title">QPS Dashboard v8.9.0</div>
+    <div class="subtitle">히트맵 패스목록 하단 이동 및 랙 단위 W/S 인접도(거리) 자동 표기 반영</div>
   </div>
   
   <div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
@@ -155,31 +151,6 @@
 
     <div style="padding:20px; background:#f5f7fb; margin:-20px -20px 0 -20px; border-radius:16px;">
       <div id="insightArea"></div>
-      
-      <!-- 존 히트맵 뷰어 -->
-      <div class="card" style="border: 2px solid #dbeafe; margin-bottom: 24px; padding: 18px;">
-        <div class="subhead" style="display:flex; justify-content:space-between; align-items:center;">
-          <span style="color:#1e3a8a;">🔍 존(Zone) 출고량/재고 밀집도 히트맵</span>
-          <div style="display:flex; gap:10px; align-items:center;">
-            <select id="zoneSelect" onchange="renderZoneHeatmap(this.value)" style="padding:6px 12px; font-weight:bold; border-color:#93c5fd; font-size:13px;">
-              <option value="">존 선택 (로딩 대기)</option>
-            </select>
-          </div>
-        </div>
-        
-        <div class="legend-box">
-          <div class="legend-item"><div class="legend-color hm-empty"></div>공셀</div>
-          <div class="legend-item"><div class="legend-color hm-low"></div>1~14건</div>
-          <div class="legend-item"><div class="legend-color hm-mid"></div>15~29건</div>
-          <div class="legend-item"><div class="legend-color hm-high"></div>30~49건</div>
-          <div class="legend-item"><div class="legend-color hm-extreme"></div>50건 이상</div>
-        </div>
-
-        <div id="heatmapArea" class="heatmap-container">
-          <div style="color:#94a3b8; font-size:13px; text-align:center; width:100%; padding:30px;">존(Zone)을 선택하면 다이나믹 레이아웃이 생성됩니다.</div>
-        </div>
-      </div>
-
       <div class="machine-grid" id="machineSummary"></div>
       <div class="zones" id="loadZonesArea"></div>
       <div class="zones" id="progressZonesArea"></div>
@@ -217,6 +188,30 @@
             <tr><td colspan="4" style="text-align:center;color:#6b7280;padding:20px;">패스된 항목이 없습니다.</td></tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- 존 히트맵 뷰어 (하단 이동) -->
+    <div class="card" style="border: 2px solid #dbeafe; margin-bottom: 24px; padding: 18px;">
+      <div class="subhead" style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="color:#1e3a8a;">🔍 존(Zone) 출고량/재고 밀집도 히트맵</span>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <select id="zoneSelect" onchange="renderZoneHeatmap(this.value)" style="padding:6px 12px; font-weight:bold; border-color:#93c5fd; font-size:13px;">
+            <option value="">존 선택 (로딩 대기)</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="legend-box">
+        <div class="legend-item"><div class="legend-color hm-empty"></div>공셀</div>
+        <div class="legend-item"><div class="legend-color hm-low"></div>1~14건</div>
+        <div class="legend-item"><div class="legend-color hm-mid"></div>15~29건</div>
+        <div class="legend-item"><div class="legend-color hm-high"></div>30~49건</div>
+        <div class="legend-item"><div class="legend-color hm-extreme"></div>50건 이상</div>
+      </div>
+
+      <div id="heatmapArea" class="heatmap-container">
+        <div style="color:#94a3b8; font-size:13px; text-align:center; width:100%; padding:30px;">존(Zone)을 선택하면 다이나믹 레이아웃이 생성됩니다.</div>
       </div>
     </div>
 
@@ -271,6 +266,69 @@ const zoneDefs = {
     {zone:'E존',order:[null,'APS3-07','APS3-06','APS3-05','APS3-04',null,null,'APS3-03','APS3-02','APS3-01',null,null]},
     {zone:'F존',order:['APS3-08','APS3-09','APS3-10','APS3-11','APS3-12','APS3-13','APS3-14','APS3-15','APS3-16','APS3-17','APS3-18','APS3-19']}
   ]}
+};
+
+// 물리적 랙 거리를 뱃지로 그리기 위해 ruleEngine.js의 맵 데이터를 가져옴
+const DISTANCE_MAP = {
+  'A01': [['05'], ['06'], ['01','03'], ['02','04']],
+  'A02': [['02'], ['01'], ['03','05'], ['04','06']],
+  'A03': [['05','06'], ['01','03'], ['02','04']],
+  'A04': [['02','03'], ['01'], ['04','06'], ['05','07']],
+  'A05': [['02','01'], ['03','05'], ['04','06']],
+  'A06': [['05'], ['06'], ['01','03'], ['02','04']],
+  'A07': [['02'], ['01','03'], ['04','06'], ['05','07']],
+  'A08': [['01','03','05','07'], ['02','04','06','08']],
+  'A09': [['010106','010107','010108','010109','010110'], ['010104','010105','010111','010112'], ['010101','010102','010103','010113','010114']],
+  'A10': [['010105','010106','010107','010108','010109','010110'], ['010101','010102','010103','010104']],
+  'B01': [['02'], ['01'], ['03','05'], ['04','06']],
+  'B02': [['05'], ['06'], ['01','03'], ['02','04']],
+  'B03': [['02'], ['01'], ['03','05'], ['04','06']],
+  'B04': [['05'], ['06'], ['01','03'], ['02','04']],
+  'B05': [['02'], ['01'], ['03','05'], ['04','06']],
+  'B06': [['05'], ['06'], ['01','03'], ['02','04']],
+  'B07': [['02'], ['03'], ['01'], ['04','06'], ['05','07']],
+  'B08': [['01','03'], ['05','07'], ['02','04'], ['06','08']],
+  'B09': [['01','02'], ['03','05'], ['04','06']],
+  'B10': [['05'], ['06'], ['01','03'], ['02','04']],
+  'C01': [['05'], ['06'], ['01','03'], ['02','04']],
+  'C02': [['02'], ['01'], ['03','05'], ['04','06']],
+  'C03': [['05','06'], ['01','03'], ['02','04']],
+  'C04': [['03'], ['02'], ['01'], ['04','06'], ['05','07']],
+  'C05': [['02'], ['01'], ['03','05'], ['04','06']],
+  'C06': [['05'], ['06'], ['01','03'], ['02','04']],
+  'C07': [['02'], ['03'], ['01'], ['04','06'], ['05','07']],
+  'C08': [['01','03'], ['05','07'], ['02','04'], ['06','08']],
+  'C09': [['02','03'], ['01','04']],
+  'C10': [['010105','010106','010107','010108','010109'], ['010103','010104','010110','010111'], ['010101','010102']],
+  'D01': [['03','05'], ['04','06'], ['01'], ['02']],
+  'D02': [['01','03'], ['05'], ['02','04'], ['06']],
+  'D03': [['02'], ['01'], ['03','05'], ['04','06']],
+  'D04': [['05'], ['06'], ['01','03'], ['02','04']],
+  'D05': [['02','01'], ['03','05'], ['04','06']],
+  'D06': [['05'], ['06'], ['01','03'], ['02','04']],
+  'D07': [['01','02'], ['03','05'], ['04','06']],
+  'D08': [['01','03'], ['05','07'], ['02','04'], ['06','08'], ['09','11'], ['10','12']],
+  'D09': [['01','03'], ['05','07'], ['02','04'], ['06','08'], ['09','11'], ['10','12']],
+  'D10': [['05','07'], ['01','03'], ['06','08'], ['02','04'], ['09','11'], ['10','12']],
+  'E01': [['01','02'], ['03','05'], ['04','06']],
+  'E02': [['05'], ['06'], ['01','03'], ['02','04']],
+  'E03': [['01','03'], ['02','04'], ['05','07'], ['06','08']],
+  'E04': [['07'], ['01','03','05'], ['02','04'], ['06','08']],
+  'E05': [['01','03'], ['02','04'], ['06'], ['05','07']],
+  'E06': [['01','03','05','07'], ['02','04','06','08']],
+  'E07': [['01','03'], ['05'], ['02','04'], ['06']],
+  'F01': [['04'], ['03'], ['02'], ['01']],
+  'F02': [['04'], ['03'], ['02'], ['01']],
+  'F03': [['04'], ['03'], ['02'], ['01']],
+  'F04': [['04'], ['03'], ['02'], ['01']],
+  'F05': [['04'], ['03'], ['02'], ['01']],
+  'F06': [['04'], ['03'], ['02'], ['01']],
+  'F07': [['03'], ['02','04'], ['01']],
+  'F08': [['03'], ['02','04'], ['01']],
+  'F09': [['03'], ['02','04'], ['01']],
+  'F10': [['02'], ['01','03'], ['04']],
+  'F11': [['02'], ['01','03'], ['04']],
+  'F12': [['02','03'], ['01'], ['04']]
 };
 
 const machineList=['APS1','APS2','APS3'];
@@ -785,7 +843,7 @@ function updateHUD(allData) {
   $('#hudInboundTph').innerHTML = `${fmt(Math.round(inTph))}<span class="hud-unit">totes/hr</span>`;
 }
 
-// 존 히트맵 렌더러 (툴팁 및 W/S 앵커 개선 반영)
+// 랙 단위 물리적 인접도(거리) 자동 산출 및 표시 로직 추가
 window.renderZoneHeatmap = function(zone) {
   const area = $('#heatmapArea');
   if(!zone) {
@@ -816,16 +874,38 @@ window.renderZoneHeatmap = function(zone) {
     return;
   }
 
-  // W/S(작업대) 앵커 추가
-  let html = `<div class="ws-anchor-bar">🚶 ${zone} 작업대(W/S) 및 메인 작업 동선 🚶</div>`;
+  // 작업대 앵커 가이드 표시
+  let html = `<div class="ws-anchor-bar">💡 각 랙(Rack) 타이틀의 'W/S 최인접' 뱃지를 통해 작업대와의 거리를 직관적으로 확인하세요.</div>`;
+
+  const zoneMap = DISTANCE_MAP[zone] || [];
 
   sortedRacks.forEach(r => {
+    // 랙별 W/S 인접도 거리 계산 (ruleEngine.js의 DISTANCE_MAP 매핑)
+    let distRank = -1;
+    for (let i = 0; i < zoneMap.length; i++) {
+        // 일반 랙(예:'05') 또는 A09 같은 다단구조(예:'010106') 대응
+        if (zoneMap[i].some(v => v === r || (v.length === 6 && v.substring(0, 2) === r))) {
+            distRank = i;
+            break;
+        }
+    }
+
+    let badgeHtml = '';
+    if (distRank === 0) {
+        badgeHtml = '<span style="background:#fee2e2; color:#b91c1c; padding:2px 6px; border-radius:4px; font-size:10px;">🔥 W/S 최인접 (1선)</span>';
+    } else if (distRank === 1) {
+        badgeHtml = '<span style="background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:4px; font-size:10px;">🚶 2선</span>';
+    } else if (distRank > 1) {
+        badgeHtml = `<span style="background:#f1f5f9; color:#64748b; padding:2px 6px; border-radius:4px; font-size:10px;">${distRank+1}선</span>`;
+    } else {
+        badgeHtml = '<span style="background:#f1f5f9; color:#64748b; padding:2px 6px; border-radius:4px; font-size:10px;">거리 미상</span>';
+    }
+
     const rackData = racks[r];
     html += `<div class="rack-block">
-               <div class="rack-title">랙 ${r}</div>
+               <div class="rack-title"><span>랙 ${r}</span> ${badgeHtml}</div>
                <table class="rack-table">`;
     
-    // 위에서 아래로 단(Level) 렌더링
     for(let l = rackData.maxL; l >= 1; l--) {
       html += `<tr>`;
       for(let b = 1; b <= rackData.maxB; b++) {
@@ -854,7 +934,6 @@ window.renderZoneHeatmap = function(zone) {
 
         const displayVal = c.isEmpty ? '-' : (touch > 999 ? '999+' : touch);
         
-        // 툴팁 클래스를 hm-tooltip으로 변경 (아래 방향으로 랜더링)
         html += `
           <td>
             <div class="hm-wrap">
