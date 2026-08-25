@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QPS Dashboard v8.11.0</title>
+  <title>QPS Dashboard v8.12.0</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -93,7 +93,6 @@
     .legend-color { width: 12px; height: 12px; border-radius: 3px; }
     .ws-anchor-bar { flex: 1 1 100%; text-align: center; background: #f0fdf4; border: 1px dashed #bbf7d0; color: #0f766e; font-weight: 700; padding: 10px; border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
 
-    /* 모바일 반응형 최적화 */
     @media (max-width:1280px){
       .machine-grid,.zones,.insight-grid{grid-template-columns:1fr}
       .metrics{flex-wrap:wrap}
@@ -121,8 +120,8 @@
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
   <div class="card">
-    <div class="title">QPS Dashboard v8.11.0</div>
-    <div class="subtitle">작업 시작 시간 기본값 변경(14:00) 및 사용자 선택 로컬 스토리지 영구 저장 적용</div>
+    <div class="title">QPS Dashboard v8.12.0</div>
+    <div class="subtitle">동적 현장 관리자 조치 가이드(Action Guide) 반영</div>
   </div>
   
   <div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
@@ -817,7 +816,6 @@ function formatWsName(ws){
   return m ? `${m[1]}-${m[2]}` : ws;
 }
 
-// 시간 저장/불러오기 로직 추가
 window.saveStartTime = function() {
     localStorage.setItem('qps_start_time', $('#startTimeSelect').value);
 };
@@ -1051,11 +1049,35 @@ function drawScreen(allData){
       </div>
   `).join('') : '<div style="font-size:12px; color:#6b7280;">적체된 다건 토트 없음</div>';
 
+  // [신규] 현장 관리자 조치 가이드(Action Guide) 동적 생성
+  let actionGuideHtml = '<div style="background:#fff; border-radius:8px; padding:12px; margin-bottom:12px; border:1px solid #fca5a5;">';
+  actionGuideHtml += '<div style="font-size:13px; font-weight:800; color:#b91c1c; margin-bottom:6px;">💡 현장 관리자 즉각 조치 가이드</div>';
+  actionGuideHtml += '<ul style="margin: 0; padding-left: 20px; color: #475569; font-size: 12px; line-height: 1.6; font-weight: 700;">';
+  
+  let needsAction = false;
+  if (topSkus.length > 0) {
+    actionGuideHtml += `<li>[혈뚫기] 정체 1순위 <span style="color:#b91c1c;">${topSkus[0].name}</span>의 실재고 부족 및 랙 위치 이탈 여부를 즉시 파악하세요.</li>`;
+    needsAction = true;
+  }
+  if (topLoadWs.length > 0) {
+    actionGuideHtml += `<li>[인력 재배치] 잔여 물량이 집중된 <span style="color:#ea580c;">${formatWsName(topLoadWs[0].ws)} 작업대</span>의 인력 이탈 여부를 점검하세요.</li>`;
+    needsAction = true;
+  }
+  if (topComplexWs.length > 0) {
+    actionGuideHtml += `<li>[병목 방어] 다건(2SKU 이상) 비율이 높은 <span style="color:#ca8a04;">${formatWsName(topComplexWs[0].ws)} 작업대</span>에 숙련자를 선제 배치하세요.</li>`;
+    needsAction = true;
+  }
+  if (!needsAction) {
+    actionGuideHtml += `<li>현재 현장 주요 지표가 매우 안정적입니다. 특이 사항이 없습니다.</li>`;
+  }
+  actionGuideHtml += '</ul></div>';
+
   $('#insightArea').innerHTML = `
       <div class="card" style="border: 2px solid #fecaca; background: #fef2f2; margin-bottom: 24px;">
           <div class="subhead" style="color: #b91c1c; display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
               현장 확인 포인트 <span style="font-size:12px; font-weight:normal; color:#ef4444; margin-left:8px;">* 미완료 상태인 토트와 SKU를 추적하여 산출한 우선순위 인사이트입니다.</span>
           </div>
+          ${actionGuideHtml}
           <div class="insight-grid">
               <div style="background: #fff; padding: 14px; border-radius: 12px; border: 1px solid #f87171; box-shadow: 0 4px 6px rgba(220, 38, 38, 0.05);">
                   <div style="font-size:14px; font-weight: 800; color: #991b1b; margin-bottom: 12px; border-bottom: 1px dashed #fca5a5; padding-bottom: 6px;">피킹잔여 고빈도 SKU</div>
@@ -1350,7 +1372,6 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     appendDebug('XLSX 라이브러리 로딩 성공');
   }
 
-  // 초기 렌더링 시 로컬 스토리지에 저장된 시작 시간 복원
   const savedTime = localStorage.getItem('qps_start_time');
   if(savedTime) {
       const timeSelect = $('#startTimeSelect');
