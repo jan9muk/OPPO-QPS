@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.26.0 - Added: Flow-rack eviction quota to prevent task starvation)
+ * QPS cell-allocation rule engine (V2.27.0 - Added: Export targetWs property for UI recommendations)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -838,6 +838,7 @@
         currentRank: rankNum,
         targetRack: targetPc ? (text(targetPc.cell.rackType) || targetPc.family) : '적합 공셀 없음',
         targetCell: targetCellFmt,
+        targetWs: targetPc && targetPc.cell.ws ? targetPc.cell.ws : '',
         reason: targetPc
           ? recommendationReasons(sourcePc, targetPc, profile, context, sourceViolations, best.scoreInfo)
           : sourceViolations.join(' · '),
@@ -877,6 +878,6 @@
     return finalRecs;
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.26.0' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.27.0' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
