@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QPS Dashboard v8.13.0</title>
+  <title>QPS Dashboard v8.14.0</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -127,7 +127,7 @@
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
   <div class="card">
-    <div class="title">QPS Dashboard v8.13.0</div>
+    <div class="title">QPS Dashboard v8.14.0</div>
     <div class="subtitle">미래 부하 선행 지표 (설비 및 전체 분리포율 예측) 실시간 HUD 탑재</div>
   </div>
   
@@ -189,7 +189,7 @@
     <div style="padding:20px; background:#f5f7fb; margin:-20px -20px 0 -20px; border-radius:16px;">
       <div id="insightArea"></div>
       <div class="machine-grid" id="machineSummary"></div>
-      <div class="zones" id="loadZonesArea"></div>
+      <div id="loadZonesArea"></div>
       <div class="zones" id="progressZonesArea"></div>
     </div>
 
@@ -201,7 +201,7 @@
       <table>
         <thead>
           <tr>
-            <th>순번</th><th>SKU</th><th>상품명</th><th>현재고(PCS)</th><th>지시 토트 수</th><th>지시 PCS</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>랙 우선순위</th><th>권장 랙</th><th>추천 셀</th><th>사유</th><th>관리</th>
+            <th>순번</th><th>SKU</th><th>상품명</th><th>현재고(PCS)</th><th>지시 토트 수</th><th>지시 PCS</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>추천 랙</th><th>추천 셀</th><th>사유</th><th>관리</th>
           </tr>
         </thead>
         <tbody id="recommendBody"></tbody>
@@ -852,7 +852,7 @@ window.restoreSku = function(sku) {
 function formatWsName(ws){
   if(!ws) return '';
   const m = ws.match(/APS(\d+)-0*(\d+)/);
-  return m ? `${m[1]}-${m[2]}` : ws;
+  return m ? `APS${m[1]}-${m[2]}` : ws;
 }
 
 window.saveStartTime = function() {
@@ -1025,6 +1025,105 @@ window.renderZoneHeatmap = function(zone) {
   area.innerHTML = html;
 };
 
+// 동적 렌더링을 위한 작업대 부하 렌더 함수 
+window.renderLoadZones = function() {
+  const allData = window.qpsAllData;
+  if(!allData) return;
+  const modeElement = document.getElementById('loadScaleToggle');
+  const mode = modeElement ? modeElement.value : 'machine';
+  const stats = computeZoneStats(allData.wsMetrics);
+  const totalInboundAll = (stats['APS1']?.inboundTotes||0) + (stats['APS2']?.inboundTotes||0) + (stats['APS3']?.inboundTotes||0);
+
+  const activeWsList = Object.values(allData.wsMetrics).filter(m => m.totalTouches > 0);
+  const globalTouchValues = activeWsList.map(v=>v.totalTouches);
+  const globalMax = globalTouchValues.length ? Math.max(...globalTouchValues) : 0;
+  const globalAvg = activeWsList.length ? globalTouchValues.reduce((a,b)=>a+b,0) / activeWsList.length : 0;
+
+  let html = `
+    <div class="card" style="padding:0; overflow:hidden; margin-bottom:18px;">
+      <div style="padding:14px 18px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; background:#f8fafc;">
+        <div class="subhead" style="margin:0; font-size:16px; color:#1e293b;">📊 작업대별 부하 모니터링</div>
+        <div>
+          <select id="loadScaleToggle" onchange="renderLoadZones()" style="padding:4px 8px; font-size:12px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; cursor:pointer; background:#fff; color:#334155;">
+            <option value="machine" ${mode === 'machine' ? 'selected' : ''}>호기별 스케일</option>
+            <option value="all" ${mode === 'all' ? 'selected' : ''}>전체 통합 스케일</option>
+          </select>
+        </div>
+      </div>
+      <div style="padding:18px; background:#fff;">
+        <div class="zones" style="margin-bottom:0; display:grid; grid-template-columns:repeat(3, minmax(340px, 1fr)); gap:18px;">
+  `;
+
+  html += machineList.map(machine => {
+    const def = zoneDefs[machine];
+    const st = stats[machine];
+    const machineWsList = def.cols.flatMap(c => c.order).filter(ws => ws && allData.wsMetrics[ws] && allData.wsMetrics[ws].totalTouches > 0);
+    const machineWsCount = machineWsList.length;
+    const machineAvgTouch = machineWsCount > 0 ? st.totalTouches / machineWsCount : 0;
+    const machineTouchValues = machineWsList.map(ws => allData.wsMetrics[ws].totalTouches);
+    const machineMax = machineTouchValues.length ? Math.max(...machineTouchValues) : 0;
+
+    const currentMax = mode === 'all' ? globalMax : machineMax;
+    const currentAvg = mode === 'all' ? globalAvg : machineAvgTouch;
+
+    const inboundPct = totalInboundAll > 0 ? ((st.inboundTotes / totalInboundAll) * 100).toFixed(1) : "0.0";
+    const avgPct = currentMax > 0 ? (currentAvg / currentMax) * 100 : 0;
+    const lineHTML = `<div class="avg-line" title="평균 기준선" style="left: calc(63px + (100% - 143px) * ${avgPct / 100}); border-left-color: ${mode==='all' ? '#ea580c' : '#0f766e'};"></div>`;
+
+    return `
+      <div class="aps-block" style="border:1px solid #e2e8f0; border-radius:12px; padding:16px; background:#f8fafc;">
+        <div class="aps-head" style="border-bottom:1px solid #e2e8f0; margin-bottom:12px; padding-bottom:8px;">
+          <div class="aps-title" style="font-size:16px;">${def.label}</div>
+          <div style="font-size:12px; color:#64748b; font-weight:700;">평균 SKU ${fmt(Math.round(currentAvg))} / 지시 토트 ${fmt(st.inboundTotes)} (${inboundPct}%)</div>
+        </div>
+        <div class="zone-columns">
+          ${def.cols.map(col => `
+            <div class="zone-col">
+              <div class="zone-head" style="font-size:13px; color:#475569; padding-bottom:6px;"><span>${col.zone}</span></div>
+              <div class="spark-stack">
+                ${lineHTML}
+                ${col.order.map(ws => {
+                    if(!ws) return `<div class="spark-row blank"></div>`;
+                    const m = allData.wsMetrics[ws] || {inboundToteCount:0,totalTouches:0,totalTouchPcs:0,pcsPerTouch:0};
+                    const touch = m.totalTouches || 0;
+                    const touchWidth = currentMax > 0 ? Math.max(touch > 0 ? 3 : 0, (touch / currentMax) * 100) : 0;
+                    const touchBarColor = getLoadColor(touch, currentAvg, currentMax);
+                    const skuPerTote = m.inboundToteCount > 0 ? (touch / m.inboundToteCount).toFixed(2) : "0.00";
+                    const pcsPerTote = m.inboundToteCount > 0 ? (m.totalTouchPcs / m.inboundToteCount).toFixed(2) : "0.00";
+
+                    return `
+                      <div class="spark-row">
+                        <div class="ws-label">${formatWsName(ws)}</div>
+                        <div class="spark-track"><div class="spark-fill" style="width:${touchWidth}%;background:${touchBarColor};"></div></div>
+                        <div class="spark-value" style="text-align:right; line-height:1.2; display:flex; flex-direction:column; justify-content:center;">
+                          <div style="color:#64748b; font-size:10px;">토트 <b style="font-size:12px; color:#475569;">${fmt(m.inboundToteCount)}</b></div>
+                          <div style="color:#64748b; font-size:10px;">SKU <b style="font-size:12px; color:#1f2937;">${fmt(touch)}</b></div>
+                        </div>
+                        <div class="ws-tooltip">
+                          <div style="font-weight:800; margin-bottom:10px; border-bottom:1px solid #4b5563; padding-bottom:6px;">${formatWsName(ws)} 부하 상세</div>
+                          <div class="ws-tooltip-grid">
+                            <span>지시 토트</span><span style="color:#facc15">${fmt(m.inboundToteCount)}</span>
+                            <span>지시 SKU수</span><span>${fmt(touch)}</span>
+                            <span style="grid-column:1/-1; border-top:1px dashed #4b5563; margin-top:2px; padding-top:4px;"></span>
+                            <span>토트당 SKU</span><span>${skuPerTote}</span>
+                            <span>토트당 PCS</span><span>${pcsPerTote}</span>
+                          </div>
+                        </div>
+                      </div>
+                    `;
+                }).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  html += `</div></div></div>`;
+  $('#loadZonesArea').innerHTML = html;
+};
+
 function drawScreen(allData){
   updateHUD(allData);
 
@@ -1142,8 +1241,6 @@ function drawScreen(allData){
   const touchValues=activeWsList.map(v=>v.totalTouches);
   const max=touchValues.length?Math.max(...touchValues):0;
   const stats=computeZoneStats(allData.wsMetrics);
-  
-  const totalInboundAll = (stats['APS1']?.inboundTotes||0) + (stats['APS2']?.inboundTotes||0) + (stats['APS3']?.inboundTotes||0);
 
   $('#machineSummary').innerHTML=machineList.map(machine=>{
     const st=stats[machine];
@@ -1162,60 +1259,8 @@ function drawScreen(allData){
       </div>`;
   }).join('');
 
-  $('#loadZonesArea').innerHTML = machineList.map(machine=>{
-    const def = zoneDefs[machine];
-    const st = stats[machine];
-    
-    const machineWsCount = def.cols.flatMap(c => c.order).filter(ws => ws && allData.wsMetrics[ws] && allData.wsMetrics[ws].totalTouches > 0).length;
-    const machineAvgTouch = machineWsCount > 0 ? st.totalTouches / machineWsCount : 0;
-    const inboundPct = totalInboundAll > 0 ? ((st.inboundTotes / totalInboundAll) * 100).toFixed(1) : "0.0";
-    
-    const avgPct = max > 0 ? (machineAvgTouch / max) * 100 : 0;
-    const lineHTML = `<div class="avg-line" title="W/S별 SKU 평균" style="left: calc(63px + (100% - 143px) * ${avgPct / 100});"></div>`;
-
-    return `<div class="card aps-block">
-      <div class="aps-head">
-        <div class="aps-title">${def.label} 작업대별 부하</div>
-        <div style="font-size:13px; color:#475569; font-weight:700;">W/S별 SKU 평균 ${fmt(Math.round(machineAvgTouch))} / 지시 토트 ${fmt(st.inboundTotes)} (${inboundPct}%)</div>
-      </div>
-      <div class="zone-columns">${
-      def.cols.map(col=>`<div class="zone-col"><div class="zone-head"><span>${col.zone}</span></div><div class="spark-stack">
-        ${lineHTML}
-        ${col.order.map(ws=>{
-          if(!ws) return `<div class="spark-row blank"></div>`;
-          const m=allData.wsMetrics[ws]||{inboundToteCount:0,totalTouches:0,completeTouches:0,progressRate:0,pcsPerTouch:0,totalTouchPcs:0};
-          const touch=m.totalTouches||0;
-          const touchWidth=max>0?Math.max(touch>0?3:0,(touch/max)*100):0;
-          const touchBarColor=getLoadColor(touch, machineAvgTouch, max);
-          
-          const skuPerTote = m.inboundToteCount > 0 ? (touch / m.inboundToteCount).toFixed(2) : "0.00";
-          const pcsPerTote = m.inboundToteCount > 0 ? (m.totalTouchPcs / m.inboundToteCount).toFixed(2) : "0.00";
-
-          return `
-            <div class="spark-row">
-              <div class="ws-label">${formatWsName(ws)}</div>
-              <div class="spark-track"><div class="spark-fill" style="width:${touchWidth}%;background:${touchBarColor};"></div></div>
-              <div class="spark-value" style="text-align:right; line-height:1.2; display:flex; flex-direction:column; justify-content:center;">
-                <div style="color:#64748b; font-size:10px;">토트 <b style="font-size:12px; color:#475569;">${fmt(m.inboundToteCount)}</b></div>
-                <div style="color:#64748b; font-size:10px;">SKU <b style="font-size:12px; color:#1f2937;">${fmt(touch)}</b></div>
-              </div>
-              <div class="ws-tooltip">
-                <div style="font-weight:800; margin-bottom:10px; border-bottom:1px solid #4b5563; padding-bottom:6px;">${formatWsName(ws)} 부하 상세</div>
-                <div class="ws-tooltip-grid">
-                  <span>지시 토트</span><span style="color:#facc15">${fmt(m.inboundToteCount)}</span>
-                  <span>지시 SKU수</span><span>${fmt(touch)}</span>
-                  <span style="grid-column:1/-1; border-top:1px dashed #4b5563; margin-top:2px; padding-top:4px;"></span>
-                  <span>토트당 SKU</span><span>${skuPerTote}</span>
-                  <span>토트당 PCS</span><span>${pcsPerTote}</span>
-                  <span>SKU당 PCS</span><span>${m.pcsPerTouch.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-          `;
-        }).join('')}
-      </div></div>`).join('')
-    }</div></div>`;
-  }).join('');
+  // 통합 렌더링 호출
+  window.renderLoadZones();
 
   $('#progressZonesArea').innerHTML = machineList.map(machine=>{
     const def = zoneDefs[machine];
@@ -1303,7 +1348,7 @@ function drawScreen(allData){
   });
 
   const renderDisplay = displayRecs.slice(0, 20);
-  $('#recommendBody').innerHTML = renderDisplay.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${fmt(r.pcs)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td><span class="pill">${r.currentRank}</span></td><td>${r.targetRack}</td><td>${r.targetCell}</td><td>${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('') || '<tr><td colspan="14">추천 결과 없음</td></tr>';
+  $('#recommendBody').innerHTML = renderDisplay.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${fmt(r.pcs)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td>${r.targetRack}</td><td>${r.targetWs ? formatWsName(r.targetWs) + ' ' : ''}${r.targetCell}</td><td>${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('') || '<tr><td colspan="13">추천 결과 없음</td></tr>';
 
   $('#passCount').textContent = passedRecs.length;
   if(passedRecs.length > 0) {
