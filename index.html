@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QPS Dashboard v8.12.0</title>
+  <title>QPS Dashboard v8.13.0</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -18,12 +18,18 @@
     .debug{font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px;max-height:220px;overflow:auto}
     .empty{padding:84px 24px;text-align:center;color:#6b7280;font-size:18px}
     .section{display:none}
-    .hud-panel{display:flex;justify-content:space-around;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}
-    .hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;}
+    
+    /* HUD 패널 확장 (6개 항목 대응) */
+    .hud-panel{display:flex;justify-content:space-around;flex-wrap:wrap;gap:16px;background:#111827;color:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+    .hud-box{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;min-width:140px;}
     .hud-label{font-size:13px;color:#9ca3af;font-weight:700;margin-bottom:6px;letter-spacing:1px}
     .hud-value{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
     .hud-unit{font-size:16px;font-weight:600;margin-left:4px;color:#6b7280}
+    
     .val-tph{color:#34d399} .val-avg{color:#a855f7} .val-inbound{color:#facc15} .val-remain{color:#60a5fa}
+    .val-split1{color:#fb923c} /* 설비 분리포율 (Bypass 제외) */
+    .val-split2{color:#f472b6} /* 전체 분리포율 (Bypass 포함) */
+    
     .machine-grid,.zones{display:grid;grid-template-columns:repeat(3,minmax(340px,1fr));gap:18px;margin-bottom:18px}
     .machine-card{padding:16px 18px}
     .machine-name{font-size:22px;font-weight:800}
@@ -93,6 +99,7 @@
     .legend-color { width: 12px; height: 12px; border-radius: 3px; }
     .ws-anchor-bar { flex: 1 1 100%; text-align: center; background: #f0fdf4; border: 1px dashed #bbf7d0; color: #0f766e; font-weight: 700; padding: 10px; border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
 
+    /* 모바일 반응형 최적화 */
     @media (max-width:1280px){
       .machine-grid,.zones,.insight-grid{grid-template-columns:1fr}
       .metrics{flex-wrap:wrap}
@@ -120,8 +127,8 @@
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
   <div class="card">
-    <div class="title">QPS Dashboard v8.12.0</div>
-    <div class="subtitle">동적 현장 관리자 조치 가이드(Action Guide) 반영</div>
+    <div class="title">QPS Dashboard v8.13.0</div>
+    <div class="subtitle">미래 부하 선행 지표 (설비 및 전체 분리포율 예측) 실시간 HUD 탑재</div>
   </div>
   
   <div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
@@ -151,7 +158,7 @@
   <div id="emptyState" class="card empty">데이터를 표시하려면 박스상품 상세정보와 셀할당현황 파일을 동시에 업로드해 주세요.</div>
   
   <div id="content" class="section">
-    <!-- 글로벌 HUD 패널 -->
+    <!-- 글로벌 HUD 패널 (확장 6-Grid) -->
     <div class="hud-panel" id="hudPanel">
       <div class="hud-box">
         <div class="hud-label">실시간 처리 속도 (최근 1시간)</div>
@@ -168,6 +175,14 @@
       <div class="hud-box">
         <div class="hud-label">2층 피킹 잔여 토트</div>
         <div class="hud-value val-remain" id="hudRemain">0<span class="hud-unit">totes</span></div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">설비 분리포율 (Bypass 제외)</div>
+        <div class="hud-value val-split1" id="hudEqSplit">0.00<span class="hud-unit">박스/건</span></div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">전체 분리포율 (Bypass 포함)</div>
+        <div class="hud-value val-split2" id="hudAllSplit">0.00<span class="hud-unit">박스/건</span></div>
       </div>
     </div>
 
@@ -543,6 +558,12 @@ function buildAllData(boxRows,cellRows){
   const emptyCells=[];
   
   const zonesFound = new Set(); 
+  
+  // 분리포율 산출용 Set 초기화
+  const allOrders = new Set();
+  const allTotes = new Set();
+  const eqOrders = new Set();
+  const eqTotes = new Set();
 
   for(const row of cellRows){
     const ws=normalizeWs(row['작업대']);
@@ -584,12 +605,28 @@ function buildAllData(boxRows,cellRows){
   for(const row of boxRows){
     const sku=normalizeSku(row['물류상품ID']);
     const toteKey=makeToteKey(row);
+    const deliveryNo = String(row['배송번호']||'').trim();
+    
     if(!sku || !toteKey) continue;
 
     const pcs=toNumber(row['피킹지시수량']);
     const status=String(statusCol ? row[statusCol] : '').trim();
     
     if(EXCLUDE_STATUS.includes(status)) continue;
+
+    const routeVal = routingCol ? String(row[routingCol]).trim() : '';
+    const is2FType = routingCol ? valid2FTypes.has(routeVal) : true;
+    
+    // 분리포율용 데이터 적재 (Bypass 제외 판단)
+    const isBypass = /bypass|바이패스|직행/i.test(routeVal);
+    if(deliveryNo && toteKey) {
+        allOrders.add(deliveryNo);
+        allTotes.add(toteKey);
+        if(!isBypass) {
+            eqOrders.add(deliveryNo);
+            eqTotes.add(toteKey);
+        }
+    }
 
     let timeMs = 0;
     if(updateDateCol) {
@@ -601,9 +638,6 @@ function buildAllData(boxRows,cellRows){
         }
       }
     }
-
-    const routeVal = routingCol ? String(row[routingCol]).trim() : '';
-    const is2FType = routingCol ? valid2FTypes.has(routeVal) : true;
 
     if(!skuMeta.has(sku)) skuMeta.set(sku,{name:getProductName(row)});
     skuToPcs.set(sku,(skuToPcs.get(sku)||0)+pcs);
@@ -723,6 +757,9 @@ function buildAllData(boxRows,cellRows){
     }
   }
 
+  const allSplitRate = allOrders.size > 0 ? (allTotes.size / allOrders.size) : 0;
+  const eqSplitRate = eqOrders.size > 0 ? (eqTotes.size / eqOrders.size) : 0;
+
   return {
     skuToPcs,
     skuToToteCount,
@@ -740,7 +777,9 @@ function buildAllData(boxRows,cellRows){
     wsIncompleteTotes,
     wsIncompleteComplexTotes,
     skuToWsSet,
-    zonesFound: Array.from(zonesFound).sort()
+    zonesFound: Array.from(zonesFound).sort(),
+    allSplitRate,
+    eqSplitRate
   };
 }
 function computeZoneStats(wsMetrics){
@@ -821,6 +860,11 @@ window.saveStartTime = function() {
 };
 
 function updateHUD(allData) {
+  const eqRateStr = allData.eqSplitRate ? allData.eqSplitRate.toFixed(2) : '0.00';
+  const allRateStr = allData.allSplitRate ? allData.allSplitRate.toFixed(2) : '0.00';
+  $('#hudEqSplit').innerHTML = `${eqRateStr}<span class="hud-unit">박스/건</span>`;
+  $('#hudAllSplit').innerHTML = `${allRateStr}<span class="hud-unit">박스/건</span>`;
+
   const latestTime = allData.latestDataTimeMs;
   const targetHour = parseInt($('#startTimeSelect').value, 10);
   
@@ -1049,7 +1093,6 @@ function drawScreen(allData){
       </div>
   `).join('') : '<div style="font-size:12px; color:#6b7280;">적체된 다건 토트 없음</div>';
 
-  // [신규] 현장 관리자 조치 가이드(Action Guide) 동적 생성
   let actionGuideHtml = '<div style="background:#fff; border-radius:8px; padding:12px; margin-bottom:12px; border:1px solid #fca5a5;">';
   actionGuideHtml += '<div style="font-size:13px; font-weight:800; color:#b91c1c; margin-bottom:6px;">💡 현장 관리자 즉각 조치 가이드</div>';
   actionGuideHtml += '<ul style="margin: 0; padding-left: 20px; color: #475569; font-size: 12px; line-height: 1.6; font-weight: 700;">';
