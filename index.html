@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QPS Dashboard v8.14.0</title>
+  <title>QPS Dashboard v8.15.0</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -127,7 +127,7 @@
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
   <div class="card">
-    <div class="title">QPS Dashboard v8.14.0</div>
+    <div class="title">QPS Dashboard v8.15.0</div>
     <div class="subtitle">미래 부하 선행 지표 (설비 및 전체 분리포율 예측) 실시간 HUD 탑재</div>
   </div>
   
@@ -289,6 +289,9 @@ window.clearCacheAndReload = async function() {
   await idbClear();
   location.reload();
 };
+
+// 글로벌 토글 상태 변수 할당
+window.qpsLoadScaleMode = window.qpsLoadScaleMode || 'machine';
 
 const zoneDefs = {
   APS1:{label:'1호기',cols:[
@@ -1029,8 +1032,7 @@ window.renderZoneHeatmap = function(zone) {
 window.renderLoadZones = function() {
   const allData = window.qpsAllData;
   if(!allData) return;
-  const modeElement = document.getElementById('loadScaleToggle');
-  const mode = modeElement ? modeElement.value : 'machine';
+  const mode = window.qpsLoadScaleMode; // 글로벌 변수에서 상태 조회
   const stats = computeZoneStats(allData.wsMetrics);
   const totalInboundAll = (stats['APS1']?.inboundTotes||0) + (stats['APS2']?.inboundTotes||0) + (stats['APS3']?.inboundTotes||0);
 
@@ -1039,15 +1041,18 @@ window.renderLoadZones = function() {
   const globalMax = globalTouchValues.length ? Math.max(...globalTouchValues) : 0;
   const globalAvg = activeWsList.length ? globalTouchValues.reduce((a,b)=>a+b,0) / activeWsList.length : 0;
 
+  // 체크박스 기반 토글 UI 구현 (글로벌 상태와 동기화)
   let html = `
     <div class="card" style="padding:0; overflow:hidden; margin-bottom:18px;">
       <div style="padding:14px 18px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; background:#f8fafc;">
-        <div class="subhead" style="margin:0; font-size:16px; color:#1e293b;">📊 작업대별 부하 모니터링</div>
+        <div class="subhead" style="margin:0; font-size:16px; color:#1e293b;">작업대별 부하 모니터링</div>
         <div>
-          <select id="loadScaleToggle" onchange="renderLoadZones()" style="padding:4px 8px; font-size:12px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold; cursor:pointer; background:#fff; color:#334155;">
-            <option value="machine" ${mode === 'machine' ? 'selected' : ''}>호기별 스케일</option>
-            <option value="all" ${mode === 'all' ? 'selected' : ''}>전체 통합 스케일</option>
-          </select>
+          <label style="display:flex; align-items:center; cursor:pointer; font-size:12px; font-weight:800; background:#e2e8f0; border-radius:20px; padding:2px; position:relative; width:130px; height:28px; user-select:none;">
+            <input type="checkbox" onchange="window.qpsLoadScaleMode = this.checked ? 'all' : 'machine'; renderLoadZones();" style="display:none;" ${mode === 'all' ? 'checked' : ''}>
+            <div style="position:absolute; width:63px; height:24px; background:#fff; border-radius:16px; left:2px; transition:transform 0.2s cubic-bezier(0.4, 0.0, 0.2, 1); box-shadow:0 1px 3px rgba(0,0,0,0.1); transform:translateX(${mode === 'all' ? '63px' : '0'});"></div>
+            <span style="flex:1; text-align:center; z-index:1; color:${mode === 'all' ? '#64748b' : '#0f172a'}; transition:color 0.2s;">호기별</span>
+            <span style="flex:1; text-align:center; z-index:1; color:${mode === 'all' ? '#0f172a' : '#64748b'}; transition:color 0.2s;">전체</span>
+          </label>
         </div>
       </div>
       <div style="padding:18px; background:#fff;">
