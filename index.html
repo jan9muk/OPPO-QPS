@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QPS Dashboard v8.15.0</title>
+  <title>QPS Dashboard v8.16.0</title>
+  <!-- 캡처를 위한 html2canvas 라이브러리 추가 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     body{margin:0;padding:20px;font-family:Arial,"Malgun Gothic",sans-serif;background:#f5f7fb;color:#1f2937}
@@ -78,6 +80,20 @@
     .btn-restore{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;transition:0.2s}
     .btn-restore:hover{background:#dcfce7}
 
+    /* 화면 캡처용 버튼 스타일 */
+    .btn-capture { background:#1e3a8a; color:#fff; border:none; border-radius:6px; padding:8px 16px; cursor:pointer; font-size:13px; font-weight:bold; transition:0.2s; box-shadow:0 4px 6px -1px rgba(30,58,138,.3); display:inline-flex; align-items:center; }
+    .btn-capture:hover { background:#1e40af; }
+    .btn-capture:disabled { background:#94a3b8; cursor:not-allowed; box-shadow:none; }
+
+    /* 추천 테이블 사유 텍스트 횡스크롤 방지 */
+    #recommendBody td.reason-col {
+        max-width: 350px; /* 말줄임 처리할 너비 */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: help; /* 마우스 오버 시 툴팁을 보기 위한 커서 표기 */
+    }
+
     .heatmap-container { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; overflow-x: auto; padding-bottom: 140px; }
     .rack-block { border: 2px solid #e2e8f0; background: #fff; border-radius: 8px; padding: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); min-width: max-content; }
     .rack-title { font-size: 14px; font-weight: 800; color: #1e293b; margin-bottom: 8px; text-align: center; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
@@ -127,7 +143,7 @@
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
   <div class="card">
-    <div class="title">QPS Dashboard v8.15.0</div>
+    <div class="title">QPS Dashboard v8.16.0</div>
     <div class="subtitle">미래 부하 선행 지표 (설비 및 전체 분리포율 예측) 실시간 HUD 탑재</div>
   </div>
   
@@ -186,7 +202,14 @@
       </div>
     </div>
 
-    <div style="padding:20px; background:#f5f7fb; margin:-20px -20px 0 -20px; border-radius:16px;">
+    <!-- 캡처 타겟의 헤더 및 버튼 -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin:15px 0 10px 0;">
+      <div style="font-size:16px; font-weight:800; color:#1e293b;">현장 상황 요약 (카톡 공유 대상 영역)</div>
+      <button class="btn-capture" id="captureBtn" onclick="captureToClipboard()">📸 카톡 공유용 화면 캡처</button>
+    </div>
+
+    <!-- 캡처 대상(Target) 영역: 현장 확인 포인트 ~ 호기별 피킹 진척도 -->
+    <div id="captureTarget" style="padding:20px; background:#f5f7fb; border-radius:16px; margin: 0 -20px;">
       <div id="insightArea"></div>
       <div class="machine-grid" id="machineSummary"></div>
       <div id="loadZonesArea"></div>
@@ -194,9 +217,9 @@
     </div>
 
     <!-- 메인 추천 카드 -->
-    <div class="card" style="overflow-x:auto; margin-top:20px;">
+    <div class="card" style="overflow-x:auto; margin-top:30px;">
       <div class="subhead" style="display:flex; justify-content:space-between; align-items:center;">
-        <span>셀 이동 추천</span>
+        <span>셀 이동 추천 <span style="font-size:12px; font-weight:normal; color:#ef4444; margin-left:8px;">* 사유가 긴 경우 마우스를 올리면 전체 내용을 확인할 수 있습니다.</span></span>
       </div>
       <table>
         <thead>
@@ -260,6 +283,45 @@
   </div>
 
 <script>
+// --- PC 클립보드 복사용 캡처 함수 추가 ---
+async function captureToClipboard() {
+  const target = document.getElementById('captureTarget');
+  const btn = document.getElementById('captureBtn');
+  const originalText = btn.innerHTML;
+  
+  btn.innerHTML = '⏳ 캡처 중... (잠시만 기다려주세요)';
+  btn.disabled = true;
+  
+  try {
+      // html2canvas 실행 (대상 영역만 캡처)
+      const canvas = await html2canvas(target, { 
+          scale: 1.5, // 화질 적당히 향상 (2 이상 시 메모리/속도 부하 고려)
+          useCORS: true, 
+          backgroundColor: '#f5f7fb'
+      });
+      
+      // 캔버스를 Blob으로 변환하여 클립보드에 쓰기
+      canvas.toBlob(async function(blob) {
+          try {
+              const item = new ClipboardItem({ "image/png": blob });
+              await navigator.clipboard.write([item]);
+              alert('✅ 이미지가 클립보드에 복사되었습니다.\n\nPC 카카오톡 대화창에서 Ctrl+V (붙여넣기) 하세요.');
+          } catch (err) {
+              console.error('Clipboard write error:', err);
+              alert('❌ 클립보드 복사에 실패했습니다. 브라우저에서 클립보드 권한을 확인해 주세요.');
+          } finally {
+              btn.innerHTML = originalText;
+              btn.disabled = false;
+          }
+      }, 'image/png');
+  } catch (e) {
+      console.error('html2canvas error:', e);
+      alert('캡처 중 오류가 발생했습니다.');
+      btn.innerHTML = originalText;
+      btn.disabled = false;
+  }
+}
+
 const DB_STORE = 'qps_raw_cache';
 const dbPromise = new Promise((res, rej) => {
   const req = indexedDB.open('QPS_DB', 1);
@@ -1032,7 +1094,7 @@ window.renderZoneHeatmap = function(zone) {
 window.renderLoadZones = function() {
   const allData = window.qpsAllData;
   if(!allData) return;
-  const mode = window.qpsLoadScaleMode; // 글로벌 변수에서 상태 조회
+  const mode = window.qpsLoadScaleMode; 
   const stats = computeZoneStats(allData.wsMetrics);
   const totalInboundAll = (stats['APS1']?.inboundTotes||0) + (stats['APS2']?.inboundTotes||0) + (stats['APS3']?.inboundTotes||0);
 
@@ -1041,7 +1103,6 @@ window.renderLoadZones = function() {
   const globalMax = globalTouchValues.length ? Math.max(...globalTouchValues) : 0;
   const globalAvg = activeWsList.length ? globalTouchValues.reduce((a,b)=>a+b,0) / activeWsList.length : 0;
 
-  // 체크박스 기반 토글 UI 구현 (글로벌 상태와 동기화)
   let html = `
     <div class="card" style="padding:0; overflow:hidden; margin-bottom:18px;">
       <div style="padding:14px 18px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; background:#f8fafc;">
@@ -1353,11 +1414,13 @@ function drawScreen(allData){
   });
 
   const renderDisplay = displayRecs.slice(0, 20);
-  $('#recommendBody').innerHTML = renderDisplay.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${fmt(r.pcs)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td>${r.targetRack}</td><td>${r.targetWs ? formatWsName(r.targetWs) + ' ' : ''}${r.targetCell}</td><td>${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('') || '<tr><td colspan="13">추천 결과 없음</td></tr>';
+  // 사유 부분 td에 class="reason-col" 및 title 속성 적용
+  $('#recommendBody').innerHTML = renderDisplay.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${fmt(r.pcs)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td>${r.targetRack}</td><td>${r.targetWs ? formatWsName(r.targetWs) + ' ' : ''}${r.targetCell}</td><td class="reason-col" title="${r.reason}">${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('') || '<tr><td colspan="13">추천 결과 없음</td></tr>';
 
   $('#passCount').textContent = passedRecs.length;
   if(passedRecs.length > 0) {
-    $('#passedBody').innerHTML = passedRecs.map(r => `<tr><td>${r.sku}</td><td>${r.productName||''}</td><td style="color:#6b7280">${r.reason}</td><td><button class="btn-restore" onclick="restoreSku('${r.sku}')">복구</button></td></tr>`).join('');
+    // 패스 목록 사유 부분 td 에도 적용
+    $('#passedBody').innerHTML = passedRecs.map(r => `<tr><td>${r.sku}</td><td>${r.productName||''}</td><td class="reason-col" title="${r.reason}" style="color:#6b7280">${r.reason}</td><td><button class="btn-restore" onclick="restoreSku('${r.sku}')">복구</button></td></tr>`).join('');
   } else {
     $('#passedBody').innerHTML = `<tr><td colspan="4" style="text-align:center;color:#6b7280;padding:20px;">패스된 항목이 없습니다.</td></tr>`;
   }
