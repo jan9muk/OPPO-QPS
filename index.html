@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QPS Dashboard v8.16.0</title>
+  <title>QPS Dashboard v8.17.0</title>
   <!-- 캡처를 위한 html2canvas 라이브러리 추가 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -81,9 +81,9 @@
     .btn-restore:hover{background:#dcfce7}
 
     /* 화면 캡처용 버튼 스타일 */
-    .btn-capture { background:#1e3a8a; color:#fff; border:none; border-radius:6px; padding:8px 16px; cursor:pointer; font-size:13px; font-weight:bold; transition:0.2s; box-shadow:0 4px 6px -1px rgba(30,58,138,.3); display:inline-flex; align-items:center; }
+    .btn-capture { background:#1e3a8a; color:#fff; border:none; border-radius:6px; padding:8px 16px; cursor:pointer; font-size:13px; font-weight:bold; transition:all 0.3s ease; box-shadow:0 4px 6px -1px rgba(30,58,138,.3); display:inline-flex; align-items:center; }
     .btn-capture:hover { background:#1e40af; }
-    .btn-capture:disabled { background:#94a3b8; cursor:not-allowed; box-shadow:none; }
+    .btn-capture:disabled { cursor:not-allowed; box-shadow:none; }
 
     /* 추천 테이블 사유 텍스트 횡스크롤 방지 */
     #recommendBody td.reason-col {
@@ -143,7 +143,7 @@
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
   <div class="card">
-    <div class="title">QPS Dashboard v8.16.0</div>
+    <div class="title">QPS Dashboard v8.17.0</div>
     <div class="subtitle">미래 부하 선행 지표 (설비 및 전체 분리포율 예측) 실시간 HUD 탑재</div>
   </div>
   
@@ -283,7 +283,7 @@
   </div>
 
 <script>
-// --- PC 클립보드 복사용 캡처 함수 추가 ---
+// --- 얼럿 없이 버튼 UI를 통해 성공 여부를 알려주는 캡처 함수 ---
 async function captureToClipboard() {
   const target = document.getElementById('captureTarget');
   const btn = document.getElementById('captureBtn');
@@ -291,34 +291,54 @@ async function captureToClipboard() {
   
   btn.innerHTML = '⏳ 캡처 중... (잠시만 기다려주세요)';
   btn.disabled = true;
+  btn.style.backgroundColor = '#94a3b8'; // 회색 대기 상태
   
   try {
-      // html2canvas 실행 (대상 영역만 캡처)
       const canvas = await html2canvas(target, { 
-          scale: 1.5, // 화질 적당히 향상 (2 이상 시 메모리/속도 부하 고려)
+          scale: 1.5,
           useCORS: true, 
           backgroundColor: '#f5f7fb'
       });
       
-      // 캔버스를 Blob으로 변환하여 클립보드에 쓰기
       canvas.toBlob(async function(blob) {
           try {
               const item = new ClipboardItem({ "image/png": blob });
               await navigator.clipboard.write([item]);
-              alert('✅ 이미지가 클립보드에 복사되었습니다.\n\nPC 카카오톡 대화창에서 Ctrl+V (붙여넣기) 하세요.');
+              
+              // 얼럿(alert) 제거 후, 버튼 시각적 알림 적용
+              btn.innerHTML = '✅ 복사 완료! 카톡에 Ctrl+V 하세요';
+              btn.style.backgroundColor = '#16a34a'; // 성공 초록색
+              
+              setTimeout(() => {
+                  btn.innerHTML = originalText;
+                  btn.style.backgroundColor = ''; // CSS 정의된 원래 색상으로 복구
+                  btn.disabled = false;
+              }, 3000); // 3초 뒤 복구
+
           } catch (err) {
               console.error('Clipboard write error:', err);
-              alert('❌ 클립보드 복사에 실패했습니다. 브라우저에서 클립보드 권한을 확인해 주세요.');
-          } finally {
-              btn.innerHTML = originalText;
-              btn.disabled = false;
+              
+              // 실패 시 에러 시각적 알림
+              btn.innerHTML = '❌ 복사 실패 (권한 확인)';
+              btn.style.backgroundColor = '#dc2626'; // 에러 빨간색
+              
+              setTimeout(() => {
+                  btn.innerHTML = originalText;
+                  btn.style.backgroundColor = '';
+                  btn.disabled = false;
+              }, 3000);
           }
       }, 'image/png');
   } catch (e) {
       console.error('html2canvas error:', e);
-      alert('캡처 중 오류가 발생했습니다.');
-      btn.innerHTML = originalText;
-      btn.disabled = false;
+      btn.innerHTML = '❌ 캡처 에러 발생';
+      btn.style.backgroundColor = '#dc2626';
+      
+      setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.style.backgroundColor = '';
+          btn.disabled = false;
+      }, 3000);
   }
 }
 
