@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QPS Dashboard v8.17.0</title>
+  <title>QPS Dashboard v8.19.0</title>
   <!-- 캡처를 위한 html2canvas 라이브러리 추가 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -143,14 +143,14 @@
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
   <div class="card">
-    <div class="title">QPS Dashboard v8.17.0</div>
+    <div class="title">QPS Dashboard v8.19.0</div>
     <div class="subtitle">미래 부하 선행 지표 (설비 및 전체 분리포율 예측) 실시간 HUD 탑재</div>
   </div>
   
   <div class="card" id="dropZone" style="border:2px dashed transparent; transition:0.2s;">
     <div class="row">
       <div class="group" style="flex:1;">
-        <label>데이터 세트 동시 업로드 (박스상품 + 셀할당 파일)</label>
+        <label>데이터 세트 동시 업로드 (박스상품 + 셀할당 파일 여러 개 동시 가능)</label>
         <input type="file" id="multiFile" accept=".xlsx,.xls" multiple>
       </div>
       <div class="group">
@@ -161,7 +161,7 @@
         </select>
       </div>
     </div>
-    <div class="status" id="status" style="margin-bottom: 4px;">* 데이터 정합성을 위해 2개의 파일을 한 번에 선택하거나, 이곳에 드래그 앤 드롭해 주세요.</div>
+    <div class="status" id="status" style="margin-bottom: 4px;">* 데이터 정합성을 위해 2개 이상의 파일을 한 번에 선택하거나, 이곳에 드래그 앤 드롭해 주세요.</div>
     
     <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:8px;">
       <div style="font-size:12px; color:#6b7280;">
@@ -1123,6 +1123,7 @@ window.renderLoadZones = function() {
   const globalMax = globalTouchValues.length ? Math.max(...globalTouchValues) : 0;
   const globalAvg = activeWsList.length ? globalTouchValues.reduce((a,b)=>a+b,0) / activeWsList.length : 0;
 
+  // 체크박스 기반 토글 UI 구현 (글로벌 상태와 동기화)
   let html = `
     <div class="card" style="padding:0; overflow:hidden; margin-bottom:18px;">
       <div style="padding:14px 18px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; background:#f8fafc;">
@@ -1434,8 +1435,8 @@ function drawScreen(allData){
   });
 
   const renderDisplay = displayRecs.slice(0, 20);
-  // 사유 부분 td에 class="reason-col" 및 title 속성 적용
-  $('#recommendBody').innerHTML = renderDisplay.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${fmt(r.pcs)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td>${r.targetRack}</td><td>${r.targetWs ? formatWsName(r.targetWs) + ' ' : ''}${r.targetCell}</td><td class="reason-col" title="${r.reason}">${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('') || '<tr><td colspan="13">추천 결과 없음</td></tr>';
+  // 사유 부분 td에 class="reason-col" 및 title 속성 적용, targetWs 문자열 포맷팅 적용
+  $('#recommendBody').innerHTML = renderDisplay.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${fmt(r.pcs)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td>${r.targetRack}</td><td>${r.targetWs ? r.targetWs.split('-')[0] + '-' : ''}${r.targetCell}</td><td class="reason-col" title="${r.reason}">${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('') || '<tr><td colspan="13">추천 결과 없음</td></tr>';
 
   $('#passCount').textContent = passedRecs.length;
   if(passedRecs.length > 0) {
@@ -1505,32 +1506,44 @@ async function tryBuild(){
 }
 
 async function handleFilesSimultaneously(files) {
+    // 1. 박스 파일은 1개 탐색
     const boxF = files.find(f => f.name.includes('박스') || f.name.includes('상세') || f.name.includes('출하') || f.name.includes('상품'));
-    const cellF = files.find(f => f.name.includes('셀') || f.name.includes('할당'));
+    
+    // 2. 셀 파일은 포함된 키워드로 모두 찾기 (냉장, 냉동 등 2개 이상 지원)
+    const cellFiles = files.filter(f => f.name.includes('셀') || f.name.includes('할당'));
 
-    if (!boxF || !cellF) {
-        setStatus('데이터 비동기화 방지를 위해 박스상품 파일과 셀할당현황 파일을 반드시 동시에 업로드해야 합니다.', true);
+    if (!boxF || cellFiles.length === 0) {
+        setStatus('데이터 비동기화 방지를 위해 박스상품 파일 1개와 셀할당현황 파일(복수 가능)을 반드시 동시에 업로드해야 합니다.', true);
         return;
     }
 
-    showLoading(true, '두 파일을 동시에 분석 중입니다...');
+    showLoading(true, `파일 분석 중... (셀 할당 파일 ${cellFiles.length}개 병합)`);
     try {
-        const [boxRes, cellRes] = await Promise.all([
-            readExcelRows(boxF, 'box'),
-            readExcelRows(cellF, 'cell')
-        ]);
+        // 박스 파일 읽기
+        const boxResPromise = readExcelRows(boxF, 'box');
+        
+        // 여러 개의 셀 파일 동시에 읽기
+        const cellResPromises = cellFiles.map(f => readExcelRows(f, 'cell'));
+        
+        // 모든 파일 읽기 완료 대기
+        const [boxRes, ...cellResults] = await Promise.all([boxResPromise, ...cellResPromises]);
         
         boxRows = boxRes.rows;
         boxMeta = {fileName: boxF.name, sheetName: boxRes.sheetName};
-        cellRows = cellRes.rows;
-        cellMeta = {fileName: cellF.name, sheetName: cellRes.sheetName};
+        
+        // 여러 셀 파일의 데이터(Rows)를 하나로 병합 (Spread Operator 활용)
+        cellRows = cellResults.flatMap(res => res.rows);
+        
+        // 병합된 셀 메타데이터는 대표 파일명으로 표기
+        const cellFileNames = cellFiles.map(f => f.name).join(', ');
+        cellMeta = {fileName: `${cellFileNames} (자동 병합됨)`, sheetName: cellResults[0].sheetName};
 
         await idbClear();
         await idbSave('boxData', {rows: boxRows, meta: boxMeta});
         await idbSave('cellData', {rows: cellRows, meta: cellMeta});
 
-        setStatus('박스상품 및 셀할당현황 동기화 업로드 완료');
-        appendDebug('동시 업로드 및 데이터 매핑 성공');
+        setStatus(`박스상품 및 셀할당현황(${cellFiles.length}개) 동기화 업로드 완료`);
+        appendDebug('동시 업로드 및 다중 셀 데이터 메모리 병합 성공');
     } catch (err) {
         console.error(err);
         setStatus('파일 읽기 실패: ' + (err.message || err), true);
