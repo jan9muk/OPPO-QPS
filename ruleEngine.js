@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.27.0 - Added: Export targetWs property for UI recommendations)
+ * QPS cell-allocation rule engine (V2.28.0 - Added: Dynamic W/S Proximity & F-Zone Reverse Scoring, Optimized Percentile)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -302,49 +302,80 @@
   function isChilledDedicated(zone) { return ['D01', 'D02'].includes(zone); }
   function isFrozenDedicated(zone) { return CONFIG.productZones.frozen.has(zone); }
 
-  function getDistanceScore(pc) {
+  // [수정점] 출고량 기반의 동적 W/S 인접성(Golden Zone) X축 교차 평가 로직 적용
+  function getDistanceScore(pc, profile) {
     if (pc.loc.length < 10) return -99;
     
     const zoneKey = pc.zone.substring(0, 3);
     const zoneMap = DISTANCE_MAP[zoneKey];
-    if (!zoneMap) return -99;
-
-    const rack = pc.distRack;
-    const sixDigitMatch = pc.distSix;
-
-    for (let i = 0; i < zoneMap.length; i++) {
-      if (zoneMap[i].includes(sixDigitMatch)) {
-        return -(i * 15);
+    let distRank = 4; // 기본값 (멀리 떨어진 곳)
+    
+    if (zoneMap) {
+      const rack = pc.distRack;
+      const sixDigitMatch = pc.distSix;
+      for (let i = 0; i < zoneMap.length; i++) {
+        if (zoneMap[i].includes(sixDigitMatch) || zoneMap[i].includes(rack)) {
+          distRank = i;
+          break;
+        }
       }
     }
-    for (let i = 0; i < zoneMap.length; i++) {
-      if (zoneMap[i].includes(rack)) {
-        return -(i * 15);
-      }
+
+    const outPcs = profile.outboundPcs || 0;
+
+    // 빈도수 기반 동적 점수 배분
+    if (outPcs >= 30) {
+      // 고빈도: W/S 인접셀(Rank 0)에 가장 큰 가점
+      if (distRank === 0) return 60;
+      if (distRank === 1) return 30;
+      if (distRank === 2) return 0;
+      return -30; // 멀리 배정 시 패널티
+    } else if (outPcs <= 10) {
+      // 저빈도(악성): W/S 인접셀(Rank 0) 차지 시 강력한 감점
+      if (distRank === 0) return -60;
+      if (distRank === 1) return -30;
+      if (distRank === 2) return 10;
+      return 30; // 멀리 배정할수록 가점 (유배)
+    } else {
+      // 중빈도: 거리당 페널티 부여
+      return -(distRank * 15);
     }
-    return -99;
   }
 
-  function getZAxisScore(pc) {
+  // [수정점] 출고량 연동 Z축(단수) 골든존 교차 평가 보완 (맹목적 가점 제거)
+  function getZAxisScore(pc, profile) {
     if (pc.loc.length < 10) return 0;
     
-    let score = 0;
+    let isGolden = false;
+    let isDead = false;
+
     if (pc.family === 'flow') {
-      if (pc.temp === 'chilled' && (pc.level === 2 || pc.level === 3)) score += 30;
-      else if (pc.temp === 'frozen' && (pc.level >= 2 && pc.level <= 4)) score += 30;
+      if (pc.temp === 'chilled' && (pc.level === 2 || pc.level === 3)) isGolden = true;
+      else if (pc.temp === 'frozen' && (pc.level >= 2 && pc.level <= 4)) isGolden = true;
     } 
     else if (pc.family === 'shelf') {
-      if (pc.level >= 2 && pc.level <= 4) score += 30;
+      if (pc.level >= 2 && pc.level <= 4) isGolden = true;
+      if (pc.level === 1 || pc.level >= 5) isDead = true;
     } 
     else if (pc.family === 'showcase') {
-      if (pc.temp === 'chilled' && (pc.level >= 1 && pc.level <= 4)) {
-        score += 30;
-      } else if (pc.temp === 'frozen') {
-        if (pc.level === 1 || pc.level === 3 || pc.level === 5) score += 30;
-      }
+      if (pc.temp === 'chilled' && (pc.level >= 1 && pc.level <= 4)) isGolden = true;
+      else if (pc.temp === 'frozen' && (pc.level === 1 || pc.level === 3 || pc.level === 5)) isGolden = true;
     } 
     else if (pc.family === 'flat') {
-      if (pc.temp === 'frozen' && pc.distRack === '07' && pc.level === 1) score += 30;
+      if (pc.temp === 'frozen' && pc.distRack === '07' && pc.level === 1) isGolden = true;
+    }
+
+    const outPcs = profile.outboundPcs || 0;
+    let score = 0;
+
+    // 출고량에 따른 Z축 골든존 동적 가감점
+    if (isGolden) {
+        if (outPcs >= 30) score += 30; // 고빈도는 골든존 장려
+        else if (outPcs <= 10) score -= 30; // 저빈도가 골든존 차지하면 페널티
+    }
+    if (isDead) {
+        if (outPcs <= 10) score += 20; // 저빈도는 구석(Dead)단 배치 장려
+        else if (outPcs >= 30) score -= 30; // 고빈도가 구석으로 가면 페널티
     }
 
     return score;
@@ -470,11 +501,11 @@
     return { mandatory, soft };
   }
 
-  function percentile(value, values) {
-    if (!values.length) return 0;
-    const sorted = values.slice().sort((a, b) => b - a);
-    const index = sorted.findIndex((x) => value >= x);
-    return index < 0 ? 0 : 1 - (index / Math.max(1, sorted.length - 1));
+  // [수정점] Percentile 최적화: 매 반복마다 sort() 하던 병목 제거 (사전 정렬된 배열을 받음)
+  function percentile(value, sortedValues) {
+    if (!sortedValues || !sortedValues.length) return 0;
+    const index = sortedValues.findIndex((x) => value >= x);
+    return index < 0 ? 0 : 1 - (index / Math.max(1, sortedValues.length - 1));
   }
 
   function desiredFamilies(profile, statistics) {
@@ -503,8 +534,8 @@
     
     const flowNotAllowed = profile.temp !== 'frozen' && !flowAllowed;
 
-    const demand = percentile(profile.touch, statistics.touches);
-    const inventory = percentile(profile.stock, statistics.stocks);
+    const demand = percentile(profile.touch, statistics.sortedTouches);
+    const inventory = percentile(profile.stock, statistics.sortedStocks);
     const priority = demand * 0.70 + inventory * 0.30;
     
     let gateAllowed = priority >= 0.75 && profile.outboundPcs >= 100;
@@ -613,8 +644,17 @@
     
     score += vendorClusterScore(pc, profile, context.vendorCounts);
     
-    score += getDistanceScore(pc);
-    score += getZAxisScore(pc);
+    // 수정된 동적 W/S 거리 평가 및 동적 Z축 높이 평가 적용
+    score += getDistanceScore(pc, profile);
+    score += getZAxisScore(pc, profile);
+
+    // [신규 기능] 입고 편의성을 위한 F존 역순 가점 반영 (Tie-breaker 역할)
+    if (pc.zone.startsWith('F')) {
+        const fNum = parseInt(pc.zone.substring(1), 10);
+        if (!isNaN(fNum)) {
+            score += (fNum * 3); // F12 = +36점, F01 = +3점
+        }
+    }
 
     if (profile.category.kimchi) {
         if (pc.zone === 'C09') {
@@ -667,9 +707,14 @@
     if (!allData || !Array.isArray(allData.assignedCells) || !Array.isArray(allData.emptyCells)) return [];
     
     const profiles = buildProfiles(allData);
+    
+    // [성능 개선] O(N^2) 병목 방지를 위한 데이터 사전 정렬 (Pre-sorting)
+    const rawTouches = allData.assignedCells.map((cell) => allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0);
+    const rawStocks = allData.assignedCells.map((cell) => number(cell.stock));
+    
     const statistics = {
-      touches: allData.assignedCells.map((cell) => allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0),
-      stocks: allData.assignedCells.map((cell) => number(cell.stock))
+      sortedTouches: rawTouches.slice().sort((a, b) => b - a),
+      sortedStocks: rawStocks.slice().sort((a, b) => b - a)
     };
     
     const wsTouchMetrics = buildWsTouchMetrics(allData);
@@ -811,7 +856,7 @@
         targetCellFmt = targetPc.loc;
       }
       
-      const zScore = getZAxisScore(sourcePc);
+      const zScore = getZAxisScore(sourcePc, profile);
       let rankNum = FAMILY_RANK[sourcePc.family] || 9;
       if (zScore > 0) rankNum = Math.max(1, rankNum - 1); 
 
@@ -878,6 +923,6 @@
     return finalRecs;
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.27.0' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.28.0' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
