@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QPS Dashboard v8.19.0</title>
+  <title>QPS Dashboard v8.20.0</title>
   <!-- 캡처를 위한 html2canvas 라이브러리 추가 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -143,7 +143,7 @@
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
   <div class="card">
-    <div class="title">QPS Dashboard v8.19.0</div>
+    <div class="title">QPS Dashboard v8.20.0</div>
     <div class="subtitle">미래 부하 선행 지표 (설비 및 전체 분리포율 예측) 실시간 HUD 탑재</div>
   </div>
   
@@ -489,6 +489,24 @@ function normalizeWs(v){
   const m=s.match(/APS\s*([123])[- ]?(\d{1,2})/i);
   return m?`APS${m[1]}-${String(m[2]).padStart(2,'0')}`:null;
 }
+
+// --- 불필요한 시퀀스 번호(-6 등)를 제거하고 APS 층수와 셀 번호를 포맷팅하는 전용 함수 ---
+function formatCellStr(loc, ws) {
+  if (!loc) return '-';
+  let s = String(loc).trim();
+  // 예: "APS2-6 C06-010302" 패턴에서 "-6 " 등 불필요한 공백과 시퀀스 번호 제거 -> "APS2-C06-010302"
+  s = s.replace(/^(APS\d+)-\d+\s+/, '$1-');
+  
+  // 만약 원본 데이터가 "C06-010302"처럼 APS 정보가 아예 없다면, 작업대 정보(ws)에서 층수를 유추해 결합
+  if (!s.startsWith('APS') && ws) {
+      const m = String(ws).match(/^(APS\d+)/i);
+      if (m) {
+          s = m[1].toUpperCase() + '-' + s;
+      }
+  }
+  return s;
+}
+
 function normalizeSheetName(v){return String(v||'').replace(/\s+/g,'').toLowerCase();}
 function normalizeSku(v){
   if(v==null) return '';
@@ -1090,7 +1108,8 @@ window.renderZoneHeatmap = function(zone) {
             <div class="hm-wrap">
               <div class="hm-cell ${colorClass}">${displayVal}</div>
               <div class="hm-tooltip">
-                <div style="font-weight:800; margin-bottom:8px; border-bottom:1px solid #4b5563; padding-bottom:6px;">${c.location}</div>
+                <!-- 툴팁 내 셀 위치 문자열 정제 적용 -->
+                <div style="font-weight:800; margin-bottom:8px; border-bottom:1px solid #4b5563; padding-bottom:6px;">${formatCellStr(c.location, c.ws)}</div>
                 <div class="ws-tooltip-grid">
                   <span>상품명</span><span style="color:#fcd34d; font-size:11px;">${pName}</span>
                   <span>현재고</span><span>${stockText}</span>
@@ -1123,7 +1142,6 @@ window.renderLoadZones = function() {
   const globalMax = globalTouchValues.length ? Math.max(...globalTouchValues) : 0;
   const globalAvg = activeWsList.length ? globalTouchValues.reduce((a,b)=>a+b,0) / activeWsList.length : 0;
 
-  // 체크박스 기반 토글 UI 구현 (글로벌 상태와 동기화)
   let html = `
     <div class="card" style="padding:0; overflow:hidden; margin-bottom:18px;">
       <div style="padding:14px 18px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; background:#f8fafc;">
@@ -1435,12 +1453,17 @@ function drawScreen(allData){
   });
 
   const renderDisplay = displayRecs.slice(0, 20);
-  // 사유 부분 td에 class="reason-col" 및 title 속성 적용, targetWs 문자열 포맷팅 적용
-  $('#recommendBody').innerHTML = renderDisplay.map((r,idx)=>`<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${fmt(r.pcs)}</td><td>${tempLabel(r.temp)}</td><td>${r.currentCell}</td><td>${r.currentRack}</td><td>${r.targetRack}</td><td>${r.targetWs ? r.targetWs.split('-')[0] + '-' : ''}${r.targetCell}</td><td class="reason-col" title="${r.reason}">${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`).join('') || '<tr><td colspan="13">추천 결과 없음</td></tr>';
+  
+  // 추천 테이블 렌더링 시 포맷된 문자열(curCellFmt, tgtCellFmt)을 사용
+  $('#recommendBody').innerHTML = renderDisplay.map((r,idx) => {
+      const curCellFmt = formatCellStr(r.currentCell, null);
+      const tgtCellFmt = formatCellStr(r.targetCell, r.targetWs);
+      
+      return `<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${fmt(r.pcs)}</td><td>${tempLabel(r.temp)}</td><td>${curCellFmt}</td><td>${r.currentRack}</td><td>${r.targetRack}</td><td>${tgtCellFmt}</td><td class="reason-col" title="${r.reason}">${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`;
+  }).join('') || '<tr><td colspan="13">추천 결과 없음</td></tr>';
 
   $('#passCount').textContent = passedRecs.length;
   if(passedRecs.length > 0) {
-    // 패스 목록 사유 부분 td 에도 적용
     $('#passedBody').innerHTML = passedRecs.map(r => `<tr><td>${r.sku}</td><td>${r.productName||''}</td><td class="reason-col" title="${r.reason}" style="color:#6b7280">${r.reason}</td><td><button class="btn-restore" onclick="restoreSku('${r.sku}')">복구</button></td></tr>`).join('');
   } else {
     $('#passedBody').innerHTML = `<tr><td colspan="4" style="text-align:center;color:#6b7280;padding:20px;">패스된 항목이 없습니다.</td></tr>`;
