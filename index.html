@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QPS Dashboard v8.22.0</title>
+  <title>QPS Dashboard v8.23.0</title>
   <!-- 캡처를 위한 html2canvas 라이브러리 추가 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -143,7 +143,7 @@
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
   <div class="card">
-    <div class="title">QPS Dashboard v8.22.0</div>
+    <div class="title">QPS Dashboard v8.23.0</div>
     <div class="subtitle">미래 부하 선행 지표 (설비 및 전체 분리포율 예측) 실시간 HUD 탑재</div>
   </div>
   
@@ -294,7 +294,7 @@ function getSafeIgnoredSkus() {
   }
 }
 
-// --- 무조건 2층(APS2-) 포맷을 강제하는 셀 포맷터 ---
+// --- 무조건 2층(APS2-) 포맷을 강제하는 셀 포맷터 (추천 셀 용도) ---
 function formatAps2Cell(loc) {
   if (!loc || loc === '-' || loc === '적합 공셀 없음') return loc || '-';
   let s = String(loc).trim();
@@ -309,6 +309,15 @@ function formatAps2Cell(loc) {
   if (/^[A-Z]\d{2}/i.test(s)) {
       return 'APS2-' + s;
   }
+  return s;
+}
+
+// --- 접두사 없이 순수 셀 번호만 남기는 포맷터 (현재 셀 용도) ---
+function formatCleanCell(loc) {
+  if (!loc || loc === '-' || loc === '적합 공셀 없음') return loc || '-';
+  let s = String(loc).trim();
+  s = s.replace(/^(APS\d+)-\d+\s+/, ''); 
+  s = s.replace(/^APS\d+-/, '');
   return s;
 }
 
@@ -1466,7 +1475,9 @@ function drawScreen(allData){
   
   // 추천 테이블 렌더링 시 포맷된 문자열(curCellFmt, tgtCellFmt)을 사용
   $('#recommendBody').innerHTML = renderDisplay.map((r,idx) => {
-      const curCellFmt = formatAps2Cell(r.currentCell);
+      // 현재 셀은 접두사 없이 깨끗하게 처리
+      const curCellFmt = formatCleanCell(r.currentCell);
+      // 추천 셀은 2층 강제(APS2-) 처리
       const tgtCellFmt = formatAps2Cell(r.targetCell);
       
       return `<tr><td>${idx+1}</td><td>${r.sku}</td><td>${r.productName||''}</td><td>${fmt(r.stock)}</td><td>${fmt(r.toteCount)}</td><td>${fmt(r.pcs)}</td><td>${tempLabel(r.temp)}</td><td>${curCellFmt}</td><td>${r.currentRack}</td><td>${r.targetRack}</td><td>${tgtCellFmt}</td><td class="reason-col" title="${r.reason}">${r.reason}</td><td><button class="btn-pass" onclick="ignoreSku('${r.sku}')">패스</button></td></tr>`;
