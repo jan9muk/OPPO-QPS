@@ -1,5 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.28.0 - Added: Dynamic W/S Proximity & F-Zone Reverse Scoring, Optimized Percentile)
+ * QPS cell-allocation rule engine (V2.29.0 - Dynamic Proximity/Z-Axis Eval & F-Zone Scoring, Pre-sorting Optimization)
  *
  * This module deliberately contains the allocation rules, rather than UI code.
  * The host page must expose the existing `allData` shape used by index.html.
@@ -302,7 +302,6 @@
   function isChilledDedicated(zone) { return ['D01', 'D02'].includes(zone); }
   function isFrozenDedicated(zone) { return CONFIG.productZones.frozen.has(zone); }
 
-  // [수정점] 출고량 기반의 동적 W/S 인접성(Golden Zone) X축 교차 평가 로직 적용
   function getDistanceScore(pc, profile) {
     if (pc.loc.length < 10) return -99;
     
@@ -342,7 +341,6 @@
     }
   }
 
-  // [수정점] 출고량 연동 Z축(단수) 골든존 교차 평가 보완 (맹목적 가점 제거)
   function getZAxisScore(pc, profile) {
     if (pc.loc.length < 10) return 0;
     
@@ -501,7 +499,6 @@
     return { mandatory, soft };
   }
 
-  // [수정점] Percentile 최적화: 매 반복마다 sort() 하던 병목 제거 (사전 정렬된 배열을 받음)
   function percentile(value, sortedValues) {
     if (!sortedValues || !sortedValues.length) return 0;
     const index = sortedValues.findIndex((x) => value >= x);
@@ -644,15 +641,13 @@
     
     score += vendorClusterScore(pc, profile, context.vendorCounts);
     
-    // 수정된 동적 W/S 거리 평가 및 동적 Z축 높이 평가 적용
     score += getDistanceScore(pc, profile);
     score += getZAxisScore(pc, profile);
 
-    // [신규 기능] 입고 편의성을 위한 F존 역순 가점 반영 (Tie-breaker 역할)
     if (pc.zone.startsWith('F')) {
         const fNum = parseInt(pc.zone.substring(1), 10);
         if (!isNaN(fNum)) {
-            score += (fNum * 3); // F12 = +36점, F01 = +3점
+            score += (fNum * 3); 
         }
     }
 
@@ -708,7 +703,6 @@
     
     const profiles = buildProfiles(allData);
     
-    // [성능 개선] O(N^2) 병목 방지를 위한 데이터 사전 정렬 (Pre-sorting)
     const rawTouches = allData.assignedCells.map((cell) => allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0);
     const rawStocks = allData.assignedCells.map((cell) => number(cell.stock));
     
@@ -901,7 +895,6 @@
         (b.pcs - a.pcs)
     );
 
-    // [핵심] 플로우랙 퇴출 항목 최대 10개 제한 (Task Quota)
     const finalRecs = [];
     let flowEvictionCount = 0;
 
@@ -923,6 +916,6 @@
     return finalRecs;
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.28.0' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.29.0' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
