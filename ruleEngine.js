@@ -1,7 +1,5 @@
 /*
- * QPS cell-allocation rule engine (V2.31.0)
- * - Added: Strict Mutual Exclusion for 0~5℃ zones (D01~D02). Regular meat is now completely banned from D01/D02.
- * - Retained: Dynamic W/S Proximity, F-Zone Reverse Scoring, and Flow-Rack quotas.
+ * QPS cell-allocation rule engine (V2.32.0 - Hotfix: Restored missing productProfileFor & eggCellAllowed functions)
  */
 (function (global) {  'use strict';
 
@@ -316,7 +314,36 @@
     return (inRange(pc.loc, 'D01-010101', 'D06-060505') || inRange(pc.loc, 'D07-030101', 'D07-060505'));
   }
 
-  // [핵심 수정] 0~5℃ 구역(D01~D02) 상호 배제(Mutual Exclusion) 로직 강화
+  // [복구 완료] 상품 데이터를 매핑하는 필수 유틸 함수
+  function productProfileFor(cell, profiles, allData) {
+    const base = profiles.get(cell.sku) || { sku: cell.sku, name: text(cell.productName), group: '', category: categorize({ name: text(cell.productName), group: '' }) };
+    return Object.assign({}, base, {
+      touch: allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0,
+      outboundPcs: allData.skuToPcs.get(cell.sku) || 0,
+      stock: number(cell.stock),
+      temp: thermalClass(cell)
+    });
+  }
+
+  // [복구 완료] 계란 구역 허용 판별 함수
+  function eggCellAllowed(pc, profile) {
+    if ((profile.outboundPcs >= 100 || profile.stock >= 50) && (pc.zone === 'A09' || pc.zone === 'A10')) {
+        return true;
+    }
+    if (pc.zone === 'A08') {
+      if (![2, 3, 4].includes(pc.level)) return false; 
+      const ranges = {
+        10: ['A08-010101', 'A08-020505'],
+        15: ['A08-030101', 'A08-040505'],
+        20: ['A08-050101', 'A08-060505'],
+        30: ['A08-070101', 'A08-080505']
+      };
+      const range = ranges[profile.eggSize];
+      return !range || inRange(pc.loc, range[0], range[1]);
+    }
+    return profile.event && pc.zone === 'A09';
+  }
+
   function categoryZoneAllowed(pc, profile) {
     const c = profile.category;
     if (profile.temp === 'frozen' && !isFrozenDedicated(pc.zone)) return { ok: false, reason: '냉동 상품은 냉동 전용 구역에 배치 필요' };
@@ -345,12 +372,10 @@
 
     const isZeroToFiveZone = ['D01', 'D02'].includes(pc.zone);
     
-    // 수산/생계육/다짐육 방어
     if (c.zeroToFive && profile.temp !== 'frozen') {
         if (!isZeroToFiveZone) return { ok: false, reason: '0~5℃ 보관 품목(수산/생계육/다짐육)은 D01~D02 전용' };
     }
     
-    // 일반 정육 방어 (D01~D02 절대 진입 불가)
     if (c.livestock && profile.temp !== 'frozen') {
         if (!c.zeroToFive && isZeroToFiveZone) {
             return { ok: false, reason: '일반 정육은 0~5℃ 전용 구역(D01~D02) 배정 불가' };
@@ -510,7 +535,6 @@
     const category = categoryZoneAllowed(sourcePc, profile);
     if (!category.ok) mandatory.push(category.reason);
 
-    // 김치류 통제
     if (profile.category.kimchi) {
         if (!['C08', 'C09'].includes(sourcePc.zone)) {
             mandatory.push('김치류 지정 구역(C08, C09) 이탈 (강제 이동 필요)');
@@ -529,7 +553,6 @@
       mandatory.push('게이트랙 기준 미달 (물량 급감으로 퇴출 필요)');
     }
 
-    // 일반 정육과 수산물의 0~5℃ 구역 상호 배제 퇴출 검증
     const isZeroToFiveZone = ['D01', 'D02'].includes(sourcePc.zone);
     
     if (profile.category.zeroToFive && profile.temp !== 'frozen') {
@@ -900,6 +923,6 @@
     return finalRecs;
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.31.0' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.32.0' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
