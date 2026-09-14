@@ -1,8 +1,9 @@
 /*
- * QPS cell-allocation rule engine (V2.29.0 - Dynamic Proximity/Z-Axis Eval & F-Zone Scoring, Pre-sorting Optimization)
- *
- * This module deliberately contains the allocation rules, rather than UI code.
- * The host page must expose the existing `allData` shape used by index.html.
+ * QPS cell-allocation rule engine (V2.30.0)
+ * - Added: Strict Kimchi zone locking
+ * - Added: Smooth Gate-to-Flow demotion logic & Bulky items (Cabbage) Flow preference
+ * - Added: Ultra-lightweight items (<=500g) strict routing to Top Shelves (4F-5F)
+ * - Added: Dynamic W/S Proximity & F-Zone Reverse Scoring, Optimized Percentile
  */
 (function (global) {  'use strict';
 
@@ -134,7 +135,7 @@
   function weightInGrams(value, headerHint) {
     const n = number(value);
     if (!n) return 0;
-    const source = `${text(value)} ${text(headerHint)}`.toLowerCase();
+    const source = `\({text(value)}\){text(headerHint)}`.toLowerCase();
     return source.includes('kg') || source.includes('킬로') ? n * 1000 : n;
   }
   
@@ -161,7 +162,8 @@
     const isProcessedEgg = /연두부|장조림|소시지|소세지|과자|빵|볶음밥|말이|찜/.test(name) || ['두부/묵/콩가공품', '반찬', '햄/소시지', '간편식', '가공식품'].includes(group);
     
     const isProcessedChicken = /닭갈비|양념|볶음|훈제/.test(name);
-    const isKimchi = group.includes('김치') || name.includes('김치');
+    // [보완] 김치 파생 키워드 검출 강화
+    const isKimchi = group.includes('김치') || /김치|섞박지|석박지|깍두기|겉절이|총각무|동치미|무생채|파김치/.test(name);
 
     const category = {
       egg: (group === '계란' || isEggByName) && !isProcessedEgg && !isQuailEgg,
@@ -278,7 +280,7 @@
       };
       
       profile.category = categorize(profile);
-      const eggSize = `${name} ${group}`.match(/(?:^|\D)(10|15|20|30)\s*구/);
+      const eggSize = `\({name}\){group}`.match(/(?:^|\D)(10|15|20|30)\s*구/);
       profile.eggSize = eggSize ? Number(eggSize[1]) : null;
       profiles.set(cell.sku, profile);
     }
@@ -287,7 +289,7 @@
 
   function rackFamily(cell) {
     const zone = text(cell.zone);
-    const raw = `${text(cell.rackType)} ${zone}`.toLowerCase();
+    const raw = `\({text(cell.rackType)}\){zone}`.toLowerCase();
     if (zone === 'A10') return 'gate';
     if (zone === 'C09' || zone === 'C10' || /^F\d{2}$/.test(zone)) return 'flow';
     if (inRange(location(cell), 'D02-010101', 'D02-020108') || inRange(location(cell), 'E04-070101', 'E04-080108')) return 'flat';
@@ -302,12 +304,29 @@
   function isChilledDedicated(zone) { return ['D01', 'D02'].includes(zone); }
   function isFrozenDedicated(zone) { return CONFIG.productZones.frozen.has(zone); }
 
+  // [신규] 플로우랙 진입 적합성 통합 판별 함수 (게이트 퇴출, 대형 품목 우대 포함)
+  function isFlowRackAllowed(profile) {
+      if (profile.category.quailEgg) return profile.outboundPcs >= 30 && profile.stock >= 60;
+      
+      // 1. 정상 볼륨 상품
+      if (profile.outboundPcs >= 30 && profile.stock >= 50) return true;
+      // 2. 게이트랙에서 막 퇴출되는 중상위 빈도 상품 (안전망)
+      if (profile.sourceFamily === 'gate' && profile.outboundPcs >= 20) return true;
+      // 3. 기존에 플로우랙에 있던 상품 중 완전 악성(15이하&20이하)이 아닌 경우 핑퐁 방지 유지
+      if (profile.sourceFamily === 'flow' && (profile.outboundPcs > 15 || profile.stock > 20)) return true;
+      // 4. 배추, 무(통), 수박 등 선반랙 보관이 매우 불편한 부피 큰 품목
+      if (/배추|양배추|무\(통\)|수박/.test(profile.name)) return true;
+      if (profile.boxWeightG >= 7000) return true;
+      
+      return false;
+  }
+
   function getDistanceScore(pc, profile) {
     if (pc.loc.length < 10) return -99;
     
     const zoneKey = pc.zone.substring(0, 3);
     const zoneMap = DISTANCE_MAP[zoneKey];
-    let distRank = 4; // 기본값 (멀리 떨어진 곳)
+    let distRank = 4; 
     
     if (zoneMap) {
       const rack = pc.distRack;
@@ -324,19 +343,16 @@
 
     // 빈도수 기반 동적 점수 배분
     if (outPcs >= 30) {
-      // 고빈도: W/S 인접셀(Rank 0)에 가장 큰 가점
       if (distRank === 0) return 60;
       if (distRank === 1) return 30;
       if (distRank === 2) return 0;
-      return -30; // 멀리 배정 시 패널티
+      return -30; 
     } else if (outPcs <= 10) {
-      // 저빈도(악성): W/S 인접셀(Rank 0) 차지 시 강력한 감점
       if (distRank === 0) return -60;
       if (distRank === 1) return -30;
       if (distRank === 2) return 10;
-      return 30; // 멀리 배정할수록 가점 (유배)
+      return 30; 
     } else {
-      // 중빈도: 거리당 페널티 부여
       return -(distRank * 15);
     }
   }
@@ -366,14 +382,20 @@
     const outPcs = profile.outboundPcs || 0;
     let score = 0;
 
-    // 출고량에 따른 Z축 골든존 동적 가감점
     if (isGolden) {
-        if (outPcs >= 30) score += 30; // 고빈도는 골든존 장려
-        else if (outPcs <= 10) score -= 30; // 저빈도가 골든존 차지하면 페널티
+        if (outPcs >= 30) score += 30; 
+        else if (outPcs <= 10) score -= 30; 
     }
     if (isDead) {
-        if (outPcs <= 10) score += 20; // 저빈도는 구석(Dead)단 배치 장려
-        else if (outPcs >= 30) score -= 30; // 고빈도가 구석으로 가면 페널티
+        if (outPcs <= 10) score += 20; 
+        else if (outPcs >= 30) score -= 30; 
+    }
+
+    // [수정] 초경량물(500g 이하) 선반랙 상단(4~5단) 가점 및 1단 억제
+    if (profile.itemWeightG > 0 && profile.itemWeightG <= 500 && pc.family === 'shelf') {
+        if (pc.level === 5) score += 60; // 5단 초강력 추천
+        else if (pc.level === 4) score += 30;
+        else if (pc.level === 1) score -= 60; // 1단 배치 금지 수준
     }
 
     return score;
@@ -471,12 +493,13 @@
       mandatory.push('게이트랙 기준 미달 (물량 급감으로 퇴출 필요)');
     }
 
-    const deadStock = profile.outboundPcs <= 15 && profile.stock <= 20;
-    if (!profile.category.quailEgg && !profile.category.kimchi && sourcePc.family === 'flow' && profile.temp !== 'frozen' && deadStock && profile.stock > 0) {
-      mandatory.push('플로우랙 부적합 (출고 15 이하 & 재고 20 이하로 퇴출 필요)');
+    if (!profile.category.quailEgg && !profile.category.kimchi && sourcePc.family === 'flow' && profile.temp !== 'frozen' && profile.stock > 0) {
+      if (!isFlowRackAllowed(profile)) {
+          mandatory.push('플로우랙 부적합 (출고/재고 기준 미달로 퇴출 필요)');
+      }
     }
     
-    if (profile.category.quailEgg && sourcePc.family === 'flow' && deadStock) {
+    if (profile.category.quailEgg && sourcePc.family === 'flow' && profile.outboundPcs <= 15 && profile.stock <= 20) {
       mandatory.push('메추리알 물량 급감 (선반랙으로 퇴출 필요)');
     }
 
@@ -507,29 +530,21 @@
 
   function desiredFamilies(profile, statistics) {
     const currentFam = profile.sourceFamily;
-    const isFlow = currentFam === 'flow';
     const isGate = currentFam === 'gate';
 
     if (profile.category.kimchi) {
         if (profile.outboundPcs >= 40 && profile.stock >= 50) return ['flow'];
-        if (isFlow && !(profile.outboundPcs <= 15 && profile.stock <= 20)) return ['flow']; 
+        if (currentFam === 'flow' && !(profile.outboundPcs <= 15 && profile.stock <= 20)) return ['flow']; 
         return ['shelf'];
     }
 
-    let flowAllowed = profile.outboundPcs >= 30 && profile.stock >= 60;
-    if (isFlow && !(profile.outboundPcs <= 15 && profile.stock <= 20)) {
-        flowAllowed = true; 
-    }
-
     if (profile.category.quailEgg) {
-        return flowAllowed ? ['flow'] : ['shelf'];
+        return isFlowRackAllowed(profile) ? ['flow'] : ['shelf'];
     }
 
     if (profile.fragile && profile.category.frozenMeat) return ['shelf', 'showcase', 'flow'];
     if (profile.boxWeightG >= 7000 && profile.stock >= 50) return ['flow', 'flat'];
     if (profile.temp === 'frozen' && /^F/.test(profile.sourceZone || '')) return ['flow', 'flat'];
-    
-    const flowNotAllowed = profile.temp !== 'frozen' && !flowAllowed;
 
     const demand = percentile(profile.touch, statistics.sortedTouches);
     const inventory = percentile(profile.stock, statistics.sortedStocks);
@@ -541,6 +556,15 @@
     }
 
     if (gateAllowed) return ['gate'];
+
+    // 게이트랙 퇴출 시 플로우랙 최우선 선호
+    if (isGate && !gateAllowed && profile.outboundPcs >= 20) {
+        return ['flow', 'flat'];
+    }
+
+    let flowAllowed = isFlowRackAllowed(profile);
+    const flowNotAllowed = profile.temp !== 'frozen' && !flowAllowed;
+
     if (priority >= 0.40) {
         return flowNotAllowed ? ['shelf', 'showcase', 'flat'] : ['flow', 'flat'];
     }
@@ -575,7 +599,7 @@
     const seen = new Set();
     for (const cell of allData.assignedCells) {
       if (!cell.ws || !cell.sku) continue;
-      const pair = `${cell.ws}||${cell.sku}`;
+      const pair = `\({cell.ws}||\){cell.sku}`;
       if (seen.has(pair)) continue;
       seen.add(pair);
       if (!result[cell.ws]) result[cell.ws] = { pcs: 0 };
@@ -604,18 +628,25 @@
 
     if (c.egg && !eggCellAllowed(pc, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09, A10) 및 규격별 단수 제한' };
 
-    const flowAllowedForTarget = profile.outboundPcs >= 30 && profile.stock >= 60;
+    // [수정] 김치류 엄격 통제 (C08, C09 외 타 구역 원천 차단)
+    if (c.kimchi) {
+        if (!['C08', 'C09'].includes(pc.zone)) return { ok: false, reason: '김치류는 C08, C09 전용 구역 배치 필수' };
+        if (pc.zone === 'C09' && (profile.outboundPcs < 40 || profile.stock < 50)) return { ok: false, reason: '저빈도 김치는 C09 진입 불가' };
+    }
 
     if (c.quailEgg) {
-        if (flowAllowedForTarget) {
+        if (profile.outboundPcs >= 30 && profile.stock >= 60) {
             if (pc.family !== 'flow') return { ok: false, reason: '메추리알 대량(출고 30 & 재고 60 이상)은 플로우랙 전용' };
         } else {
             if (!inRange(pc.loc, 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 소량은 A07 선반랙 전용' };
         }
     }
 
-    if (!c.quailEgg && !c.kimchi && pc.family === 'flow' && profile.temp !== 'frozen' && !flowAllowedForTarget) {
-      return { ok: false, reason: '플로우랙 진입 불가 (출고 30 미만 또는 재고 60 미만)' };
+    // [수정] 플로우랙 진입 통제 (메추리알, 김치 제외한 일반 상품)
+    if (!c.quailEgg && !c.kimchi && pc.family === 'flow' && profile.temp !== 'frozen') {
+        if (!isFlowRackAllowed(profile)) {
+            return { ok: false, reason: '플로우랙 진입 불가 (출고량/재고량 기준 미달)' };
+        }
     }
 
     if (pc.family === 'flow' && profile.itemWeightG > 1000) {
@@ -644,6 +675,7 @@
     score += getDistanceScore(pc, profile);
     score += getZAxisScore(pc, profile);
 
+    // 입고 편의성 F존 역순 가점 반영
     if (pc.zone.startsWith('F')) {
         const fNum = parseInt(pc.zone.substring(1), 10);
         if (!isNaN(fNum)) {
@@ -672,11 +704,6 @@
       score -= 50;
     }
 
-    const categoryCheck = candidateEvaluation(pc, sourcePc, profile);
-    if (!categoryCheck.ok) {
-        score -= 200; 
-    }
-
     return { score, balance };
   }
 
@@ -703,6 +730,7 @@
     
     const profiles = buildProfiles(allData);
     
+    // O(N^2) 병목 방지를 위한 사전 정렬(Pre-sorting) 적용
     const rawTouches = allData.assignedCells.map((cell) => allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0);
     const rawStocks = allData.assignedCells.map((cell) => number(cell.stock));
     
@@ -916,6 +944,6 @@
     return finalRecs;
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.29.0' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.30.0' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
