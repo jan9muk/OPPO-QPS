@@ -1,9 +1,7 @@
 /*
- * QPS cell-allocation rule engine (V2.30.0)
- * - Added: Strict Kimchi zone locking
- * - Added: Smooth Gate-to-Flow demotion logic & Bulky items (Cabbage) Flow preference
- * - Added: Ultra-lightweight items (<=500g) strict routing to Top Shelves (4F-5F)
- * - Added: Dynamic W/S Proximity & F-Zone Reverse Scoring, Optimized Percentile
+ * QPS cell-allocation rule engine (V2.31.0)
+ * - Added: Strict Mutual Exclusion for 0~5℃ zones (D01~D02). Regular meat is now completely banned from D01/D02.
+ * - Retained: Dynamic W/S Proximity, F-Zone Reverse Scoring, and Flow-Rack quotas.
  */
 (function (global) {  'use strict';
 
@@ -162,7 +160,6 @@
     const isProcessedEgg = /연두부|장조림|소시지|소세지|과자|빵|볶음밥|말이|찜/.test(name) || ['두부/묵/콩가공품', '반찬', '햄/소시지', '간편식', '가공식품'].includes(group);
     
     const isProcessedChicken = /닭갈비|양념|볶음|훈제/.test(name);
-    // [보완] 김치 파생 키워드 검출 강화
     const isKimchi = group.includes('김치') || /김치|섞박지|석박지|깍두기|겉절이|총각무|동치미|무생채|파김치/.test(name);
 
     const category = {
@@ -304,21 +301,78 @@
   function isChilledDedicated(zone) { return ['D01', 'D02'].includes(zone); }
   function isFrozenDedicated(zone) { return CONFIG.productZones.frozen.has(zone); }
 
-  // [신규] 플로우랙 진입 적합성 통합 판별 함수 (게이트 퇴출, 대형 품목 우대 포함)
   function isFlowRackAllowed(profile) {
       if (profile.category.quailEgg) return profile.outboundPcs >= 30 && profile.stock >= 60;
-      
-      // 1. 정상 볼륨 상품
       if (profile.outboundPcs >= 30 && profile.stock >= 50) return true;
-      // 2. 게이트랙에서 막 퇴출되는 중상위 빈도 상품 (안전망)
       if (profile.sourceFamily === 'gate' && profile.outboundPcs >= 20) return true;
-      // 3. 기존에 플로우랙에 있던 상품 중 완전 악성(15이하&20이하)이 아닌 경우 핑퐁 방지 유지
       if (profile.sourceFamily === 'flow' && (profile.outboundPcs > 15 || profile.stock > 20)) return true;
-      // 4. 배추, 무(통), 수박 등 선반랙 보관이 매우 불편한 부피 큰 품목
       if (/배추|양배추|무\(통\)|수박/.test(profile.name)) return true;
       if (profile.boxWeightG >= 7000) return true;
       
       return false;
+  }
+
+  function livestockCellAllowed(pc) {
+    return (inRange(pc.loc, 'D01-010101', 'D06-060505') || inRange(pc.loc, 'D07-030101', 'D07-060505'));
+  }
+
+  // [핵심 수정] 0~5℃ 구역(D01~D02) 상호 배제(Mutual Exclusion) 로직 강화
+  function categoryZoneAllowed(pc, profile) {
+    const c = profile.category;
+    if (profile.temp === 'frozen' && !isFrozenDedicated(pc.zone)) return { ok: false, reason: '냉동 상품은 냉동 전용 구역에 배치 필요' };
+    if (profile.temp !== 'frozen' && isFrozenDedicated(pc.zone)) return { ok: false, reason: '냉장/상온 상품은 냉동 전용 구역 제외' };
+    
+    if (c.egg && !eggCellAllowed(pc, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사/대량 시 A09, A10) 및 규격별 단수 제한' };
+    
+    if (c.kimchi) {
+        if (!['C08', 'C09'].includes(pc.zone)) return { ok: false, reason: '김치류는 C08, C09 전용 구역 배치 필수' };
+        if (pc.zone === 'C09' && (profile.outboundPcs < 40 || profile.stock < 50)) return { ok: false, reason: '저빈도 김치는 C09 진입 불가' };
+    }
+
+    if (c.quailEgg) {
+        if (profile.outboundPcs >= 30 && profile.stock >= 60) {
+            if (pc.family !== 'flow') return { ok: false, reason: '메추리알 대량(출고 30 & 재고 60 이상)은 플로우랙 전용' };
+        } else {
+            if (!inRange(pc.loc, 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 소량은 A07 선반랙 전용' };
+        }
+    }
+
+    if (!c.quailEgg && !c.kimchi && pc.family === 'flow' && profile.temp !== 'frozen') {
+        if (!isFlowRackAllowed(profile)) {
+            return { ok: false, reason: '플로우랙 진입 불가 (출고량/재고량 기준 미달)' };
+        }
+    }
+
+    const isZeroToFiveZone = ['D01', 'D02'].includes(pc.zone);
+    
+    // 수산/생계육/다짐육 방어
+    if (c.zeroToFive && profile.temp !== 'frozen') {
+        if (!isZeroToFiveZone) return { ok: false, reason: '0~5℃ 보관 품목(수산/생계육/다짐육)은 D01~D02 전용' };
+    }
+    
+    // 일반 정육 방어 (D01~D02 절대 진입 불가)
+    if (c.livestock && profile.temp !== 'frozen') {
+        if (!c.zeroToFive && isZeroToFiveZone) {
+            return { ok: false, reason: '일반 정육은 0~5℃ 전용 구역(D01~D02) 배정 불가' };
+        }
+        if (!livestockCellAllowed(pc)) {
+            return { ok: false, reason: '냉장 축산물 법정 허가 구역 외' };
+        }
+    }
+
+    if (pc.family === 'flow' && profile.itemWeightG > 1000) {
+      if (profile.temp !== 'frozen' && pc.level === 4) {
+        return { ok: false, reason: '플로우랙 4단 중량(1kg) 초과 상품' };
+      } else if (profile.temp === 'frozen' && pc.level === 5) {
+        return { ok: false, reason: '냉동 플로우랙 5단 중량(1kg) 초과 상품' };
+      }
+    }
+
+    if ((profile.boxWeightG > 7000 || profile.itemWeightG > 3000) && pc.level > 2) {
+      return { ok: false, reason: '중량물(박스 7kg 또는 단품 3kg 초과) 안전 수칙: 1~2단 하단 보관 필수' };
+    }
+
+    return { ok: true };
   }
 
   function getDistanceScore(pc, profile) {
@@ -341,7 +395,6 @@
 
     const outPcs = profile.outboundPcs || 0;
 
-    // 빈도수 기반 동적 점수 배분
     if (outPcs >= 30) {
       if (distRank === 0) return 60;
       if (distRank === 1) return 30;
@@ -391,77 +444,60 @@
         else if (outPcs >= 30) score -= 30; 
     }
 
-    // [수정] 초경량물(500g 이하) 선반랙 상단(4~5단) 가점 및 1단 억제
     if (profile.itemWeightG > 0 && profile.itemWeightG <= 500 && pc.family === 'shelf') {
-        if (pc.level === 5) score += 60; // 5단 초강력 추천
+        if (pc.level === 5) score += 60;
         else if (pc.level === 4) score += 30;
-        else if (pc.level === 1) score -= 60; // 1단 배치 금지 수준
+        else if (pc.level === 1) score -= 60;
     }
 
     return score;
   }
 
-  function eggCellAllowed(pc, profile) {
-    if ((profile.outboundPcs >= 100 || profile.stock >= 50) && (pc.zone === 'A09' || pc.zone === 'A10')) {
-        return true;
-    }
-    if (pc.zone === 'A08') {
-      if (![2, 3, 4].includes(pc.level)) return false; 
-      const ranges = {
-        10: ['A08-010101', 'A08-020505'],
-        15: ['A08-030101', 'A08-040505'],
-        20: ['A08-050101', 'A08-060505'],
-        30: ['A08-070101', 'A08-080505']
-      };
-      const range = ranges[profile.eggSize];
-      return !range || inRange(pc.loc, range[0], range[1]);
-    }
-    return profile.event && pc.zone === 'A09';
-  }
-  
-  function livestockCellAllowed(pc) {
-    return (inRange(pc.loc, 'D01-010101', 'D06-060505') || inRange(pc.loc, 'D07-030101', 'D07-060505'));
-  }
-
-  function categoryZoneAllowed(pc, profile) {
-    const c = profile.category;
-    if (profile.temp === 'frozen' && !isFrozenDedicated(pc.zone)) return { ok: false, reason: '냉동 상품은 냉동 전용 구역에 배치 필요' };
-    if (profile.temp !== 'frozen' && isFrozenDedicated(pc.zone)) return { ok: false, reason: '냉장/상온 상품은 냉동 전용 구역 제외' };
+  function targetScore(pc, sourcePc, profile, context) {
+    let score = familyScore(pc.family, context.preferredFamilies);
+    if (pc.zone === sourcePc.zone) score += 30;
+    else if (pc.zone.slice(0, 1) === sourcePc.zone.slice(0, 1)) score += 10;
+    if (pc.cell.ws && pc.cell.ws === sourcePc.cell.ws) score += 20;
     
-    if (c.egg && !eggCellAllowed(pc, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사/대량 시 A09, A10) 및 규격별 단수 제한' };
+    score += vendorClusterScore(pc, profile, context.vendorCounts);
     
-    if (c.quailEgg) {
-        const highVolume = profile.outboundPcs >= 30 && profile.stock >= 60;
-        const lowVolume = profile.outboundPcs <= 10 && profile.stock <= 20;
-        if (highVolume && pc.family !== 'flow') return { ok: false, reason: '메추리알 대량(출고 30 & 재고 60 이상)은 플로우랙 전용' };
-        if (lowVolume && !inRange(pc.loc, 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 소량(출고 10 & 재고 20 이하)은 A07 선반랙 전용' };
-    }
+    score += getDistanceScore(pc, profile);
+    score += getZAxisScore(pc, profile);
 
-    if (c.iceCream && pc.zone !== 'E07') return { ok: false, reason: '아이스크림류는 E07 전용 구역 배치 필요' };
-    if (!c.iceCream && pc.zone === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 구역이므로 일반 냉동 상품 불가' };
-
-    if (c.zeroToFive && profile.temp !== 'frozen' && !isChilledDedicated(pc.zone)) return { ok: false, reason: '0~5℃ 보관 필요 품목은 D01~D02 권장' };
-    
-    if (c.livestock && profile.temp !== 'frozen' && !livestockCellAllowed(pc)) return { ok: false, reason: '냉장 축산물 법정 허가 구역 외' };
-
-    if (c.kimchi) {
-        if (!['C08', 'C09'].includes(pc.zone)) return { ok: false, reason: '김치류는 C08, C09 전용 구역 배치 필수' };
-        if (pc.zone === 'C09' && (profile.outboundPcs < 40 || profile.stock < 50)) {
-            return { ok: false, reason: '저빈도 김치는 C09 진입 불가 (C08 선반랙 유지)' };
+    if (pc.zone.startsWith('F')) {
+        const fNum = parseInt(pc.zone.substring(1), 10);
+        if (!isNaN(fNum)) {
+            score += (fNum * 3); 
         }
     }
 
-    return { ok: true };
-  }
+    if (profile.category.kimchi) {
+        if (pc.zone === 'C09') {
+            const isGolden = pc.level === 2 || pc.level === 3;
+            if (profile.outboundPcs >= 80) {
+                score += isGolden ? 200 : 50; 
+            } else if (profile.outboundPcs >= 40) {
+                score += isGolden ? 50 : 150; 
+            }
+        } else if (pc.zone === 'C08') {
+            score += 100; 
+        }
+    }
 
-  function productProfileFor(cell, profiles, allData) {
-    const base = profiles.get(cell.sku) || { sku: cell.sku, name: text(cell.productName), group: '', category: categorize({ name: text(cell.productName), group: '' }) };
-    return Object.assign({}, base, {
-      touch: allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0,
-      outboundPcs: allData.skuToPcs.get(cell.sku) || 0,
-      stock: number(cell.stock),
-      temp: thermalClass(cell)
-    });
+    const balance = balanceStats(context, sourcePc.cell.ws, pc.cell.ws, profile.touch);
+    score += balance.score;
+
+    const shelfLimit = (pc.loc === sourcePc.loc) ? 65 : 50;
+    if (pc.family === 'shelf' && profile.stock >= shelfLimit && !profile.category.egg && !profile.category.quailEgg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(pc.zone)) {
+      score -= 50;
+    }
+
+    const categoryCheck = candidateEvaluation(pc, sourcePc, profile);
+    if (!categoryCheck.ok) {
+        score -= 200; 
+    }
+
+    return { score, balance };
   }
 
   function violationReasons(sourcePc, profile) {
@@ -474,7 +510,7 @@
     const category = categoryZoneAllowed(sourcePc, profile);
     if (!category.ok) mandatory.push(category.reason);
 
-    // 김치류 Hysteresis 강제 퇴출
+    // 김치류 통제
     if (profile.category.kimchi) {
         if (!['C08', 'C09'].includes(sourcePc.zone)) {
             mandatory.push('김치류 지정 구역(C08, C09) 이탈 (강제 이동 필요)');
@@ -491,6 +527,21 @@
 
     if (sourcePc.family === 'gate' && profile.outboundPcs <= 70 && profile.stock <= 50) {
       mandatory.push('게이트랙 기준 미달 (물량 급감으로 퇴출 필요)');
+    }
+
+    // 일반 정육과 수산물의 0~5℃ 구역 상호 배제 퇴출 검증
+    const isZeroToFiveZone = ['D01', 'D02'].includes(sourcePc.zone);
+    
+    if (profile.category.zeroToFive && profile.temp !== 'frozen') {
+        if (!isZeroToFiveZone) mandatory.push('0~5℃ 보관 품목(수산/생계육/다짐육)은 D01~D02 전용 (강제 이동 필요)');
+    }
+    
+    if (profile.category.livestock && profile.temp !== 'frozen') {
+        if (!profile.category.zeroToFive && isZeroToFiveZone) {
+            mandatory.push('일반 정육의 0~5℃ 전용 구역(D01~D02) 점유 (퇴출 필요)');
+        } else if (!livestockCellAllowed(sourcePc)) {
+            mandatory.push('냉장 축산물 법정 허가 구역 외');
+        }
     }
 
     if (!profile.category.quailEgg && !profile.category.kimchi && sourcePc.family === 'flow' && profile.temp !== 'frozen' && profile.stock > 0) {
@@ -557,7 +608,6 @@
 
     if (gateAllowed) return ['gate'];
 
-    // 게이트랙 퇴출 시 플로우랙 최우선 선호
     if (isGate && !gateAllowed && profile.outboundPcs >= 20) {
         return ['flow', 'flat'];
     }
@@ -614,99 +664,6 @@
     return Math.min(40, count * 8);
   }
 
-  function candidateEvaluation(pc, sourcePc, profile) {
-    if (pc.temp !== sourcePc.temp) return { ok: false, reason: '온도대 불일치' };
-    if (CONFIG.disabledZones.has(pc.zone)) return { ok: false, reason: 'E01~E02는 셀 할당 금지 구역' };
-    
-    if (profile.category.livestock && profile.temp !== 'frozen' && !livestockCellAllowed(pc)) return { ok: false, reason: '냉장 축산물 법정 허가 구역 외' };
-    
-    if (pc.family === 'gate' && profile.outboundPcs < 100) return { ok: false, reason: '게이트랙은 출고 100pcs 이상 전용' };
-
-    const c = profile.category;
-    if (c.iceCream && pc.zone !== 'E07') return { ok: false, reason: '아이스크림은 E07 전용' };
-    if (!c.iceCream && pc.zone === 'E07') return { ok: false, reason: 'E07은 아이스크림 전용 셀' };
-
-    if (c.egg && !eggCellAllowed(pc, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사 시 A09, A10) 및 규격별 단수 제한' };
-
-    // [수정] 김치류 엄격 통제 (C08, C09 외 타 구역 원천 차단)
-    if (c.kimchi) {
-        if (!['C08', 'C09'].includes(pc.zone)) return { ok: false, reason: '김치류는 C08, C09 전용 구역 배치 필수' };
-        if (pc.zone === 'C09' && (profile.outboundPcs < 40 || profile.stock < 50)) return { ok: false, reason: '저빈도 김치는 C09 진입 불가' };
-    }
-
-    if (c.quailEgg) {
-        if (profile.outboundPcs >= 30 && profile.stock >= 60) {
-            if (pc.family !== 'flow') return { ok: false, reason: '메추리알 대량(출고 30 & 재고 60 이상)은 플로우랙 전용' };
-        } else {
-            if (!inRange(pc.loc, 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 소량은 A07 선반랙 전용' };
-        }
-    }
-
-    // [수정] 플로우랙 진입 통제 (메추리알, 김치 제외한 일반 상품)
-    if (!c.quailEgg && !c.kimchi && pc.family === 'flow' && profile.temp !== 'frozen') {
-        if (!isFlowRackAllowed(profile)) {
-            return { ok: false, reason: '플로우랙 진입 불가 (출고량/재고량 기준 미달)' };
-        }
-    }
-
-    if (pc.family === 'flow' && profile.itemWeightG > 1000) {
-      if (profile.temp !== 'frozen' && pc.level === 4) {
-        return { ok: false, reason: '플로우랙 4단 중량(1kg) 초과 상품' };
-      } else if (profile.temp === 'frozen' && pc.level === 5) {
-        return { ok: false, reason: '냉동 플로우랙 5단 중량(1kg) 초과 상품' };
-      }
-    }
-
-    if ((profile.boxWeightG > 7000 || profile.itemWeightG > 3000) && pc.level > 2) {
-      return { ok: false, reason: '중량물(박스 7kg 또는 단품 3kg 초과) 안전 수칙: 1~2단 하단 보관 필수' };
-    }
-
-    return { ok: true };
-  }
-
-  function targetScore(pc, sourcePc, profile, context) {
-    let score = familyScore(pc.family, context.preferredFamilies);
-    if (pc.zone === sourcePc.zone) score += 30;
-    else if (pc.zone.slice(0, 1) === sourcePc.zone.slice(0, 1)) score += 10;
-    if (pc.cell.ws && pc.cell.ws === sourcePc.cell.ws) score += 20;
-    
-    score += vendorClusterScore(pc, profile, context.vendorCounts);
-    
-    score += getDistanceScore(pc, profile);
-    score += getZAxisScore(pc, profile);
-
-    // 입고 편의성 F존 역순 가점 반영
-    if (pc.zone.startsWith('F')) {
-        const fNum = parseInt(pc.zone.substring(1), 10);
-        if (!isNaN(fNum)) {
-            score += (fNum * 3); 
-        }
-    }
-
-    if (profile.category.kimchi) {
-        if (pc.zone === 'C09') {
-            const isGolden = pc.level === 2 || pc.level === 3;
-            if (profile.outboundPcs >= 80) {
-                score += isGolden ? 200 : 50; 
-            } else if (profile.outboundPcs >= 40) {
-                score += isGolden ? 50 : 150; 
-            }
-        } else if (pc.zone === 'C08') {
-            score += 100; 
-        }
-    }
-
-    const balance = balanceStats(context, sourcePc.cell.ws, pc.cell.ws, profile.touch);
-    score += balance.score;
-
-    const shelfLimit = (pc.loc === sourcePc.loc) ? 65 : 50;
-    if (pc.family === 'shelf' && profile.stock >= shelfLimit && !profile.category.egg && !profile.category.quailEgg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(pc.zone)) {
-      score -= 50;
-    }
-
-    return { score, balance };
-  }
-
   function recommendationReasons(sourcePc, targetPc, profile, context, sourceViolations, scoreInfo) {
     const reasons = sourceViolations.slice();
     const preferred = context.preferredFamilies;
@@ -730,7 +687,6 @@
     
     const profiles = buildProfiles(allData);
     
-    // O(N^2) 병목 방지를 위한 사전 정렬(Pre-sorting) 적용
     const rawTouches = allData.assignedCells.map((cell) => allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0);
     const rawStocks = allData.assignedCells.map((cell) => number(cell.stock));
     
@@ -944,6 +900,6 @@
     return finalRecs;
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.30.0' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.31.0' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
