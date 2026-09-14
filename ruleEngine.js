@@ -1,5 +1,7 @@
 /*
- * QPS cell-allocation rule engine (V2.32.0 - Hotfix: Restored missing productProfileFor & eggCellAllowed functions)
+ * QPS cell-allocation rule engine (V2.33.0)
+ * - Hotfix: Restored missing candidateEvaluation function for target cell filtering.
+ * - Retains all previous optimizations (Dynamic Proximity, Z-Axis, Mutual Exclusion).
  */
 (function (global) {  'use strict';
 
@@ -314,7 +316,6 @@
     return (inRange(pc.loc, 'D01-010101', 'D06-060505') || inRange(pc.loc, 'D07-030101', 'D07-060505'));
   }
 
-  // [복구 완료] 상품 데이터를 매핑하는 필수 유틸 함수
   function productProfileFor(cell, profiles, allData) {
     const base = profiles.get(cell.sku) || { sku: cell.sku, name: text(cell.productName), group: '', category: categorize({ name: text(cell.productName), group: '' }) };
     return Object.assign({}, base, {
@@ -325,7 +326,6 @@
     });
   }
 
-  // [복구 완료] 계란 구역 허용 판별 함수
   function eggCellAllowed(pc, profile) {
     if ((profile.outboundPcs >= 100 || profile.stock >= 50) && (pc.zone === 'A09' || pc.zone === 'A10')) {
         return true;
@@ -398,6 +398,16 @@
     }
 
     return { ok: true };
+  }
+
+  // [수정점] 에러 발생 원인이었던 누락 함수 완벽 복구
+  function candidateEvaluation(pc, sourcePc, profile) {
+    if (pc.temp !== sourcePc.temp) return { ok: false, reason: '온도대 불일치' };
+    if (CONFIG.disabledZones.has(pc.zone)) return { ok: false, reason: 'E01~E02는 셀 할당 금지 구역' };
+    if (pc.family === 'gate' && profile.outboundPcs < 100) return { ok: false, reason: '게이트랙은 출고 100pcs 이상 전용' };
+
+    // 카테고리별 디테일 검증 로직으로 권한 위임
+    return categoryZoneAllowed(pc, profile);
   }
 
   function getDistanceScore(pc, profile) {
@@ -923,6 +933,6 @@
     return finalRecs;
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.32.0' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.33.0' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
