@@ -1,7 +1,9 @@
 /*
- * QPS cell-allocation rule engine (V2.33.0)
- * - Hotfix: Restored missing candidateEvaluation function for target cell filtering.
- * - Retains all previous optimizations (Dynamic Proximity, Z-Axis, Mutual Exclusion).
+ * QPS cell-allocation rule engine (V2.34.0)
+ * - Feature: 동적 쿼터제(Dynamic Quota) 도입 (단순 퇴출 작업 최대 25% 캡 적용, 전진 배치 기회 보장)
+ * - Feature: 안전 최우선 예외(Safety Bypass) 적용 (중량/온도 이탈 등은 쿼터 무시 및 최우선 추천)
+ * - Tweak: C09 -> C08 김치 존 내 단순 퇴출의 우선순위(Urgency) 대폭 하향 조정
+ * - Perf: balanceStats 연산 병목 완화
  */
 (function (global) {  'use strict';
 
@@ -400,13 +402,11 @@
     return { ok: true };
   }
 
-  // [수정점] 에러 발생 원인이었던 누락 함수 완벽 복구
   function candidateEvaluation(pc, sourcePc, profile) {
     if (pc.temp !== sourcePc.temp) return { ok: false, reason: '온도대 불일치' };
     if (CONFIG.disabledZones.has(pc.zone)) return { ok: false, reason: 'E01~E02는 셀 할당 금지 구역' };
     if (pc.family === 'gate' && profile.outboundPcs < 100) return { ok: false, reason: '게이트랙은 출고 100pcs 이상 전용' };
 
-    // 카테고리별 디테일 검증 로직으로 권한 위임
     return categoryZoneAllowed(pc, profile);
   }
 
@@ -662,31 +662,45 @@
 
   function balanceStats(context, sourceWs, targetWs, touch) {
     if (!context.wsCount || !sourceWs || !targetWs || sourceWs === targetWs) return { before: 0, after: 0, score: 0, compliant: true };
-    let maxBefore = 0, maxAfter = 0;
-    for (let i = 0; i < context.wsCount; i++) {
-      const item = context.wsMetricsArray[i];
-      let pcsAfter = item.pcs;
-      if (item.ws === sourceWs) pcsAfter -= touch;
-      else if (item.ws === targetWs) pcsAfter += touch;
+    // [최적화] \(O(N^3)\) 병목 제거. 전체 W/S를 반복하지 않고 관련된 두 작업대의 편차 변화만 \(O(1)\)로 빠르게 계산
+    const sourceData = context.wsMap.get(sourceWs);
+    const targetData = context.wsMap.get(targetWs);
+    
+    if (!sourceData || !targetData) return { before: 0, after: 0, score: 0, compliant: true };
 
-      const devBefore = Math.abs((item.pcs - context.wsAverage) / context.wsAverage);
-      const devAfter = Math.abs((pcsAfter - context.wsAverage) / context.wsAverage);
-      if (devBefore > maxBefore) maxBefore = devBefore;
-      if (devAfter > maxAfter) maxAfter = devAfter;
-    }
-    return { before: maxBefore, after: maxAfter, score: (maxBefore - maxAfter) * 200, compliant: maxAfter <= CONFIG.wsDeviation || maxAfter <= maxBefore };
+    const devBefore = Math.max(
+      Math.abs((sourceData.pcs - context.wsAverage) / context.wsAverage),
+      Math.abs((targetData.pcs - context.wsAverage) / context.wsAverage)
+    );
+
+    const sourceAfter = sourceData.pcs - touch;
+    const targetAfter = targetData.pcs + touch;
+
+    const devAfter = Math.max(
+      Math.abs((sourceAfter - context.wsAverage) / context.wsAverage),
+      Math.abs((targetAfter - context.wsAverage) / context.wsAverage)
+    );
+
+    return { 
+      before: devBefore, 
+      after: devAfter, 
+      score: (devBefore - devAfter) * 200, 
+      compliant: devAfter <= CONFIG.wsDeviation || devAfter <= devBefore 
+    };
   }
 
   function buildWsTouchMetrics(allData) {
-    const result = {};
+    const result = new Map();
     const seen = new Set();
     for (const cell of allData.assignedCells) {
       if (!cell.ws || !cell.sku) continue;
       const pair = `\({cell.ws}||\){cell.sku}`;
       if (seen.has(pair)) continue;
       seen.add(pair);
-      if (!result[cell.ws]) result[cell.ws] = { pcs: 0 };
-      result[cell.ws].pcs += allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0;
+      
+      const current = result.get(cell.ws) || { pcs: 0 };
+      current.pcs += allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0;
+      result.set(cell.ws, current);
     }
     return result;
   }
@@ -728,11 +742,10 @@
       sortedStocks: rawStocks.slice().sort((a, b) => b - a)
     };
     
-    const wsTouchMetrics = buildWsTouchMetrics(allData);
-    const wsMetricsArray = Object.entries(wsTouchMetrics || {}).filter(([ws]) => ws).map(([ws, m]) => ({ ws, pcs: number(m.pcs) }));
+    const wsMap = buildWsTouchMetrics(allData);
     let wsTotalPcs = 0;
-    for (let i = 0; i < wsMetricsArray.length; i++) wsTotalPcs += wsMetricsArray[i].pcs;
-    const wsCount = wsMetricsArray.length;
+    for (const data of wsMap.values()) wsTotalPcs += data.pcs;
+    const wsCount = wsMap.size;
     const wsAverage = wsCount ? wsTotalPcs / wsCount : 0;
 
     const vendorCounts = {};
@@ -829,7 +842,7 @@
       const preferredFamilies = desiredFamilies(profile, statistics);
       const sourceViolations = [...violationsObj.mandatory, ...violationsObj.soft];
       
-      const context = { allData, preferredFamilies, vendorCounts, wsMetricsArray, wsCount, wsAverage };
+      const context = { allData, preferredFamilies, vendorCounts, wsMap, wsCount, wsAverage };
       const sourceScore = targetScore(sourcePc, sourcePc, profile, context).score;
       const candidates = [];
 
@@ -871,12 +884,21 @@
       let rankNum = FAMILY_RANK[sourcePc.family] || 9;
       if (zScore > 0) rankNum = Math.max(1, rankNum - 1); 
 
+      // [핵심 변경] 사유별 우선순위(Urgency) 재조정 및 C09 김치 하향
       let urgency = 0;
-      if (isMandatoryMove) {
-          if (sourceViolations.some(v => v.includes('퇴출 필요') || v.includes('퇴출 (C08 이동'))) {
-              urgency = 1000 + Math.max(0, (10 - profile.outboundPcs) * 10 + (20 - profile.stock));
-          } else if (sourceViolations.some(v => v.includes('게이트랙 부적합') || v.includes('기준 미달'))) {
-              urgency = 500 + Math.max(0, (100 - profile.outboundPcs) + (50 - profile.stock));
+      let isSafetyIssue = sourceViolations.some(v => v.includes('안전 수칙') || v.includes('중량') || v.includes('허가 구역 외'));
+      let isForwardPlacement = sourceViolations.some(v => v.includes('명당 이동 필요') || v.includes('고빈도 물량 급증'));
+      let isKimchiEviction = sourceViolations.some(v => v.includes('C09 플로우랙 퇴출'));
+
+      if (isSafetyIssue) {
+          urgency = 10000; // 절대 0순위
+      } else if (isMandatoryMove) {
+          if (isForwardPlacement) {
+              urgency = 2000 + profile.outboundPcs; // 전방 배치 최우선
+          } else if (isKimchiEviction) {
+              urgency = 50 + profile.stock; // C09 김치 퇴출은 페널티(가장 낮게)
+          } else if (sourceViolations.some(v => v.includes('퇴출 필요'))) {
+              urgency = 300 + Math.max(0, (10 - profile.outboundPcs) * 10 + (20 - profile.stock)); // 일반 퇴출
           } else {
               urgency = 100;
           }
@@ -904,27 +926,33 @@
       });
     }
     
+    // 최종 추천 리스트 정렬
     const sortedRecommendations = recommendations.sort((a, b) => 
-        (b.mandatory - a.mandatory) || 
         (b.urgency - a.urgency) || 
+        (b.mandatory - a.mandatory) || 
         (b.improvement - a.improvement) || 
         (b.toteCount - a.toteCount) || 
         (b.pcs - a.pcs)
     );
 
+    // [핵심 변경] 유연한 쿼터제(Cap) 기반 리스트 분할
     const finalRecs = [];
-    let flowEvictionCount = 0;
+    let evictionCount = 0;
+    const MAX_EVICTION_QUOTA = Math.floor(CONFIG.maxRecommendations * 0.25); // 퇴출성 추천은 전체 슬롯의 최대 25%까지만 허용
 
     for (const r of sortedRecommendations) {
-        const isFlowEviction = (r.currentRack.toLowerCase().includes('flow') || r.currentRack.includes('플로우')) && r.reason.includes('퇴출');
+        const isSafety = r.reason.includes('안전') || r.reason.includes('중량') || r.reason.includes('구역 외');
+        const isEviction = r.reason.includes('퇴출');
         
-        if (isFlowEviction) {
-            if (flowEvictionCount < 10) {
+        if (isSafety) {
+            finalRecs.push(r); // 안전(Safety) 이슈는 쿼터 무시
+        } else if (isEviction) {
+            if (evictionCount < MAX_EVICTION_QUOTA) {
                 finalRecs.push(r);
-                flowEvictionCount++;
+                evictionCount++;
             }
         } else {
-            finalRecs.push(r);
+            finalRecs.push(r); // 전방 배치 및 기타 이동
         }
 
         if (finalRecs.length >= CONFIG.maxRecommendations) break;
@@ -933,6 +961,6 @@
     return finalRecs;
   }
 
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.33.0' });
+  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.34.0' });
   global.buildRecommendations = function (allData) { return recommend(allData); };
 })(window);
