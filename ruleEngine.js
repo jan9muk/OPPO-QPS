@@ -1,966 +1,290 @@
 /*
- * QPS cell-allocation rule engine (V2.34.0)
- * - Feature: 동적 쿼터제(Dynamic Quota) 도입 (단순 퇴출 작업 최대 25% 캡 적용, 전진 배치 기회 보장)
- * - Feature: 안전 최우선 예외(Safety Bypass) 적용 (중량/온도 이탈 등은 쿼터 무시 및 최우선 추천)
- * - Tweak: C09 -> C08 김치 존 내 단순 퇴출의 우선순위(Urgency) 대폭 하향 조정
- * - Perf: balanceStats 연산 병목 완화
+ * QPS Cell Allocation Rule Engine v2.35.0
+ *
+ * 개선 사항
+ * 1) 중량/계란 규격/W-S 키 문자열 보간 오류 수정
+ * 2) 추천 문구가 아닌 구조화된 priorityType·moveType으로 안전/퇴출 쿼터 판정
+ * 3) 온도·랙 패밀리·존 단위 공셀 인덱스 사용
+ * 4) 필수 제약은 점수 계산 전에 후보에서 제외
+ * 5) 추천 불가 항목은 NO_TARGET 상태로 반환
  */
-(function (global) {  'use strict';
-
-  const CONFIG = {
+(function (global) {
+  'use strict';
+  const CONFIG = Object.freeze({
     wsDeviation: 0.10,
-    maxRecommendations: 100, 
+    maxRecommendations: 100,
+    maxSourceCandidates: 1500,
+    evictionQuotaRatio: 0.25,
     disabledZones: new Set(['E01', 'E02']),
-    a10OddCellsOnly: true,
-    priorityPenalty: 70,
-    productZones: {
-      produceA: new Set(['A02', 'A03', 'A04', 'A05', 'A06', 'A07']),
-      produceB: new Set(['B06', 'B07', 'B08', 'B09', 'B10']),
-      frozen: new Set(['E04', 'E05', 'E06', 'E07', 'F01', 'F02', 'F03', 'F04', 'F05', 'F06', 'F07', 'F08', 'F09', 'F10', 'F11', 'F12'])
-    }
-  };
-
-  const FAMILY_RANK = { gate: 1, flow: 2, flat: 2, shelf: 3, showcase: 3, other: 9 };
-
-  const DISTANCE_MAP = {
-    'A01': [['05'], ['06'], ['01','03'], ['02','04']],
-    'A02': [['02'], ['01'], ['03','05'], ['04','06']],
-    'A03': [['05','06'], ['01','03'], ['02','04']],
-    'A04': [['02','03'], ['01'], ['04','06'], ['05','07']],
-    'A05': [['02','01'], ['03','05'], ['04','06']],
-    'A06': [['05'], ['06'], ['01','03'], ['02','04']],
-    'A07': [['02'], ['01','03'], ['04','06'], ['05','07']],
-    'A08': [['01','03','05','07'], ['02','04','06','08']],
-    'A09': [['010106','010107','010108','010109','010110'], ['010104','010105','010111','010112'], ['010101','010102','010103','010113','010114']],
-    'A10': [['010105','010106','010107','010108','010109','010110'], ['010101','010102','010103','010104']],
-    'B01': [['02'], ['01'], ['03','05'], ['04','06']],
-    'B02': [['05'], ['06'], ['01','03'], ['02','04']],
-    'B03': [['02'], ['01'], ['03','05'], ['04','06']],
-    'B04': [['05'], ['06'], ['01','03'], ['02','04']],
-    'B05': [['02'], ['01'], ['03','05'], ['04','06']],
-    'B06': [['05'], ['06'], ['01','03'], ['02','04']],
-    'B07': [['02'], ['03'], ['01'], ['04','06'], ['05','07']],
-    'B08': [['01','03'], ['05','07'], ['02','04'], ['06','08']],
-    'B09': [['01','02'], ['03','05'], ['04','06']],
-    'B10': [['05'], ['06'], ['01','03'], ['02','04']],
-    'C01': [['05'], ['06'], ['01','03'], ['02','04']],
-    'C02': [['02'], ['01'], ['03','05'], ['04','06']],
-    'C03': [['05','06'], ['01','03'], ['02','04']],
-    'C04': [['03'], ['02'], ['01'], ['04','06'], ['05','07']],
-    'C05': [['02'], ['01'], ['03','05'], ['04','06']],
-    'C06': [['05'], ['06'], ['01','03'], ['02','04']],
-    'C07': [['02'], ['03'], ['01'], ['04','06'], ['05','07']],
-    'C08': [['01','03'], ['05','07'], ['02','04'], ['06','08']],
-    'C09': [['02','03'], ['01','04']],
-    'C10': [['010105','010106','010107','010108','010109'], ['010103','010104','010110','010111'], ['010101','010102']],
-    'D01': [['03','05'], ['04','06'], ['01'], ['02']],
-    'D02': [['01','03'], ['05'], ['02','04'], ['06']],
-    'D03': [['02'], ['01'], ['03','05'], ['04','06']],
-    'D04': [['05'], ['06'], ['01','03'], ['02','04']],
-    'D05': [['02','01'], ['03','05'], ['04','06']],
-    'D06': [['05'], ['06'], ['01','03'], ['02','04']],
-    'D07': [['01','02'], ['03','05'], ['04','06']],
-    'D08': [['01','03'], ['05','07'], ['02','04'], ['06','08'], ['09','11'], ['10','12']],
-    'D09': [['01','03'], ['05','07'], ['02','04'], ['06','08'], ['09','11'], ['10','12']],
-    'D10': [['05','07'], ['01','03'], ['06','08'], ['02','04'], ['09','11'], ['10','12']],
-    'E01': [['01','02'], ['03','05'], ['04','06']],
-    'E02': [['05'], ['06'], ['01','03'], ['02','04']],
-    'E03': [['01','03'], ['02','04'], ['05','07'], ['06','08']],
-    'E04': [['07'], ['01','03','05'], ['02','04'], ['06','08']],
-    'E05': [['01','03'], ['02','04'], ['06'], ['05','07']],
-    'E06': [['01','03','05','07'], ['02','04','06','08']],
-    'E07': [['01','03'], ['05'], ['02','04'], ['06']],
-    'F01': [['04'], ['03'], ['02'], ['01']],
-    'F02': [['04'], ['03'], ['02'], ['01']],
-    'F03': [['04'], ['03'], ['02'], ['01']],
-    'F04': [['04'], ['03'], ['02'], ['01']],
-    'F05': [['04'], ['03'], ['02'], ['01']],
-    'F06': [['04'], ['03'], ['02'], ['01']],
-    'F07': [['03'], ['02','04'], ['01']],
-    'F08': [['03'], ['02','04'], ['01']],
-    'F09': [['03'], ['02','04'], ['01']],
-    'F10': [['02'], ['01','03'], ['04']],
-    'F11': [['02'], ['01','03'], ['04']],
-    'F12': [['02','03'], ['01'], ['04']]
-  };
-
+    frozenZones: new Set(['E04', 'E05', 'E06', 'E07', 'F01', 'F02', 'F03', 'F04', 'F05', 'F06', 'F07', 'F08', 'F09', 'F10', 'F11', 'F12'])
+  });
+  const FAMILY_RANK = Object.freeze({ gate: 1, flow: 2, flat: 2, shelf: 3, showcase: 3, other: 9 });
+  const DISTANCE_MAP = Object.freeze({
+    A01:[['05'],['06'],['01','03'],['02','04']], A02:[['02'],['01'],['03','05'],['04','06']],
+    A03:[['05','06'],['01','03'],['02','04']], A04:[['02','03'],['01'],['04','06'],['05','07']],
+    A05:[['02','01'],['03','05'],['04','06']], A06:[['05'],['06'],['01','03'],['02','04']],
+    A07:[['02'],['01','03'],['04','06'],['05','07']], A08:[['01','03','05','07'],['02','04','06','08']],
+    A09:[['010106','010107','010108','010109','010110'],['010104','010105','010111','010112'],['010101','010102','010103','010113','010114']],
+    A10:[['010105','010106','010107','010108','010109','010110'],['010101','010102','010103','010104']],
+    B01:[['02'],['01'],['03','05'],['04','06']], B02:[['05'],['06'],['01','03'],['02','04']],
+    B03:[['02'],['01'],['03','05'],['04','06']], B04:[['05'],['06'],['01','03'],['02','04']],
+    B05:[['02'],['01'],['03','05'],['04','06']], B06:[['05'],['06'],['01','03'],['02','04']],
+    B07:[['02'],['03'],['01'],['04','06'],['05','07']], B08:[['01','03'],['05','07'],['02','04'],['06','08']],
+    B09:[['01','02'],['03','05'],['04','06']], B10:[['05'],['06'],['01','03'],['02','04']],
+    C01:[['05'],['06'],['01','03'],['02','04']], C02:[['02'],['01'],['03','05'],['04','06']],
+    C03:[['05','06'],['01','03'],['02','04']], C04:[['03'],['02'],['01'],['04','06'],['05','07']],
+    C05:[['02'],['01'],['03','05'],['04','06']], C06:[['05'],['06'],['01','03'],['02','04']],
+    C07:[['02'],['03'],['01'],['04','06'],['05','07']], C08:[['01','03'],['05','07'],['02','04'],['06','08']],
+    C09:[['02','03'],['01','04']], C10:[['010105','010106','010107','010108','010109'],['010103','010104','010110','010111'],['010101','010102']],
+    D01:[['03','05'],['04','06'],['01'],['02']], D02:[['01','03'],['05'],['02','04'],['06']],
+    D03:[['02'],['01'],['03','05'],['04','06']], D04:[['05'],['06'],['01','03'],['02','04']],
+    D05:[['02','01'],['03','05'],['04','06']], D06:[['05'],['06'],['01','03'],['02','04']],
+    D07:[['01','02'],['03','05'],['04','06']], D08:[['01','03'],['05','07'],['02','04'],['06','08'],['09','11'],['10','12']],
+    D09:[['01','03'],['05','07'],['02','04'],['06','08'],['09','11'],['10','12']], D10:[['05','07'],['01','03'],['06','08'],['02','04'],['09','11'],['10','12']],
+    E01:[['01','02'],['03','05'],['04','06']], E02:[['05'],['06'],['01','03'],['02','04']],
+    E03:[['01','03'],['02','04'],['05','07'],['06','08']], E04:[['07'],['01','03','05'],['02','04'],['06','08']],
+    E05:[['01','03'],['02','04'],['06'],['05','07']], E06:[['01','03','05','07'],['02','04','06','08']],
+    E07:[['01','03'],['05'],['02','04'],['06']], F01:[['04'],['03'],['02'],['01']],
+    F02:[['04'],['03'],['02'],['01']], F03:[['04'],['03'],['02'],['01']], F04:[['04'],['03'],['02'],['01']],
+    F05:[['04'],['03'],['02'],['01']], F06:[['04'],['03'],['02'],['01']], F07:[['03'],['02','04'],['01']],
+    F08:[['03'],['02','04'],['01']], F09:[['03'],['02','04'],['01']], F10:[['02'],['01','03'],['04']],
+    F11:[['02'],['01','03'],['04']], F12:[['02','03'],['01'],['04']]
+  });
   const OPTIONAL_FIELDS = {
-    vendor: ['업체코드', '업체명', '공급업체', '공급사', '거래처', 'vendor', 'supplier'],
-    group: ['중분류', '소분류', '대분류', '카테고리', '상품분류', '상품군', 'productgroup', 'category'],
-    boxWeight: ['p박스당중량', 'pbox중량', '박스당중량', '박스중량', 'boxweight', 'caseweight'],
-    itemWeight: ['낱개중량', '개당중량', '단품중량', '상품중량', 'itemweight', 'unitweight'],
-    incomingBoxes: ['입고량box', '입고박스수', '입고예정box', '입고수량box', 'inboundboxes', 'incomingboxes'],
-    incomingPlan: ['향후2주입고예정', '2주입고예정', '입고예정', '입고계획', 'inboundplan', 'incomingplan'],
-    isNew: ['신규상품', '신상품', '신규여부', 'newproduct', 'isnew'],
-    fragile: ['낙손', '파손우려', '취급주의', 'fragile', 'breakable'],
-    event: ['행사', '행사여부', '프로모션', '대량행사', 'event', 'promotion'],
-    storage: ['보관온도', '보관조건', '온도조건', 'storagecondition', 'storagetemp']
+    vendor:['업체코드','업체명','공급업체','공급사','거래처','vendor','supplier'],
+    group:['중분류','소분류','대분류','카테고리','상품분류','상품군','productgroup','category'],
+    boxWeight:['p박스당중량','pbox중량','박스당중량','박스중량','boxweight','caseweight'],
+    itemWeight:['낱개중량','개당중량','단품중량','상품중량','itemweight','unitweight'],
+    incomingPlan:['향후2주입고예정','2주입고예정','입고예정','입고계획','inboundplan','incomingplan'],
+    fragile:['낙손','파손우려','취급주의','fragile','breakable'], event:['행사','행사여부','프로모션','대량행사','event','promotion']
   };
-
-  function text(value) { return String(value == null ? '' : value).trim(); }
-  function key(value) { return text(value).toLowerCase().replace(/[\s_\-()]/g, ''); }
-  function number(value) {
+  const text = value => String(value == null ? '' : value).trim();
+  const key = value => text(value).toLowerCase().replace(/[\s_\-()]/g, '');
+  const number = value => {
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-    const match = text(value).replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
-    return match ? Number(match[0]) : 0;
-  }
-  function yes(value) {
-    const normalized = key(value);
-    return ['y', 'yes', 'true', '1', '예', '여', '적용', '대상', '행사'].includes(normalized);
-  }
-  function skuId(value) {
-    const digits = text(value).replace(/\.0+$/, '').replace(/\D/g, '');
-    return digits ? digits.padStart(13, '0') : '';
-  }
-  function location(cell) { return text(cell && cell.location); }
-  function inRange(value, from, to) { return value >= from && value <= to; }
-  
+    const m = text(value).replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
+    return m ? Number(m[0]) : 0;
+  };
+  const yes = value => ['y','yes','true','1','예','여','적용','대상','행사'].includes(key(value));
+  const skuId = value => { const v = text(value).replace(/\.0+$/, '').replace(/\D/g, ''); return v ? v.padStart(13, '0') : ''; };
+  const inRange = (value, from, to) => value >= from && value <= to;
   function thermalClass(cell) {
-    const declared = text(cell && cell.temp);
-    if (declared === 'chilled' || declared === 'frozen') return declared;
-    const zone = text(cell && cell.zone);
-    if (/^F(?:0[1-9]|1[0-2])$/.test(zone) || ['E04', 'E05', 'E06', 'E07'].includes(zone)) return 'frozen';
-    if (/^[A-D](?:0[1-9]|10)$/.test(zone) || zone === 'E03') return 'chilled';
-    return 'chilled';
-  }
-
-  function levelOf(cell) {
-    const suffix = location(cell).match(/(\d{6})$/);
-    return suffix ? Number(suffix[1][3]) : null; 
-  }
-  function zoneNumber(zone) {
-    const match = text(zone).match(/^[A-Z](\d{2})$/);
-    return match ? Number(match[1]) : -1;
+    if (cell.temp === 'frozen' || cell.temp === 'chilled') return cell.temp;
+    const zone = text(cell.zone);
+    return CONFIG.frozenZones.has(zone) ? 'frozen' : 'chilled';
   }
   function weightInGrams(value, headerHint) {
     const n = number(value);
     if (!n) return 0;
-    const source = `\({text(value)}\){text(headerHint)}`.toLowerCase();
+    const source = `${text(value)} ${text(headerHint)}`.toLowerCase();
     return source.includes('kg') || source.includes('킬로') ? n * 1000 : n;
   }
-  
   function extractWeightFromName(name) {
-    const match = text(name).match(/(\d+(?:\.\d+)?)\s*(kg|g|킬로|그램|l|ml)/i);
-    if (!match) return 0;
-    let val = parseFloat(match[1]);
-    const unit = match[2].toLowerCase();
-    if (unit === 'kg' || unit === '킬로' || unit === 'l') val *= 1000;
-    return val;
+    const m = text(name).match(/(\d+(?:\.\d+)?)\s*(kg|g|킬로|그램|l|ml)/i);
+    if (!m) return 0;
+    const unit = m[2].toLowerCase();
+    return ['kg','킬로','l'].includes(unit) ? Number(m[1]) * 1000 : Number(m[1]);
   }
-
-  function hasExplicitNoInbound(value) {
-    const normalized = key(value);
-    return normalized === '0' || ['없음', '무', 'no', 'n', '미정'].includes(normalized);
-  }
-
-  function categorize(profile) {
-    const group = text(profile.group); 
-    const name = text(profile.name);   
-
-    const isQuailEgg = name.includes('메추리알') || group.includes('메추리알');
-    const isEggByName = /계란|식용란|유정란|왕란|특란|대란|신선란|구운란/.test(name);
-    const isProcessedEgg = /연두부|장조림|소시지|소세지|과자|빵|볶음밥|말이|찜/.test(name) || ['두부/묵/콩가공품', '반찬', '햄/소시지', '간편식', '가공식품'].includes(group);
-    
-    const isProcessedChicken = /닭갈비|양념|볶음|훈제/.test(name);
-    const isKimchi = group.includes('김치') || /김치|섞박지|석박지|깍두기|겉절이|총각무|동치미|무생채|파김치/.test(name);
-
-    const category = {
-      egg: (group === '계란' || isEggByName) && !isProcessedEgg && !isQuailEgg,
-      quailEgg: isQuailEgg,
-      iceCream: group === '아이스크림', 
-      livestock: ['수입육', '우육', '돈육', '계육', '양념육'].includes(group),
-      kimchi: isKimchi
-    };
-    
-    const isSeafoodOrPoultry = ['대중선어', '구색선어', '생선회', '갑각류', '패류', '연체류'].includes(group) || (group === '계육' && !isProcessedChicken);
-    const isMincedMeat = ['수입육', '우육', '돈육'].includes(group) && name.includes('다짐육');
-    
-    category.zeroToFive = isSeafoodOrPoultry || isMincedMeat;
-
-    return category;
-  }
-
-  function mapHeaders(rows) {
-    if (!rows || !rows.length) return {};
-    const map = {};
-    const headers = Object.keys(rows[0]);
-    const allFields = {
-      sku: ['물류상품ID', 'SKU', '상품ID', 'productid'],
-      name: ['물류상품명', '상품명', '품명', 'productname'],
-      vendor: OPTIONAL_FIELDS.vendor,
-      group: OPTIONAL_FIELDS.group,
-      boxWeight: OPTIONAL_FIELDS.boxWeight,
-      itemWeight: OPTIONAL_FIELDS.itemWeight,
-      incomingBoxes: OPTIONAL_FIELDS.incomingBoxes,
-      incomingPlan: OPTIONAL_FIELDS.incomingPlan,
-      isNew: OPTIONAL_FIELDS.isNew,
-      fragile: OPTIONAL_FIELDS.fragile,
-      event: OPTIONAL_FIELDS.event,
-      storage: OPTIONAL_FIELDS.storage
-    };
-
-    for (const [keyName, aliases] of Object.entries(allFields)) {
-      let matched = null;
-      for (const alias of aliases) {
-        const wanted = key(alias);
-        matched = headers.find(h => key(h) === wanted);
-        if (matched) break;
-      }
-      if (!matched) {
-        for (const alias of aliases) {
-          const wanted = key(alias);
-          matched = headers.find(h => key(h).includes(wanted) || wanted.includes(key(h)));
-          if (matched) break;
-        }
-      }
-      map[keyName] = matched;
-    }
-    return map;
-  }
-
-  function buildProfiles(allData) {
-    const bRows = typeof boxRows !== 'undefined' && Array.isArray(boxRows) ? boxRows : [];
-    const cRows = typeof cellRows !== 'undefined' && Array.isArray(cellRows) ? cellRows : [];
-    
-    const boxHeaderMap = mapHeaders(bRows);
-    const cellHeaderMap = mapHeaders(cRows);
-    
-    const skuProfileData = new Map();
-
-    function extractMetadata(rows, map) {
-      if (!map.sku) return;
-      for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        const sku = skuId(row[map.sku]);
-        if (!sku) continue;
-        
-        const existing = skuProfileData.get(sku) || {};
-        skuProfileData.set(sku, {
-          name: text(row[map.name]) || existing.name,
-          group: text(row[map.group]) || existing.group,
-          vendor: text(row[map.vendor]) || existing.vendor,
-          boxWeightRaw: text(row[map.boxWeight]) || existing.boxWeightRaw,
-          itemWeightRaw: text(row[map.itemWeight]) || existing.itemWeightRaw,
-          incomingBoxes: number(row[map.incomingBoxes]) || existing.incomingBoxes,
-          incomingPlan: text(row[map.incomingPlan]) || existing.incomingPlan,
-          isNew: yes(row[map.isNew]) || existing.isNew,
-          fragile: yes(row[map.fragile]) || existing.fragile,
-          event: yes(row[map.event]) || existing.event,
-          storage: text(row[map.storage]) || existing.storage
-        });
-      }
-    }
-
-    extractMetadata(cRows, cellHeaderMap); 
-    extractMetadata(bRows, boxHeaderMap); 
-
-    const profiles = new Map();
-    for (const cell of allData.assignedCells) {
-      if (!cell.sku || profiles.has(cell.sku)) continue;
-      
-      const rawP = skuProfileData.get(cell.sku) || {};
-      const name = text(cell.productName || (allData.skuMeta.get(cell.sku) || {}).name || rawP.name);
-      const group = rawP.group || '';
-      
-      const profile = {
-        sku: cell.sku,
-        name,
-        group,
-        vendor: rawP.vendor || '',
-        boxWeightG: weightInGrams(rawP.boxWeightRaw, 'box'),
-        itemWeightG: weightInGrams(rawP.itemWeightRaw, 'ea') || extractWeightFromName(name),
-        incomingBoxes: rawP.incomingBoxes || 0,
-        hasIncomingPlan: rawP.incomingPlan !== undefined && rawP.incomingPlan !== '',
-        noIncomingInTwoWeeks: rawP.incomingPlan !== undefined && rawP.incomingPlan !== '' && hasExplicitNoInbound(rawP.incomingPlan),
-        isNew: rawP.isNew || false,
-        fragile: rawP.fragile || false,
-        event: rawP.event || false,
-        storage: rawP.storage || ''
-      };
-      
-      profile.category = categorize(profile);
-      const eggSize = `\({name}\){group}`.match(/(?:^|\D)(10|15|20|30)\s*구/);
-      profile.eggSize = eggSize ? Number(eggSize[1]) : null;
-      profiles.set(cell.sku, profile);
-    }
-    return profiles;
-  }
-
+  function levelOfLocation(loc) { const m = text(loc).match(/(\d{6})$/); return m ? Number(m[1].slice(2, 4)) : 0; }
   function rackFamily(cell) {
-    const zone = text(cell.zone);
-    const raw = `\({text(cell.rackType)}\){zone}`.toLowerCase();
+    const zone = text(cell.zone), raw = `${text(cell.rackType)} ${zone}`.toLowerCase();
     if (zone === 'A10') return 'gate';
     if (zone === 'C09' || zone === 'C10' || /^F\d{2}$/.test(zone)) return 'flow';
-    if (inRange(location(cell), 'D02-010101', 'D02-020108') || inRange(location(cell), 'E04-070101', 'E04-080108')) return 'flat';
-    if (/게이트|gate/.test(raw)) return 'gate';
-    if (/플로우|flow/.test(raw)) return 'flow';
-    if (/평대|flat/.test(raw)) return 'flat';
-    if (/쇼케이스|다단|오픈|리치인|워크인|showcase/.test(raw)) return 'showcase';
-    if (/선반|shelf/.test(raw)) return 'shelf';
-    return 'other';
+    if (inRange(text(cell.location), 'D02-010101', 'D02-020108') || inRange(text(cell.location), 'E04-070101', 'E04-080108')) return 'flat';
+    if (/게이트|gate/.test(raw)) return 'gate'; if (/플로우|flow/.test(raw)) return 'flow';
+    if (/평대|flat/.test(raw)) return 'flat'; if (/쇼케이스|다단|오픈|리치인|워크인|showcase/.test(raw)) return 'showcase';
+    return /선반|shelf/.test(raw) ? 'shelf' : 'other';
   }
-
-  function isChilledDedicated(zone) { return ['D01', 'D02'].includes(zone); }
-  function isFrozenDedicated(zone) { return CONFIG.productZones.frozen.has(zone); }
-
-  function isFlowRackAllowed(profile) {
-      if (profile.category.quailEgg) return profile.outboundPcs >= 30 && profile.stock >= 60;
-      if (profile.outboundPcs >= 30 && profile.stock >= 50) return true;
-      if (profile.sourceFamily === 'gate' && profile.outboundPcs >= 20) return true;
-      if (profile.sourceFamily === 'flow' && (profile.outboundPcs > 15 || profile.stock > 20)) return true;
-      if (/배추|양배추|무\(통\)|수박/.test(profile.name)) return true;
-      if (profile.boxWeightG >= 7000) return true;
-      
-      return false;
+  function categorize(profile) {
+    const name = text(profile.name), group = text(profile.group);
+    const quail = name.includes('메추리알') || group.includes('메추리알');
+    const processedEgg = /연두부|장조림|소시지|소세지|과자|빵|볶음밥|말이|찜/.test(name) || ['두부/묵/콩가공품','반찬','햄/소시지','간편식','가공식품'].includes(group);
+    const egg = (group === '계란' || /계란|식용란|유정란|왕란|특란|대란|신선란|구운란/.test(name)) && !processedEgg && !quail;
+    const livestock = ['수입육','우육','돈육','계육','양념육'].includes(group);
+    const processedChicken = /닭갈비|양념|볶음|훈제/.test(name);
+    const seafoodOrPoultry = ['대중선어','구색선어','생선회','갑각류','패류','연체류'].includes(group) || (group === '계육' && !processedChicken);
+    return { egg, quailEgg: quail, livestock, kimchi: group.includes('김치') || /김치|섞박지|석박지|깍두기|겉절이|총각무|동치미|무생채|파김치/.test(name), zeroToFive: seafoodOrPoultry || (['수입육','우육','돈육'].includes(group) && name.includes('다짐육')) };
   }
-
-  function livestockCellAllowed(pc) {
-    return (inRange(pc.loc, 'D01-010101', 'D06-060505') || inRange(pc.loc, 'D07-030101', 'D07-060505'));
-  }
-
-  function productProfileFor(cell, profiles, allData) {
-    const base = profiles.get(cell.sku) || { sku: cell.sku, name: text(cell.productName), group: '', category: categorize({ name: text(cell.productName), group: '' }) };
-    return Object.assign({}, base, {
-      touch: allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0,
-      outboundPcs: allData.skuToPcs.get(cell.sku) || 0,
-      stock: number(cell.stock),
-      temp: thermalClass(cell)
+  function mapHeaders(rows) {
+    if (!rows.length) return {};
+    const headers = Object.keys(rows[0]), fields = { sku:['물류상품ID','SKU','상품ID','productid'], name:['물류상품명','상품명','품명','productname'], ...OPTIONAL_FIELDS };
+    const result = {};
+    Object.entries(fields).forEach(([field, aliases]) => {
+      result[field] = aliases.map(alias => headers.find(h => key(h) === key(alias))).find(Boolean) || aliases.map(alias => headers.find(h => key(h).includes(key(alias)) || key(alias).includes(key(h)))).find(Boolean) || null;
     });
-  }
-
-  function eggCellAllowed(pc, profile) {
-    if ((profile.outboundPcs >= 100 || profile.stock >= 50) && (pc.zone === 'A09' || pc.zone === 'A10')) {
-        return true;
-    }
-    if (pc.zone === 'A08') {
-      if (![2, 3, 4].includes(pc.level)) return false; 
-      const ranges = {
-        10: ['A08-010101', 'A08-020505'],
-        15: ['A08-030101', 'A08-040505'],
-        20: ['A08-050101', 'A08-060505'],
-        30: ['A08-070101', 'A08-080505']
-      };
-      const range = ranges[profile.eggSize];
-      return !range || inRange(pc.loc, range[0], range[1]);
-    }
-    return profile.event && pc.zone === 'A09';
-  }
-
-  function categoryZoneAllowed(pc, profile) {
-    const c = profile.category;
-    if (profile.temp === 'frozen' && !isFrozenDedicated(pc.zone)) return { ok: false, reason: '냉동 상품은 냉동 전용 구역에 배치 필요' };
-    if (profile.temp !== 'frozen' && isFrozenDedicated(pc.zone)) return { ok: false, reason: '냉장/상온 상품은 냉동 전용 구역 제외' };
-    
-    if (c.egg && !eggCellAllowed(pc, profile)) return { ok: false, reason: '계란은 A08 전용 구역(행사/대량 시 A09, A10) 및 규격별 단수 제한' };
-    
-    if (c.kimchi) {
-        if (!['C08', 'C09'].includes(pc.zone)) return { ok: false, reason: '김치류는 C08, C09 전용 구역 배치 필수' };
-        if (pc.zone === 'C09' && (profile.outboundPcs < 40 || profile.stock < 50)) return { ok: false, reason: '저빈도 김치는 C09 진입 불가' };
-    }
-
-    if (c.quailEgg) {
-        if (profile.outboundPcs >= 30 && profile.stock >= 60) {
-            if (pc.family !== 'flow') return { ok: false, reason: '메추리알 대량(출고 30 & 재고 60 이상)은 플로우랙 전용' };
-        } else {
-            if (!inRange(pc.loc, 'A07-040505', 'A07-070505')) return { ok: false, reason: '메추리알 소량은 A07 선반랙 전용' };
-        }
-    }
-
-    if (!c.quailEgg && !c.kimchi && pc.family === 'flow' && profile.temp !== 'frozen') {
-        if (!isFlowRackAllowed(profile)) {
-            return { ok: false, reason: '플로우랙 진입 불가 (출고량/재고량 기준 미달)' };
-        }
-    }
-
-    const isZeroToFiveZone = ['D01', 'D02'].includes(pc.zone);
-    
-    if (c.zeroToFive && profile.temp !== 'frozen') {
-        if (!isZeroToFiveZone) return { ok: false, reason: '0~5℃ 보관 품목(수산/생계육/다짐육)은 D01~D02 전용' };
-    }
-    
-    if (c.livestock && profile.temp !== 'frozen') {
-        if (!c.zeroToFive && isZeroToFiveZone) {
-            return { ok: false, reason: '일반 정육은 0~5℃ 전용 구역(D01~D02) 배정 불가' };
-        }
-        if (!livestockCellAllowed(pc)) {
-            return { ok: false, reason: '냉장 축산물 법정 허가 구역 외' };
-        }
-    }
-
-    if (pc.family === 'flow' && profile.itemWeightG > 1000) {
-      if (profile.temp !== 'frozen' && pc.level === 4) {
-        return { ok: false, reason: '플로우랙 4단 중량(1kg) 초과 상품' };
-      } else if (profile.temp === 'frozen' && pc.level === 5) {
-        return { ok: false, reason: '냉동 플로우랙 5단 중량(1kg) 초과 상품' };
-      }
-    }
-
-    if ((profile.boxWeightG > 7000 || profile.itemWeightG > 3000) && pc.level > 2) {
-      return { ok: false, reason: '중량물(박스 7kg 또는 단품 3kg 초과) 안전 수칙: 1~2단 하단 보관 필수' };
-    }
-
-    return { ok: true };
-  }
-
-  function candidateEvaluation(pc, sourcePc, profile) {
-    if (pc.temp !== sourcePc.temp) return { ok: false, reason: '온도대 불일치' };
-    if (CONFIG.disabledZones.has(pc.zone)) return { ok: false, reason: 'E01~E02는 셀 할당 금지 구역' };
-    if (pc.family === 'gate' && profile.outboundPcs < 100) return { ok: false, reason: '게이트랙은 출고 100pcs 이상 전용' };
-
-    return categoryZoneAllowed(pc, profile);
-  }
-
-  function getDistanceScore(pc, profile) {
-    if (pc.loc.length < 10) return -99;
-    
-    const zoneKey = pc.zone.substring(0, 3);
-    const zoneMap = DISTANCE_MAP[zoneKey];
-    let distRank = 4; 
-    
-    if (zoneMap) {
-      const rack = pc.distRack;
-      const sixDigitMatch = pc.distSix;
-      for (let i = 0; i < zoneMap.length; i++) {
-        if (zoneMap[i].includes(sixDigitMatch) || zoneMap[i].includes(rack)) {
-          distRank = i;
-          break;
-        }
-      }
-    }
-
-    const outPcs = profile.outboundPcs || 0;
-
-    if (outPcs >= 30) {
-      if (distRank === 0) return 60;
-      if (distRank === 1) return 30;
-      if (distRank === 2) return 0;
-      return -30; 
-    } else if (outPcs <= 10) {
-      if (distRank === 0) return -60;
-      if (distRank === 1) return -30;
-      if (distRank === 2) return 10;
-      return 30; 
-    } else {
-      return -(distRank * 15);
-    }
-  }
-
-  function getZAxisScore(pc, profile) {
-    if (pc.loc.length < 10) return 0;
-    
-    let isGolden = false;
-    let isDead = false;
-
-    if (pc.family === 'flow') {
-      if (pc.temp === 'chilled' && (pc.level === 2 || pc.level === 3)) isGolden = true;
-      else if (pc.temp === 'frozen' && (pc.level >= 2 && pc.level <= 4)) isGolden = true;
-    } 
-    else if (pc.family === 'shelf') {
-      if (pc.level >= 2 && pc.level <= 4) isGolden = true;
-      if (pc.level === 1 || pc.level >= 5) isDead = true;
-    } 
-    else if (pc.family === 'showcase') {
-      if (pc.temp === 'chilled' && (pc.level >= 1 && pc.level <= 4)) isGolden = true;
-      else if (pc.temp === 'frozen' && (pc.level === 1 || pc.level === 3 || pc.level === 5)) isGolden = true;
-    } 
-    else if (pc.family === 'flat') {
-      if (pc.temp === 'frozen' && pc.distRack === '07' && pc.level === 1) isGolden = true;
-    }
-
-    const outPcs = profile.outboundPcs || 0;
-    let score = 0;
-
-    if (isGolden) {
-        if (outPcs >= 30) score += 30; 
-        else if (outPcs <= 10) score -= 30; 
-    }
-    if (isDead) {
-        if (outPcs <= 10) score += 20; 
-        else if (outPcs >= 30) score -= 30; 
-    }
-
-    if (profile.itemWeightG > 0 && profile.itemWeightG <= 500 && pc.family === 'shelf') {
-        if (pc.level === 5) score += 60;
-        else if (pc.level === 4) score += 30;
-        else if (pc.level === 1) score -= 60;
-    }
-
-    return score;
-  }
-
-  function targetScore(pc, sourcePc, profile, context) {
-    let score = familyScore(pc.family, context.preferredFamilies);
-    if (pc.zone === sourcePc.zone) score += 30;
-    else if (pc.zone.slice(0, 1) === sourcePc.zone.slice(0, 1)) score += 10;
-    if (pc.cell.ws && pc.cell.ws === sourcePc.cell.ws) score += 20;
-    
-    score += vendorClusterScore(pc, profile, context.vendorCounts);
-    
-    score += getDistanceScore(pc, profile);
-    score += getZAxisScore(pc, profile);
-
-    if (pc.zone.startsWith('F')) {
-        const fNum = parseInt(pc.zone.substring(1), 10);
-        if (!isNaN(fNum)) {
-            score += (fNum * 3); 
-        }
-    }
-
-    if (profile.category.kimchi) {
-        if (pc.zone === 'C09') {
-            const isGolden = pc.level === 2 || pc.level === 3;
-            if (profile.outboundPcs >= 80) {
-                score += isGolden ? 200 : 50; 
-            } else if (profile.outboundPcs >= 40) {
-                score += isGolden ? 50 : 150; 
-            }
-        } else if (pc.zone === 'C08') {
-            score += 100; 
-        }
-    }
-
-    const balance = balanceStats(context, sourcePc.cell.ws, pc.cell.ws, profile.touch);
-    score += balance.score;
-
-    const shelfLimit = (pc.loc === sourcePc.loc) ? 65 : 50;
-    if (pc.family === 'shelf' && profile.stock >= shelfLimit && !profile.category.egg && !profile.category.quailEgg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(pc.zone)) {
-      score -= 50;
-    }
-
-    const categoryCheck = candidateEvaluation(pc, sourcePc, profile);
-    if (!categoryCheck.ok) {
-        score -= 200; 
-    }
-
-    return { score, balance };
-  }
-
-  function violationReasons(sourcePc, profile) {
-    const mandatory = [];
-    const soft = [];
-    
-    const a10MustMove = sourcePc.zone === 'A10' && profile.touch < 100 && profile.stock <= 100 && profile.hasIncomingPlan && profile.noIncomingInTwoWeeks;
-    if (a10MustMove) mandatory.push('A10 이동 기준 충족: 일 출고 100건 미만·재고 100PCS 이하·2주 입고 예정 없음');
-    
-    const category = categoryZoneAllowed(sourcePc, profile);
-    if (!category.ok) mandatory.push(category.reason);
-
-    if (profile.category.kimchi) {
-        if (!['C08', 'C09'].includes(sourcePc.zone)) {
-            mandatory.push('김치류 지정 구역(C08, C09) 이탈 (강제 이동 필요)');
-        } else if (sourcePc.zone === 'C09') {
-            if (profile.outboundPcs <= 15 && profile.stock <= 20) {
-                mandatory.push('김치 물량 급감으로 C09 플로우랙 퇴출 (C08 이동 필요)');
-            }
-        } else if (sourcePc.zone === 'C08') {
-            if (profile.outboundPcs >= 60 && profile.stock >= 80) {
-                mandatory.push('김치 고빈도 물량 급증 (C09 플로우랙 명당 이동 필요)');
-            }
-        }
-    }
-
-    if (sourcePc.family === 'gate' && profile.outboundPcs <= 70 && profile.stock <= 50) {
-      mandatory.push('게이트랙 기준 미달 (물량 급감으로 퇴출 필요)');
-    }
-
-    const isZeroToFiveZone = ['D01', 'D02'].includes(sourcePc.zone);
-    
-    if (profile.category.zeroToFive && profile.temp !== 'frozen') {
-        if (!isZeroToFiveZone) mandatory.push('0~5℃ 보관 품목(수산/생계육/다짐육)은 D01~D02 전용 (강제 이동 필요)');
-    }
-    
-    if (profile.category.livestock && profile.temp !== 'frozen') {
-        if (!profile.category.zeroToFive && isZeroToFiveZone) {
-            mandatory.push('일반 정육의 0~5℃ 전용 구역(D01~D02) 점유 (퇴출 필요)');
-        } else if (!livestockCellAllowed(sourcePc)) {
-            mandatory.push('냉장 축산물 법정 허가 구역 외');
-        }
-    }
-
-    if (!profile.category.quailEgg && !profile.category.kimchi && sourcePc.family === 'flow' && profile.temp !== 'frozen' && profile.stock > 0) {
-      if (!isFlowRackAllowed(profile)) {
-          mandatory.push('플로우랙 부적합 (출고/재고 기준 미달로 퇴출 필요)');
-      }
-    }
-    
-    if (profile.category.quailEgg && sourcePc.family === 'flow' && profile.outboundPcs <= 15 && profile.stock <= 20) {
-      mandatory.push('메추리알 물량 급감 (선반랙으로 퇴출 필요)');
-    }
-
-    if (sourcePc.family === 'flow' && profile.itemWeightG > 1000) {
-      if (profile.temp !== 'frozen' && sourcePc.level === 4) {
-        mandatory.push('플로우랙 4단 중량(1kg) 초과');
-      } else if (profile.temp === 'frozen' && sourcePc.level === 5) {
-        mandatory.push('냉동 플로우랙 5단 중량(1kg) 초과');
-      }
-    }
-
-    if ((profile.boxWeightG > 7000 || profile.itemWeightG > 3000) && sourcePc.level > 2) {
-      mandatory.push('중량물(박스 7kg 또는 단품 3kg 초과) 안전 수칙: 1~2단 하단 보관 필수');
-    }
-
-    if (sourcePc.family === 'shelf' && profile.stock >= 60 && !profile.category.egg && !profile.category.quailEgg && !['A01', 'B08', 'C08', 'D08', 'D09', 'D10'].includes(sourcePc.zone)) {
-      soft.push('현재고 60개 이상으로 선반랙 한계 초과');
-    }
-
-    return { mandatory, soft };
-  }
-
-  function percentile(value, sortedValues) {
-    if (!sortedValues || !sortedValues.length) return 0;
-    const index = sortedValues.findIndex((x) => value >= x);
-    return index < 0 ? 0 : 1 - (index / Math.max(1, sortedValues.length - 1));
-  }
-
-  function desiredFamilies(profile, statistics) {
-    const currentFam = profile.sourceFamily;
-    const isGate = currentFam === 'gate';
-
-    if (profile.category.kimchi) {
-        if (profile.outboundPcs >= 40 && profile.stock >= 50) return ['flow'];
-        if (currentFam === 'flow' && !(profile.outboundPcs <= 15 && profile.stock <= 20)) return ['flow']; 
-        return ['shelf'];
-    }
-
-    if (profile.category.quailEgg) {
-        return isFlowRackAllowed(profile) ? ['flow'] : ['shelf'];
-    }
-
-    if (profile.fragile && profile.category.frozenMeat) return ['shelf', 'showcase', 'flow'];
-    if (profile.boxWeightG >= 7000 && profile.stock >= 50) return ['flow', 'flat'];
-    if (profile.temp === 'frozen' && /^F/.test(profile.sourceZone || '')) return ['flow', 'flat'];
-
-    const demand = percentile(profile.touch, statistics.sortedTouches);
-    const inventory = percentile(profile.stock, statistics.sortedStocks);
-    const priority = demand * 0.70 + inventory * 0.30;
-    
-    let gateAllowed = priority >= 0.75 && profile.outboundPcs >= 100;
-    if (isGate && !(profile.outboundPcs <= 70 && profile.stock <= 50)) {
-        gateAllowed = true; 
-    }
-
-    if (gateAllowed) return ['gate'];
-
-    if (isGate && !gateAllowed && profile.outboundPcs >= 20) {
-        return ['flow', 'flat'];
-    }
-
-    let flowAllowed = isFlowRackAllowed(profile);
-    const flowNotAllowed = profile.temp !== 'frozen' && !flowAllowed;
-
-    if (priority >= 0.40) {
-        return flowNotAllowed ? ['shelf', 'showcase', 'flat'] : ['flow', 'flat'];
-    }
-    return flowNotAllowed ? ['shelf', 'showcase'] : ['shelf', 'showcase', 'flow'];
-  }
-
-  function familyScore(family, preferred) {
-    if (preferred.includes(family)) return 150;
-    const preferredRank = Math.min(...preferred.map((x) => FAMILY_RANK[x] || 9));
-    return Math.max(-80, 35 - Math.abs((FAMILY_RANK[family] || 9) - preferredRank) * 45);
-  }
-
-  function balanceStats(context, sourceWs, targetWs, touch) {
-    if (!context.wsCount || !sourceWs || !targetWs || sourceWs === targetWs) return { before: 0, after: 0, score: 0, compliant: true };
-    // [최적화] \(O(N^3)\) 병목 제거. 전체 W/S를 반복하지 않고 관련된 두 작업대의 편차 변화만 \(O(1)\)로 빠르게 계산
-    const sourceData = context.wsMap.get(sourceWs);
-    const targetData = context.wsMap.get(targetWs);
-    
-    if (!sourceData || !targetData) return { before: 0, after: 0, score: 0, compliant: true };
-
-    const devBefore = Math.max(
-      Math.abs((sourceData.pcs - context.wsAverage) / context.wsAverage),
-      Math.abs((targetData.pcs - context.wsAverage) / context.wsAverage)
-    );
-
-    const sourceAfter = sourceData.pcs - touch;
-    const targetAfter = targetData.pcs + touch;
-
-    const devAfter = Math.max(
-      Math.abs((sourceAfter - context.wsAverage) / context.wsAverage),
-      Math.abs((targetAfter - context.wsAverage) / context.wsAverage)
-    );
-
-    return { 
-      before: devBefore, 
-      after: devAfter, 
-      score: (devBefore - devAfter) * 200, 
-      compliant: devAfter <= CONFIG.wsDeviation || devAfter <= devBefore 
-    };
-  }
-
-  function buildWsTouchMetrics(allData) {
-    const result = new Map();
-    const seen = new Set();
-    for (const cell of allData.assignedCells) {
-      if (!cell.ws || !cell.sku) continue;
-      const pair = `\({cell.ws}||\){cell.sku}`;
-      if (seen.has(pair)) continue;
-      seen.add(pair);
-      
-      const current = result.get(cell.ws) || { pcs: 0 };
-      current.pcs += allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0;
-      result.set(cell.ws, current);
-    }
     return result;
   }
-
-  function vendorClusterScore(pc, profile, vendorCounts) {
-    if (!profile.vendor || !vendorCounts[profile.vendor]) return 0;
-    const count = vendorCounts[profile.vendor][pc.zone] || 0;
-    return Math.min(40, count * 8);
-  }
-
-  function recommendationReasons(sourcePc, targetPc, profile, context, sourceViolations, scoreInfo) {
-    const reasons = sourceViolations.slice();
-    const preferred = context.preferredFamilies;
-    
-    if (preferred.includes(targetPc.family)) {
-        let rName = targetPc.family === 'gate' ? '게이트랙' : targetPc.family === 'flow' || targetPc.family === 'flat' ? '플로우랙' : '선반랙';
-        reasons.push(`${rName} 배치 권장`);
-    }
-    
-    if (profile.category.iceCream) reasons.push('E07 아이스크림 전용 구역 유지');
-    if (profile.category.egg) reasons.push('계란 전용 A08 2~4단 및 규격별 구역');
-    if (profile.category.kimchi && ['C08', 'C09'].includes(targetPc.zone)) reasons.push('김치 전용(C08/C09) 블록 분리 배치');
-    if (profile.category.zeroToFive && profile.temp !== 'frozen') reasons.push('0~5℃ 보관 권장 품목');
-    if (profile.vendor && vendorClusterScore(targetPc, profile, context.vendorCounts) > 0) reasons.push('동일 업체 인접 구역 군집화');
-    if (scoreInfo.balance.score > 1) reasons.push('W/S SKU수 편차 완화');
-    return Array.from(new Set(reasons)).join(' · ');
-  }
-
-  function recommend(allData) {
-    if (!allData || !Array.isArray(allData.assignedCells) || !Array.isArray(allData.emptyCells)) return [];
-    
-    const profiles = buildProfiles(allData);
-    
-    const rawTouches = allData.assignedCells.map((cell) => allData.skuToToteCount.get(cell.sku) || allData.skuToPcs.get(cell.sku) || 0);
-    const rawStocks = allData.assignedCells.map((cell) => number(cell.stock));
-    
-    const statistics = {
-      sortedTouches: rawTouches.slice().sort((a, b) => b - a),
-      sortedStocks: rawStocks.slice().sort((a, b) => b - a)
-    };
-    
-    const wsMap = buildWsTouchMetrics(allData);
-    let wsTotalPcs = 0;
-    for (const data of wsMap.values()) wsTotalPcs += data.pcs;
-    const wsCount = wsMap.size;
-    const wsAverage = wsCount ? wsTotalPcs / wsCount : 0;
-
-    const vendorCounts = {};
-    for (const cell of allData.assignedCells) {
-      const profile = productProfileFor(cell, profiles, allData);
-      if (profile.vendor) {
-        if (!vendorCounts[profile.vendor]) vendorCounts[profile.vendor] = {};
-        const z = text(cell.zone);
-        vendorCounts[profile.vendor][z] = (vendorCounts[profile.vendor][z] || 0) + 1;
-      }
-    }
-
-    const emptyNodes = allData.emptyCells.map(cell => {
-        const loc = location(cell);
-        return {
-            cell: cell,
-            loc: loc,
-            zone: text(cell.zone),
-            family: rackFamily(cell),
-            temp: thermalClass(cell),
-            level: loc.length >= 10 ? Number(loc.slice(-4, -2)) : 0,
-            distRack: loc.length >= 10 ? loc.slice(-6, -4) : '',
-            distSix: loc.length >= 10 ? loc.slice(-6) : ''
-        };
-    });
-
-    const emptyByTemp = { chilled: [], frozen: [] };
-    emptyNodes.forEach(pc => {
-        if (emptyByTemp[pc.temp]) emptyByTemp[pc.temp].push(pc);
-    });
-
-    const recommendations = [];
-    const seen = new Set();
-    const activeSources = [];
-
-    for (const source of allData.assignedCells) {
-      if (!source.sku || seen.has(source.sku)) continue;
-      const tc = thermalClass(source);
-      if (!['chilled', 'frozen'].includes(tc)) continue;
-      
-      seen.add(source.sku);
-      
-      const loc = location(source);
-      const sourcePc = {
-          cell: source,
-          loc: loc,
-          zone: text(source.zone),
-          family: rackFamily(source),
-          temp: tc,
-          level: loc.length >= 10 ? Number(loc.slice(-4, -2)) : 0,
-          distRack: loc.length >= 10 ? loc.slice(-6, -4) : '',
-          distSix: loc.length >= 10 ? loc.slice(-6) : ''
-      };
-
-      const profile = productProfileFor(source, profiles, allData);
-      profile.sourceZone = sourcePc.zone;
-      profile.sourceFamily = sourcePc.family; 
-
-      if (profile.stock === 0 && profile.outboundPcs === 0) {
-          continue;
-      }
-      
-      const violationsObj = violationReasons(sourcePc, profile);
-      const isMandatoryMove = violationsObj.mandatory.length > 0;
-      
-      if (profile.outboundPcs > 0 && profile.stock <= (profile.outboundPcs * 0.5)) {
-          if (!isMandatoryMove) {
-              continue;
-          }
-      }
-
-      if (profile.touch <= 0 && profile.outboundPcs <= 0) {
-          const needsEviction = ['gate', 'flow', 'flat'].includes(sourcePc.family) ||
-                                (profile.temp !== 'frozen' && isFrozenDedicated(sourcePc.zone)) ||
-                                (profile.temp === 'frozen' && !isFrozenDedicated(sourcePc.zone));
-          if (!needsEviction && !isMandatoryMove) continue; 
-      }
-
-      let sortScore = profile.touch;
-      if (isMandatoryMove) {
-          sortScore += 10000; 
-          sortScore += (100 - profile.outboundPcs) + (50 - profile.stock);
-      }
-
-      activeSources.push({ sourcePc, profile, sortScore, violationsObj, isMandatoryMove });
-    }
-
-    activeSources.sort((a, b) => b.sortScore - a.sortScore);
-    const sourcesToProcess = activeSources.slice(0, 1500);
-    
-    const usedTargetCells = new Set();
-
-    for (const { sourcePc, profile, violationsObj, isMandatoryMove } of sourcesToProcess) {
-      const preferredFamilies = desiredFamilies(profile, statistics);
-      const sourceViolations = [...violationsObj.mandatory, ...violationsObj.soft];
-      
-      const context = { allData, preferredFamilies, vendorCounts, wsMap, wsCount, wsAverage };
-      const sourceScore = targetScore(sourcePc, sourcePc, profile, context).score;
-      const candidates = [];
-
-      const candidatesToCheck = emptyByTemp[profile.temp] || [];
-
-      for (const pc of candidatesToCheck) {
-        if (usedTargetCells.has(pc.loc)) continue;
-
-        const evaluation = candidateEvaluation(pc, sourcePc, profile);
-        if (!evaluation.ok) continue; 
-        
-        const scoreInfo = targetScore(pc, sourcePc, profile, context);
-        const articleFiveOverride = preferredFamilies.includes(pc.family);
-        
-        if (!scoreInfo.balance.compliant && !articleFiveOverride && !sourceViolations.length) continue;
-        
-        candidates.push({ pc, scoreInfo });
-      }
-      
-      candidates.sort((a, b) => b.scoreInfo.score - a.scoreInfo.score || a.pc.loc.localeCompare(b.pc.loc));
-      const best = candidates[0];
-      const materiallyBetter = best && best.scoreInfo.score >= sourceScore + 25;
-      
-      if (!best && !isMandatoryMove && !sourceViolations.length) continue;
-      if (!isMandatoryMove && !materiallyBetter) continue;
-
-      const targetPc = best && best.pc;
-      
-      if (targetPc) {
-          usedTargetCells.add(targetPc.loc);
-      }
-
-      let targetCellFmt = '-';
-      if (targetPc) {
-        targetCellFmt = targetPc.loc;
-      }
-      
-      const zScore = getZAxisScore(sourcePc, profile);
-      let rankNum = FAMILY_RANK[sourcePc.family] || 9;
-      if (zScore > 0) rankNum = Math.max(1, rankNum - 1); 
-
-      // [핵심 변경] 사유별 우선순위(Urgency) 재조정 및 C09 김치 하향
-      let urgency = 0;
-      let isSafetyIssue = sourceViolations.some(v => v.includes('안전 수칙') || v.includes('중량') || v.includes('허가 구역 외'));
-      let isForwardPlacement = sourceViolations.some(v => v.includes('명당 이동 필요') || v.includes('고빈도 물량 급증'));
-      let isKimchiEviction = sourceViolations.some(v => v.includes('C09 플로우랙 퇴출'));
-
-      if (isSafetyIssue) {
-          urgency = 10000; // 절대 0순위
-      } else if (isMandatoryMove) {
-          if (isForwardPlacement) {
-              urgency = 2000 + profile.outboundPcs; // 전방 배치 최우선
-          } else if (isKimchiEviction) {
-              urgency = 50 + profile.stock; // C09 김치 퇴출은 페널티(가장 낮게)
-          } else if (sourceViolations.some(v => v.includes('퇴출 필요'))) {
-              urgency = 300 + Math.max(0, (10 - profile.outboundPcs) * 10 + (20 - profile.stock)); // 일반 퇴출
-          } else {
-              urgency = 100;
-          }
-      }
-
-      recommendations.push({
-        sku: sourcePc.cell.sku,
-        productName: profile.name || sourcePc.cell.productName || '',
-        pcs: profile.outboundPcs,
-        stock: profile.stock, 
-        toteCount: profile.touch,
-        temp: sourcePc.temp,
-        currentCell: sourcePc.loc,
-        currentRack: text(sourcePc.cell.rackType) || sourcePc.family,
-        currentRank: rankNum,
-        targetRack: targetPc ? (text(targetPc.cell.rackType) || targetPc.family) : '적합 공셀 없음',
-        targetCell: targetCellFmt,
-        targetWs: targetPc && targetPc.cell.ws ? targetPc.cell.ws : '',
-        reason: targetPc
-          ? recommendationReasons(sourcePc, targetPc, profile, context, sourceViolations, best.scoreInfo)
-          : sourceViolations.join(' · '),
-        mandatory: isMandatoryMove ? 1 : 0,
-        urgency: urgency, 
-        improvement: best ? best.scoreInfo.score - sourceScore : -999
+  function buildProfiles(allData) {
+    const data = new Map(), rows = [global.cellRows || [], global.boxRows || []];
+    rows.forEach(sourceRows => {
+      const headers = mapHeaders(sourceRows); if (!headers.sku) return;
+      sourceRows.forEach(row => {
+        const sku = skuId(row[headers.sku]); if (!sku) return;
+        const old = data.get(sku) || {};
+        data.set(sku, {
+          name:text(row[headers.name]) || old.name, group:text(row[headers.group]) || old.group, vendor:text(row[headers.vendor]) || old.vendor,
+          boxWeightRaw:text(row[headers.boxWeight]) || old.boxWeightRaw, itemWeightRaw:text(row[headers.itemWeight]) || old.itemWeightRaw,
+          incomingPlan:text(row[headers.incomingPlan]) || old.incomingPlan, fragile:yes(row[headers.fragile]) || old.fragile, event:yes(row[headers.event]) || old.event
+        });
       });
-    }
-    
-    // 최종 추천 리스트 정렬
-    const sortedRecommendations = recommendations.sort((a, b) => 
-        (b.urgency - a.urgency) || 
-        (b.mandatory - a.mandatory) || 
-        (b.improvement - a.improvement) || 
-        (b.toteCount - a.toteCount) || 
-        (b.pcs - a.pcs)
-    );
-
-    // [핵심 변경] 유연한 쿼터제(Cap) 기반 리스트 분할
-    const finalRecs = [];
-    let evictionCount = 0;
-    const MAX_EVICTION_QUOTA = Math.floor(CONFIG.maxRecommendations * 0.25); // 퇴출성 추천은 전체 슬롯의 최대 25%까지만 허용
-
-    for (const r of sortedRecommendations) {
-        const isSafety = r.reason.includes('안전') || r.reason.includes('중량') || r.reason.includes('구역 외');
-        const isEviction = r.reason.includes('퇴출');
-        
-        if (isSafety) {
-            finalRecs.push(r); // 안전(Safety) 이슈는 쿼터 무시
-        } else if (isEviction) {
-            if (evictionCount < MAX_EVICTION_QUOTA) {
-                finalRecs.push(r);
-                evictionCount++;
-            }
-        } else {
-            finalRecs.push(r); // 전방 배치 및 기타 이동
-        }
-
-        if (finalRecs.length >= CONFIG.maxRecommendations) break;
-    }
-
-    return finalRecs;
+    });
+    const profiles = new Map();
+    allData.assignedCells.forEach(cell => {
+      if (!cell.sku || profiles.has(cell.sku)) return;
+      const raw = data.get(cell.sku) || {}, name = text(cell.productName || allData.skuMeta.get(cell.sku)?.name || raw.name);
+      const profile = { sku:cell.sku, name, group:raw.group || '', vendor:raw.vendor || '', boxWeightG:weightInGrams(raw.boxWeightRaw, 'box'), itemWeightG:weightInGrams(raw.itemWeightRaw, 'ea') || extractWeightFromName(name), incomingPlan:raw.incomingPlan || '', fragile:!!raw.fragile, event:!!raw.event };
+      profile.category = categorize(profile);
+      const egg = `${name} ${profile.group}`.match(/(?:^|\D)(10|15|20|30)\s*구/);
+      profile.eggSize = egg ? Number(egg[1]) : null;
+      profiles.set(cell.sku, profile);
+    });
+    return profiles;
   }
-
-  global.QPSRuleEngine = Object.freeze({ recommend, version: '2.34.0' });
-  global.buildRecommendations = function (allData) { return recommend(allData); };
+  function makeNode(cell) {
+    const loc = text(cell.location);
+    return { cell, loc, zone:text(cell.zone), family:rackFamily(cell), temp:thermalClass(cell), level:levelOfLocation(loc), distRack:loc.slice(-6, -4), distSix:loc.slice(-6) };
+  }
+  function isFlowAllowed(p) {
+    return (p.category.quailEgg && p.outboundPcs >= 30 && p.stock >= 60) || p.outboundPcs >= 30 && p.stock >= 50 || p.sourceFamily === 'gate' && p.outboundPcs >= 20 || p.sourceFamily === 'flow' && (p.outboundPcs > 15 || p.stock > 20) || /배추|양배추|무\(통\)|수박/.test(p.name) || p.boxWeightG >= 7000;
+  }
+  function livestockAllowed(pc) { return inRange(pc.loc, 'D01-010101', 'D06-060505') || inRange(pc.loc, 'D07-030101', 'D07-060505'); }
+  function candidateAllowed(pc, source, p) {
+    if (pc.temp !== source.temp) return { ok:false, reason:'온도대 불일치' };
+    if (CONFIG.disabledZones.has(pc.zone)) return { ok:false, reason:'할당 금지 구역' };
+    if (pc.family === 'gate' && p.outboundPcs < 100) return { ok:false, reason:'게이트랙 출고 기준 미달' };
+    if (p.temp === 'frozen' && !CONFIG.frozenZones.has(pc.zone)) return { ok:false, reason:'냉동 전용 구역 필요' };
+    if (p.temp !== 'frozen' && CONFIG.frozenZones.has(pc.zone)) return { ok:false, reason:'냉동 구역 배정 불가' };
+    if (p.category.zeroToFive && p.temp !== 'frozen' && !['D01','D02'].includes(pc.zone)) return { ok:false, reason:'0~5℃ 전용 구역 필요' };
+    if (p.category.livestock && p.temp !== 'frozen' && (!p.category.zeroToFive && ['D01','D02'].includes(pc.zone) || !livestockAllowed(pc))) return { ok:false, reason:'축산 허가 구역 조건 불충족' };
+    if (p.category.kimchi && !['C08','C09'].includes(pc.zone)) return { ok:false, reason:'김치 전용 구역 필요' };
+    if (p.category.kimchi && pc.zone === 'C09' && (p.outboundPcs < 40 || p.stock < 50)) return { ok:false, reason:'저빈도 김치 C09 진입 불가' };
+    if (p.category.quailEgg && (p.outboundPcs >= 30 && p.stock >= 60 ? pc.family !== 'flow' : !inRange(pc.loc,'A07-040505','A07-070505'))) return { ok:false, reason:'메추리알 전용 위치 조건 불충족' };
+    if (p.category.egg && !eggAllowed(pc,p)) return { ok:false, reason:'계란 전용 위치 조건 불충족' };
+    if (!p.category.quailEgg && !p.category.kimchi && pc.family === 'flow' && p.temp !== 'frozen' && !isFlowAllowed(p)) return { ok:false, reason:'플로우랙 물량 기준 미달' };
+    if (pc.family === 'flow' && p.itemWeightG > 1000 && ((p.temp !== 'frozen' && pc.level === 4) || (p.temp === 'frozen' && pc.level === 5))) return { ok:false, reason:'플로우랙 중량 단수 제한' };
+    if ((p.boxWeightG > 7000 || p.itemWeightG > 3000) && pc.level > 2) return { ok:false, reason:'중량물 하단 보관 안전 수칙' };
+    return { ok:true };
+  }
+  function eggAllowed(pc,p) {
+    if ((p.outboundPcs >= 100 || p.stock >= 50) && ['A09','A10'].includes(pc.zone)) return true;
+    if (pc.zone !== 'A08') return p.event && pc.zone === 'A09';
+    if (![2,3,4].includes(pc.level)) return false;
+    const ranges = {10:['A08-010101','A08-020505'],15:['A08-030101','A08-040505'],20:['A08-050101','A08-060505'],30:['A08-070101','A08-080505']};
+    return !ranges[p.eggSize] || inRange(pc.loc, ...ranges[p.eggSize]);
+  }
+  function violations(source,p) {
+    const mandatory = [], soft = [], c = p.category, z = source.zone;
+    const noInbound = ['0','없음','무','no','n','미정'].includes(key(p.incomingPlan));
+    if (z === 'A10' && p.touch < 100 && p.stock <= 100 && p.incomingPlan && noInbound) mandatory.push({type:'POLICY', text:'A10 이동 기준 충족: 출고·재고·입고계획 기준 미달'});
+    const own = candidateAllowed(source, source, p); if (!own.ok) mandatory.push({type:own.reason.includes('중량') ? 'SAFETY' : 'COMPLIANCE', text:own.reason});
+    if (c.kimchi && z === 'C09' && p.outboundPcs <= 15 && p.stock <= 20) mandatory.push({type:'EVICTION', text:'김치 물량 급감으로 C09 플로우랙 퇴출 필요'});
+    if (c.kimchi && z === 'C08' && p.outboundPcs >= 60 && p.stock >= 80) mandatory.push({type:'FORWARD', text:'김치 고빈도 물량 급증으로 C09 전진 배치 필요'});
+    if (source.family === 'gate' && p.outboundPcs <= 70 && p.stock <= 50) mandatory.push({type:'EVICTION', text:'게이트랙 기준 미달로 퇴출 필요'});
+    if (!c.quailEgg && !c.kimchi && source.family === 'flow' && p.temp !== 'frozen' && p.stock > 0 && !isFlowAllowed(p)) mandatory.push({type:'EVICTION', text:'플로우랙 물량 기준 미달로 퇴출 필요'});
+    if (source.family === 'shelf' && p.stock >= 60 && !c.egg && !c.quailEgg && !['A01','B08','C08','D08','D09','D10'].includes(z)) soft.push('현재고 60개 이상으로 선반랙 한계 초과');
+    return { mandatory, soft };
+  }
+  function distanceScore(pc,p) {
+    const rows = DISTANCE_MAP[pc.zone] || []; let rank = 4;
+    for (let i=0; i<rows.length; i++) if (rows[i].includes(pc.distRack) || rows[i].includes(pc.distSix)) { rank=i; break; }
+    if (p.outboundPcs >= 30) return [60,30,0,-30,-30][rank] || -30;
+    if (p.outboundPcs <= 10) return [-60,-30,10,30,30][rank] || 30;
+    return -rank * 15;
+  }
+  function zScore(pc,p) {
+    let score=0, golden=false, dead=false;
+    if (pc.family === 'flow') golden = p.temp === 'chilled' ? [2,3].includes(pc.level) : [2,3,4].includes(pc.level);
+    else if (pc.family === 'shelf') { golden=[2,3,4].includes(pc.level); dead=pc.level===1 || pc.level>=5; }
+    else if (pc.family === 'showcase') golden = p.temp === 'chilled' ? pc.level>=1 && pc.level<=4 : [1,3,5].includes(pc.level);
+    if (golden) score += p.outboundPcs >= 30 ? 30 : p.outboundPcs <= 10 ? -30 : 0;
+    if (dead) score += p.outboundPcs <= 10 ? 20 : p.outboundPcs >= 30 ? -30 : 0;
+    if (p.itemWeightG > 0 && p.itemWeightG <= 500 && pc.family === 'shelf') score += pc.level===5 ? 60 : pc.level===4 ? 30 : pc.level===1 ? -60 : 0;
+    return score;
+  }
+  function preferredFamilies(p) {
+    if (p.category.kimchi) return p.outboundPcs >= 40 && p.stock >= 50 ? ['flow'] : ['shelf'];
+    if (p.category.quailEgg) return isFlowAllowed(p) ? ['flow'] : ['shelf'];
+    if (p.boxWeightG >= 7000 && p.stock >= 50) return ['flow','flat'];
+    if (p.temp === 'frozen' && /^F/.test(p.sourceZone)) return ['flow','flat'];
+    if (p.sourceFamily === 'gate' && p.outboundPcs >= 20) return ['flow','flat'];
+    return isFlowAllowed(p) ? ['flow','flat','shelf'] : ['shelf','showcase','flat'];
+  }
+  function familyScore(family, preferred) { if (preferred.includes(family)) return 150; return Math.max(-80,35-Math.abs((FAMILY_RANK[family]||9)-Math.min(...preferred.map(x=>FAMILY_RANK[x]||9)))*45); }
+  function buildWsMap(allData) {
+    const map=new Map(), seen=new Set();
+    allData.assignedCells.forEach(cell=>{ if(!cell.ws||!cell.sku) return; const pair=`${cell.ws}||${cell.sku}`; if(seen.has(pair)) return; seen.add(pair); const row=map.get(cell.ws)||{pcs:0}; row.pcs+=allData.skuToToteCount.get(cell.sku)||allData.skuToPcs.get(cell.sku)||0; map.set(cell.ws,row); });
+    return map;
+  }
+  function balanceScore(context, from, to, touch) {
+    if (!from || !to || from===to || !context.average) return {score:0, compliant:true};
+    const a=context.wsMap.get(from), b=context.wsMap.get(to); if(!a||!b) return {score:0, compliant:true};
+    const before=Math.max(Math.abs((a.pcs-context.average)/context.average),Math.abs((b.pcs-context.average)/context.average));
+    const after=Math.max(Math.abs((a.pcs-touch-context.average)/context.average),Math.abs((b.pcs+touch-context.average)/context.average));
+    return {score:(before-after)*200, compliant:after<=CONFIG.wsDeviation || after<=before};
+  }
+  function score(pc,source,p,context,preferred) {
+    const balance=balanceScore(context,source.cell.ws,pc.cell.ws,p.touch);
+    let value=familyScore(pc.family,preferred)+distanceScore(pc,p)+zScore(pc,p)+balance.score;
+    if(pc.zone===source.zone) value+=30; else if(pc.zone[0]===source.zone[0]) value+=10;
+    if(pc.cell.ws && pc.cell.ws===source.cell.ws) value+=20;
+    if(pc.zone.startsWith('F')) value+=Number(pc.zone.slice(1))*3;
+    if(p.category.kimchi) value+=pc.zone==='C08'?100:pc.zone==='C09'?(p.outboundPcs>=80&&[2,3].includes(pc.level)?200:50):0;
+    return {score:value,balance};
+  }
+  function createEmptyIndex(cells) {
+    const index={byTemp:{chilled:[],frozen:[]}, byTempFamily:new Map(), byTempZone:new Map()};
+    cells.map(makeNode).forEach(node=>{ if(!index.byTemp[node.temp]) return; index.byTemp[node.temp].push(node); const tf=`${node.temp}|${node.family}`, tz=`${node.temp}|${node.zone}`; if(!index.byTempFamily.has(tf)) index.byTempFamily.set(tf,[]); if(!index.byTempZone.has(tz)) index.byTempZone.set(tz,[]); index.byTempFamily.get(tf).push(node); index.byTempZone.get(tz).push(node); });
+    return index;
+  }
+  function candidatePool(index,p,preferred) {
+    const pools=preferred.map(f=>index.byTempFamily.get(`${p.temp}|${f}`)||[]).filter(x=>x.length);
+    return pools.length ? pools.flat() : (index.byTemp[p.temp]||[]);
+  }
+  function reasons(source,target,p,violations,preferred,scoreInfo) {
+    const list=violations.map(v=>v.text);
+    if(preferred.includes(target.family)) list.push(`${target.family==='gate'?'게이트랙':target.family==='flow'||target.family==='flat'?'플로우랙':'선반랙'} 배치 권장`);
+    if(p.category.egg) list.push('계란 전용 위치 조건 반영');
+    if(p.category.kimchi) list.push('김치 전용(C08/C09) 구역 반영');
+    if(p.category.zeroToFive && p.temp!=='frozen') list.push('0~5℃ 전용 보관 조건 반영');
+    if(scoreInfo.balance.score>1) list.push('W/S SKU 부하 편차 완화');
+    return [...new Set(list)].join(' · ');
+  }
+  function recommend(allData) {
+    if(!allData || !Array.isArray(allData.assignedCells) || !Array.isArray(allData.emptyCells)) return [];
+    const profiles=buildProfiles(allData), index=createEmptyIndex(allData.emptyCells), wsMap=buildWsMap(allData);
+    let total=0; wsMap.forEach(v=>total+=v.pcs); const context={wsMap,average:wsMap.size?total/wsMap.size:0};
+    const active=[], seen=new Set();
+    allData.assignedCells.forEach(cell=>{
+      if(!cell.sku||seen.has(cell.sku)) return; seen.add(cell.sku);
+      const source=makeNode(cell), base=profiles.get(cell.sku)||{sku:cell.sku,name:text(cell.productName),group:'',category:categorize({name:text(cell.productName),group:''),boxWeightG:0,itemWeightG:0};
+      const p={...base,touch:allData.skuToToteCount.get(cell.sku)||allData.skuToPcs.get(cell.sku)||0,outboundPcs:allData.skuToPcs.get(cell.sku)||0,stock:number(cell.stock),temp:source.temp,sourceZone:source.zone,sourceFamily:source.family};
+      if(p.stock===0&&p.outboundPcs===0) return;
+      const v=violations(source,p), mandatory=v.mandatory.length>0;
+      if(p.outboundPcs>0&&p.stock<=p.outboundPcs*.5&&!mandatory) return;
+      const urgency= v.mandatory.some(x=>x.type==='SAFETY') ? 10000 : v.mandatory.some(x=>x.type==='FORWARD') ? 2000+p.outboundPcs : v.mandatory.some(x=>x.type==='EVICTION') ? 300+Math.max(0,(10-p.outboundPcs)*10+(20-p.stock)) : mandatory?100:0;
+      active.push({source,p,v,mandatory,urgency,sort:p.touch+(mandatory?10000:0)});
+    });
+    active.sort((a,b)=>b.sort-a.sort);
+    const used=new Set(), result=[];
+    active.slice(0,CONFIG.maxSourceCandidates).forEach(item=>{
+      const preferred=preferredFamilies(item.p), pool=candidatePool(index,item.p,preferred); let best=null;
+      for(const pc of pool){ if(used.has(pc.loc)) continue; const allowed=candidateAllowed(pc,item.source,item.p); if(!allowed.ok) continue; const s=score(pc,item.source,item.p,context,preferred); if(!s.balance.compliant&&!item.mandatory) continue; if(!best||s.score>best.scoreInfo.score||(s.score===best.scoreInfo.score&&pc.loc<best.pc.loc)) best={pc,scoreInfo:s}; }
+      const sourceScore=score(item.source,item.source,item.p,context,preferred).score;
+      if(!best&&!item.mandatory) return; if(best&&!item.mandatory&&best.scoreInfo.score<sourceScore+25) return;
+      if(best) used.add(best.pc.loc);
+      const priorityType=item.v.mandatory.some(x=>x.type==='SAFETY')?'SAFETY':item.v.mandatory.some(x=>x.type==='COMPLIANCE')?'COMPLIANCE':item.v.mandatory.some(x=>x.type==='FORWARD')?'FORWARD':'OPTIMIZATION';
+      const moveType=item.v.mandatory.some(x=>x.type==='EVICTION')?'EVICTION':best?'MOVE':'NO_TARGET';
+      result.push({sku:item.source.cell.sku,productName:item.p.name||item.source.cell.productName||'',pcs:item.p.outboundPcs,stock:item.p.stock,toteCount:item.p.touch,temp:item.source.temp,currentCell:item.source.loc,currentRack:text(item.source.cell.rackType)||item.source.family,targetRack:best?(text(best.pc.cell.rackType)||best.pc.family):'공셀 확보 필요',targetCell:best?best.pc.loc:'-',targetWs:best?.pc.cell.ws||'',reason:best?reasons(item.source,best.pc,item.p,[...item.v.mandatory,...item.v.soft],preferred,best.scoreInfo):[...item.v.mandatory.map(x=>x.text),...item.v.soft].join(' · '),mandatory:item.mandatory?1:0,priorityType,moveType,urgency:item.urgency,improvement:best?best.scoreInfo.score-sourceScore:-999,status:best?'READY':'NO_TARGET'});
+    });
+    result.sort((a,b)=>b.urgency-a.urgency||b.mandatory-a.mandatory||b.improvement-a.improvement||b.toteCount-a.toteCount||b.pcs-a.pcs);
+    const final=[], evictionLimit=Math.floor(CONFIG.maxRecommendations*CONFIG.evictionQuotaRatio), evictions={count:0};
+    for(const r of result){
+      if(r.priorityType==='SAFETY'||r.moveType!=='EVICTION'){ final.push(r); }
+      else if(evictions.count<evictionLimit){ final.push(r); evictions.count++; }
+      if(final.length>=CONFIG.maxRecommendations) break;
+    }
+    return final;
+  }
+  global.QPSRuleEngine=Object.freeze({recommend,version:'2.35.0'});
+  global.buildRecommendations=recommend;
 })(window);
