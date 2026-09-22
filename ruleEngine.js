@@ -256,7 +256,7 @@
     const active=[], seen=new Set();
     allData.assignedCells.forEach(cell=>{
       if(!cell.sku||seen.has(cell.sku)) return; seen.add(cell.sku);
-      const source=makeNode(cell), base=profiles.get(cell.sku)||{sku:cell.sku,name:text(cell.productName),group:'',category:categorize({name:text(cell.productName),group:''),boxWeightG:0,itemWeightG:0};
+      const source=makeNode(cell), base=profiles.get(cell.sku)||{sku:cell.sku,name:text(cell.productName),group:'',category:categorize({name:text(cell.productName),group:''}),boxWeightG:0,itemWeightG:0};
       const p={...base,touch:allData.skuToToteCount.get(cell.sku)||allData.skuToPcs.get(cell.sku)||0,outboundPcs:allData.skuToPcs.get(cell.sku)||0,stock:number(cell.stock),temp:source.temp,sourceZone:source.zone,sourceFamily:source.family};
       if(p.stock===0&&p.outboundPcs===0) return;
       const v=violations(source,p), mandatory=v.mandatory.length>0;
