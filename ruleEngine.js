@@ -1,5 +1,12 @@
 /*
- * QPS Cell Allocation Rule Engine v2.36.2
+ * QPS Cell Allocation Rule Engine v2.37.0
+ *
+ * v2.37.0: violations()의 own-check(자기 위치 재검증)가 일반 플로우랙/게이트랙/김치
+ *   물량 미달 퇴출과 동일한 조건을 COMPLIANCE로 중복 태깅하던 문제 수정.
+ *   -> 이 때문에 정상적인 저빈도 퇴출 대상 대부분이 "안전·규정위반" 카드로 잘못
+ *      흡수되어 "퇴출 필요" 카드가 사실상 비어있었음. 이제 물량/출고 기준 미달류
+ *      own-check는 중복 태깅하지 않고, 전용 EVICTION 판정에만 맡김. 진짜 규정위반
+ *      (냉동구역 오배치, 축산 허가구역 위반, 전용구역 위반 등)은 그대로 COMPLIANCE 유지.
  *
  * 핫픽스 이력:
  * v2.36.1: isFlowAllowed()의 청과류 이름 예외(배추/양배추/무(통)/수박)가 재고 0개인
@@ -187,7 +194,8 @@
     const mandatory = [], soft = [], c = p.category, z = source.zone;
     const noInbound = ['0','없음','무','no','n','미정'].includes(key(p.incomingPlan));
     if (z === 'A10' && p.touch < 100 && p.stock <= 100 && p.incomingPlan && noInbound) mandatory.push({type:'POLICY', text:'A10 이동 기준 충족: 출고·재고·입고계획 기준 미달'});
-    const own = candidateAllowed(source, source, p); if (!own.ok) mandatory.push({type:own.reason.includes('중량') ? 'SAFETY' : 'COMPLIANCE', text:own.reason});
+    const own = candidateAllowed(source, source, p);
+    if (!own.ok && !/물량 기준 미달|출고 기준 미달|진입 불가/.test(own.reason)) mandatory.push({type:own.reason.includes('중량') ? 'SAFETY' : 'COMPLIANCE', text:own.reason});
     if (c.kimchi && z === 'C09' && p.outboundPcs <= 15 && p.stock <= 20) mandatory.push({type:'EVICTION', text:'김치 물량 급감으로 C09 플로우랙 퇴출 필요'});
     if (c.kimchi && z === 'C08' && p.outboundPcs >= 60 && p.stock >= 80) mandatory.push({type:'FORWARD', text:'김치 고빈도 물량 급증으로 C09 전진 배치 필요'});
     if (source.family === 'gate' && p.outboundPcs <= 70 && p.stock <= 50) mandatory.push({type:'EVICTION', text:'게이트랙 기준 미달로 퇴출 필요'});
@@ -311,6 +319,6 @@
     }
     return final;
   }
-  global.QPSRuleEngine=Object.freeze({recommend,version:'2.36.2'});
+  global.QPSRuleEngine=Object.freeze({recommend,version:'2.37.0'});
   global.buildRecommendations=recommend;
 })(window);
