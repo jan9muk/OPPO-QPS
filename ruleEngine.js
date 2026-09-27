@@ -1,5 +1,11 @@
 /*
- * QPS Cell Allocation Rule Engine v2.38.0
+ * QPS Cell Allocation Rule Engine v2.39.0
+ *
+ * v2.39.0: 일반 축산(수입육/우육/돈육/양념육, 0~5℃ 대상 제외)의 D01~D02 배치를 규정 위반에서
+ *   '대체 위치'로 변경. D03~D06 등 비챔버 공셀을 우선 탐색하고 없을 때만 챔버 사용.
+ *   챔버에 대체 보관 중인 일반 축산은 비챔버 공셀이 생기면 복귀를 제안.
+ *   '볶음탕용 생닭'이 가공 계육으로 분류되어 0~5℃ 대상에서 빠지던 문제 수정.
+ *   reasons()에서 보조 사유(soft, 문자열)가 빈 값으로 사라지던 문제 수정.
  *
  * v2.38.0: buildProfiles()가 window.cellRows/boxRows를 읽었으나 index.html은 이를 `let`으로
  *   선언해 window 속성이 아니었음 -> 원본 행이 항상 빈 배열이라 대/중/소분류·중량·입고계획·
@@ -41,6 +47,9 @@
     evictionQuotaRatio: 0.25,
     entryQuotaRatio: 0.25,
     disabledZones: new Set(['E01', 'E02']),
+    // 5℃ 이하 보관 가능한 냉장 챔버(선반랙). 수산물·생닭·다짐육은 반드시 여기에 보관.
+    // 일반 축산은 D03~D06이 원칙이며, 적정 공셀이 없을 때만 챔버를 대체 위치로 사용.
+    chamberZones: new Set(['D01', 'D02']),
     frozenZones: new Set(['E04', 'E05', 'E06', 'E07', 'F01', 'F02', 'F03', 'F04', 'F05', 'F06', 'F07', 'F08', 'F09', 'F10', 'F11', 'F12'])
   });
   const FAMILY_RANK = Object.freeze({ gate: 1, flow: 2, flat: 2, shelf: 3, showcase: 3, other: 9 });
@@ -138,7 +147,7 @@
     const processedEgg = /연두부|장조림|소시지|소세지|과자|빵|볶음밥|말이|찜/.test(name) || ['두부/묵/콩가공품','반찬','햄/소시지','간편식','가공식품'].includes(group);
     const egg = (group === '계란' || /계란|식용란|유정란|왕란|특란|대란|신선란|구운란/.test(name)) && !processedEgg && !quail;
     const livestock = ['수입육','우육','돈육','계육','양념육'].includes(group);
-    const processedChicken = /닭갈비|양념|볶음|훈제/.test(name);
+    const processedChicken = /닭갈비|양념|볶음(?!탕)|훈제/.test(name); // '볶음탕용 생닭'은 원료육
     const seafoodOrPoultry = ['대중선어','구색선어','생선회','갑각류','패류','연체류'].includes(group) || (group === '계육' && !processedChicken);
     return { egg, quailEgg: quail, livestock, kimchi, zeroToFive: seafoodOrPoultry || (['수입육','우육','돈육'].includes(group) && name.includes('다짐육')) };
   }
@@ -184,6 +193,7 @@
   function isFlowAllowed(p) {
     return (p.category.quailEgg && p.outboundPcs >= 30 && p.stock >= 60) || p.outboundPcs >= 30 && p.stock >= 50 || p.sourceFamily === 'gate' && p.outboundPcs >= 20 || p.sourceFamily === 'flow' && (p.outboundPcs > 15 || p.stock > 20) || (p.stock > 0 && p.itemWeightG >= 1000 && /배추|양배추|무\(통\)|수박/.test(p.name)) || p.boxWeightG >= 7000;
   }
+  function isGeneralLivestock(p) { return p.category.livestock && !p.category.zeroToFive && p.temp !== 'frozen'; }
   function livestockAllowed(pc) { return inRange(pc.loc, 'D01-010101', 'D06-060505') || inRange(pc.loc, 'D07-030101', 'D07-060505'); }
   function candidateAllowed(pc, source, p) {
     if (pc.temp !== source.temp) return { ok:false, reason:'온도대 불일치' };
@@ -191,8 +201,8 @@
     if (pc.family === 'gate' && p.outboundPcs < 100) return { ok:false, reason:'게이트랙 출고 기준 미달' };
     if (p.temp === 'frozen' && !CONFIG.frozenZones.has(pc.zone)) return { ok:false, reason:'냉동 전용 구역 필요' };
     if (p.temp !== 'frozen' && CONFIG.frozenZones.has(pc.zone)) return { ok:false, reason:'냉동 구역 배정 불가' };
-    if (p.category.zeroToFive && p.temp !== 'frozen' && !['D01','D02'].includes(pc.zone)) return { ok:false, reason:'0~5℃ 전용 구역 필요' };
-    if (p.category.livestock && p.temp !== 'frozen' && (!p.category.zeroToFive && ['D01','D02'].includes(pc.zone) || !livestockAllowed(pc))) return { ok:false, reason:'축산 허가 구역 조건 불충족' };
+    if (p.category.zeroToFive && p.temp !== 'frozen' && !CONFIG.chamberZones.has(pc.zone)) return { ok:false, reason:'0~5℃ 전용 구역 필요' };
+    if (p.category.livestock && p.temp !== 'frozen' && !livestockAllowed(pc)) return { ok:false, reason:'축산 허가 구역 조건 불충족' };
     if (p.category.kimchi && !['C08','C09'].includes(pc.zone)) return { ok:false, reason:'김치 전용 구역 필요' };
     if (p.category.kimchi && pc.zone === 'C09' && (p.outboundPcs < 40 || p.stock < 50)) return { ok:false, reason:'저빈도 김치 C09 진입 불가' };
     if (p.category.quailEgg && (p.outboundPcs >= 30 && p.stock >= 60 ? pc.family !== 'flow' : !inRange(pc.loc,'A07-040505','A07-070505'))) return { ok:false, reason:'메추리알 전용 위치 조건 불충족' };
@@ -220,6 +230,7 @@
     if (source.family === 'gate' && p.outboundPcs <= 70 && p.stock <= 50) mandatory.push({type:'EVICTION', text:'게이트랙 기준 미달로 퇴출 필요'});
     if (!c.quailEgg && !c.kimchi && source.family === 'flow' && p.temp !== 'frozen' && p.stock > 0 && !isFlowAllowed(p)) mandatory.push({type:'EVICTION', text:'플로우랙 물량 기준 미달로 퇴출 필요'});
     if (!c.quailEgg && !c.kimchi && ['shelf','showcase'].includes(source.family) && p.temp !== 'frozen' && isFlowAllowed(p)) mandatory.push({type:'ENTRY', text:'고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하)'});
+    if (isGeneralLivestock(p) && CONFIG.chamberZones.has(z)) soft.push('일반 축산 5℃ 챔버(D01~D02) 대체 보관 중 · D03~D06 공셀 확보 시 복귀 권장');
     if (source.family === 'shelf' && p.stock >= 60 && !c.egg && !c.quailEgg && !['A01','B08','C08','D08','D09','D10'].includes(z)) soft.push('현재고 60개 이상으로 선반랙 한계 초과');
     return { mandatory, soft };
   }
@@ -280,7 +291,7 @@
     return pools.length ? pools.flat() : (index.byTemp[p.temp]||[]);
   }
   function reasons(source,target,p,violations,preferred,scoreInfo) {
-    const list=violations.map(v=>v.text);
+    const list=violations.map(v=>typeof v==='string'?v:v.text);
     if(preferred.includes(target.family)) list.push(`${target.family==='gate'?'게이트랙':target.family==='flow'||target.family==='flat'?'플로우랙':'선반랙'} 배치 권장`);
     if(p.category.egg) list.push('계란 전용 위치 조건 반영');
     if(p.category.kimchi) list.push('김치 전용(C08/C09) 구역 반영');
@@ -317,10 +328,16 @@
       const pool=isEntryItem
         ? [...(index.byTempFamily.get(`${item.p.temp}|flow`)||[]),...(index.byTempFamily.get(`${item.p.temp}|flat`)||[])]
         : candidatePool(index,item.p,preferred);
-      let best=null;
-      for(const pc of pool){ if(used.has(pc.loc)) continue; const allowed=candidateAllowed(pc,item.source,item.p); if(!allowed.ok) continue; const s=score(pc,item.source,item.p,context,preferred); if(!s.balance.compliant&&!item.mandatory) continue; if(!best||s.score>best.scoreInfo.score||(s.score===best.scoreInfo.score&&pc.loc<best.pc.loc)) best={pc,scoreInfo:s}; }
+      // 일반 축산은 D03~D06 등 비챔버 공셀을 먼저 찾고, 없을 때만 5℃ 챔버(D01~D02)를 사용
+      const generalLivestock=isGeneralLivestock(item.p);
+      const pickBest=allowChamber=>{ let best=null;
+      for(const pc of pool){ if(used.has(pc.loc)) continue; if(!allowChamber&&CONFIG.chamberZones.has(pc.zone)) continue; const allowed=candidateAllowed(pc,item.source,item.p); if(!allowed.ok) continue; const s=score(pc,item.source,item.p,context,preferred); if(!s.balance.compliant&&!item.mandatory) continue; if(!best||s.score>best.scoreInfo.score||(s.score===best.scoreInfo.score&&pc.loc<best.pc.loc)) best={pc,scoreInfo:s}; }
+      return best; };
+      let best=pickBest(!generalLivestock);
+      if(!best&&generalLivestock) best=pickBest(true);
+      const chamberReturn=generalLivestock&&CONFIG.chamberZones.has(item.source.zone)&&best&&!CONFIG.chamberZones.has(best.pc.zone);
       const sourceScore=score(item.source,item.source,item.p,context,preferred).score;
-      if(!best&&!item.mandatory) return; if(best&&!item.mandatory&&best.scoreInfo.score<sourceScore+25) return;
+      if(!best&&!item.mandatory) return; if(best&&!item.mandatory&&!chamberReturn&&best.scoreInfo.score<sourceScore+25) return;
       if(best) used.add(best.pc.loc);
       const priorityType=item.v.mandatory.some(x=>x.type==='SAFETY')?'SAFETY':item.v.mandatory.some(x=>x.type==='COMPLIANCE')?'COMPLIANCE':item.v.mandatory.some(x=>x.type==='FORWARD')?'FORWARD':item.v.mandatory.some(x=>x.type==='ENTRY')?'ENTRY':'OPTIMIZATION';
       const moveType=item.v.mandatory.some(x=>x.type==='EVICTION')?'EVICTION':best?'MOVE':'NO_TARGET';
@@ -338,6 +355,6 @@
     }
     return final;
   }
-  global.QPSRuleEngine=Object.freeze({recommend,version:'2.38.0'});
+  global.QPSRuleEngine=Object.freeze({recommend,version:'2.39.0'});
   global.buildRecommendations=recommend;
 })(window);
