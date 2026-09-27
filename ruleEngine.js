@@ -1,5 +1,12 @@
 /*
- * QPS Cell Allocation Rule Engine v2.37.0
+ * QPS Cell Allocation Rule Engine v2.38.0
+ *
+ * v2.38.0: buildProfiles()가 window.cellRows/boxRows를 읽었으나 index.html은 이를 `let`으로
+ *   선언해 window 속성이 아니었음 -> 원본 행이 항상 빈 배열이라 대/중/소분류·중량·입고계획·
+ *   행사 등 선택 컬럼이 전부 무시되고 있었음. 이제 allData.cellRows/boxRows로 명시 전달받음.
+ *   함께 수정: 김치 판정을 중분류('김치') 우선으로 변경. 분류 컬럼이 없을 때만 상품명으로
+ *   판정하며, 김치찌개·동치미냉면·김치만두 등 조리/가공 식품명은 제외.
+ *   메추리알은 소분류에만 존재하므로 subGroup(소분류)도 함께 확인.
  *
  * v2.37.0: violations()의 own-check(자기 위치 재검증)가 일반 플로우랙/게이트랙/김치
  *   물량 미달 퇴출과 동일한 조건을 COMPLIANCE로 중복 태깅하던 문제 수정.
@@ -71,6 +78,7 @@
   const OPTIONAL_FIELDS = {
     vendor:['업체코드','업체명','공급업체','공급사','거래처','vendor','supplier'],
     group:['중분류','소분류','대분류','카테고리','상품분류','상품군','productgroup','category'],
+    subGroup:['소분류','subcategory'],
     boxWeight:['p박스당중량','pbox중량','박스당중량','박스중량','boxweight','caseweight'],
     itemWeight:['낱개중량','개당중량','단품중량','상품중량','itemweight','unitweight'],
     incomingPlan:['향후2주입고예정','2주입고예정','입고예정','입고계획','inboundplan','incomingplan'],
@@ -113,15 +121,26 @@
     if (/평대|flat/.test(raw)) return 'flat'; if (/쇼케이스|다단|오픈|리치인|워크인|showcase/.test(raw)) return 'showcase';
     return /선반|shelf/.test(raw) ? 'shelf' : 'other';
   }
+  // 분류 컬럼이 없을 때만 쓰는 상품명 기반 김치 판정.
+  // 김치 키워드 '뒤'에 조리/가공 식품어가 오면(김치찌개, 동치미냉면) 제외하고,
+  // 앞에 오는 경우(찌개용 김치, 특제육수 포기김치)는 김치로 본다. 만두/교자류는 항상 제외.
+  const KIMCHI_NAME = /김치|묵은지|소박이|섞박지|석박지|깍두기|겉절이|총각무|동치미|무생채/;
+  const KIMCHI_DISH_NAME = /찌개|찜|전골|짜글이|냉면|냉국수|육수|국수|우동|수제비|라볶이|만두|교자|전병|김치\s*전|볶음밥|덮밥|주먹밥|김밥|양밥|제육|감바스|어묵/;
+  function isKimchiByName(name) {
+    const m = KIMCHI_NAME.exec(name);
+    if (!m) return false;
+    return !KIMCHI_DISH_NAME.test(name.slice(m.index)) && !/만두|교자/.test(name);
+  }
   function categorize(profile) {
-    const name = text(profile.name), group = text(profile.group);
-    const quail = name.includes('메추리알') || group.includes('메추리알');
+    const name = text(profile.name), group = text(profile.group), subGroup = text(profile.subGroup);
+    const quail = name.includes('메추리알') || group.includes('메추리알') || subGroup.includes('메추리알');
+    const kimchi = group ? group.includes('김치') : isKimchiByName(name);
     const processedEgg = /연두부|장조림|소시지|소세지|과자|빵|볶음밥|말이|찜/.test(name) || ['두부/묵/콩가공품','반찬','햄/소시지','간편식','가공식품'].includes(group);
     const egg = (group === '계란' || /계란|식용란|유정란|왕란|특란|대란|신선란|구운란/.test(name)) && !processedEgg && !quail;
     const livestock = ['수입육','우육','돈육','계육','양념육'].includes(group);
     const processedChicken = /닭갈비|양념|볶음|훈제/.test(name);
     const seafoodOrPoultry = ['대중선어','구색선어','생선회','갑각류','패류','연체류'].includes(group) || (group === '계육' && !processedChicken);
-    return { egg, quailEgg: quail, livestock, kimchi: group.includes('김치') || /김치|섞박지|석박지|깍두기|겉절이|총각무|동치미|무생채|파김치/.test(name), zeroToFive: seafoodOrPoultry || (['수입육','우육','돈육'].includes(group) && name.includes('다짐육')) };
+    return { egg, quailEgg: quail, livestock, kimchi, zeroToFive: seafoodOrPoultry || (['수입육','우육','돈육'].includes(group) && name.includes('다짐육')) };
   }
   function mapHeaders(rows) {
     if (!rows.length) return {};
@@ -133,14 +152,14 @@
     return result;
   }
   function buildProfiles(allData) {
-    const data = new Map(), rows = [global.cellRows || [], global.boxRows || []];
+    const data = new Map(), rows = [allData.cellRows || [], allData.boxRows || []];
     rows.forEach(sourceRows => {
       const headers = mapHeaders(sourceRows); if (!headers.sku) return;
       sourceRows.forEach(row => {
         const sku = skuId(row[headers.sku]); if (!sku) return;
         const old = data.get(sku) || {};
         data.set(sku, {
-          name:text(row[headers.name]) || old.name, group:text(row[headers.group]) || old.group, vendor:text(row[headers.vendor]) || old.vendor,
+          name:text(row[headers.name]) || old.name, group:text(row[headers.group]) || old.group, subGroup:text(row[headers.subGroup]) || old.subGroup, vendor:text(row[headers.vendor]) || old.vendor,
           boxWeightRaw:text(row[headers.boxWeight]) || old.boxWeightRaw, itemWeightRaw:text(row[headers.itemWeight]) || old.itemWeightRaw,
           incomingPlan:text(row[headers.incomingPlan]) || old.incomingPlan, fragile:yes(row[headers.fragile]) || old.fragile, event:yes(row[headers.event]) || old.event
         });
@@ -150,7 +169,7 @@
     allData.assignedCells.forEach(cell => {
       if (!cell.sku || profiles.has(cell.sku)) return;
       const raw = data.get(cell.sku) || {}, name = text(cell.productName || allData.skuMeta.get(cell.sku)?.name || raw.name);
-      const profile = { sku:cell.sku, name, group:raw.group || '', vendor:raw.vendor || '', boxWeightG:weightInGrams(raw.boxWeightRaw, 'box'), itemWeightG:weightInGrams(raw.itemWeightRaw, 'ea') || extractWeightFromName(name), incomingPlan:raw.incomingPlan || '', fragile:!!raw.fragile, event:!!raw.event };
+      const profile = { sku:cell.sku, name, group:raw.group || '', subGroup:raw.subGroup || '', vendor:raw.vendor || '', boxWeightG:weightInGrams(raw.boxWeightRaw, 'box'), itemWeightG:weightInGrams(raw.itemWeightRaw, 'ea') || extractWeightFromName(name), incomingPlan:raw.incomingPlan || '', fragile:!!raw.fragile, event:!!raw.event };
       profile.category = categorize(profile);
       const egg = `${name} ${profile.group}`.match(/(?:^|\D)(10|15|20|30)\s*구/);
       profile.eggSize = egg ? Number(egg[1]) : null;
@@ -319,6 +338,6 @@
     }
     return final;
   }
-  global.QPSRuleEngine=Object.freeze({recommend,version:'2.37.0'});
+  global.QPSRuleEngine=Object.freeze({recommend,version:'2.38.0'});
   global.buildRecommendations=recommend;
 })(window);
