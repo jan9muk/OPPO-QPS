@@ -1,5 +1,13 @@
 /*
- * QPS Cell Allocation Rule Engine v2.40.0
+ * QPS Cell Allocation Rule Engine v2.41.0
+ *
+ * v2.41.0: 구역 재편
+ *   - 게이트랙 분리: A09 = 계란 전용 게이트랙(계란 기준: 출고 100 이상 또는 재고 50 이상),
+ *     A10 = 비계란 게이트랙(일반 게이트랙 기준: 출고 100 이상). 반대로 배치된 SKU는 규정 위반.
+ *   - 메추리알 전용 구역 신설: A07-060101~A07-070505(선반랙 50셀). 플로우랙 진입 기준을 충족한
+ *     메추리알은 기존대로 플로우랙. 이 구역은 메추리알 전용으로 예약(타 SKU 추천 대상에서 제외).
+ *   - 올가닉 계란(중분류 올가닉신선 / 소분류 올가닉계란)이 v2.40.0에서 계란 판정에서 빠지던 문제 수정.
+ *   - 계란 구수 파싱에 'N개입' 표기 추가.
  *
  * v2.40.0: 우선순위·표시 정합성 정리
  *   - 공셀 배정(greedy) 순서를 토트 수가 아닌 urgency 순으로 변경 -> 안전·규정 위반 건이
@@ -70,6 +78,10 @@
     chamberZones: new Set(['D01', 'D02']),
     // 메추리알 플로우랙 진입(출고·재고 모두 이상) / 퇴출(출고·재고 모두 이하) 기준. 사이 구간은 현 위치 유지.
     quailFlow: Object.freeze({ entryOut: 30, entryStock: 60, exitOut: 15, exitStock: 20 }),
+    // 메추리알 전용 선반 구역(플로우랙 진입 대상이 아닌 메추리알은 모두 여기로 응집)
+    quailZone: Object.freeze(['A07-060101', 'A07-070505']),
+    eggGateZone: 'A09',     // 계란 전용 게이트랙
+    nonEggGateZone: 'A10',  // 비계란 게이트랙
     frozenZones: new Set(['E04', 'E05', 'E06', 'E07', 'F01', 'F02', 'F03', 'F04', 'F05', 'F06', 'F07', 'F08', 'F09', 'F10', 'F11', 'F12'])
   });
   const FAMILY_RANK = Object.freeze({ gate: 1, flow: 2, flat: 2, shelf: 3, showcase: 3, other: 9 });
@@ -163,11 +175,12 @@
   function categorize(profile) {
     const name = text(profile.name), group = text(profile.group), subGroup = text(profile.subGroup);
     // 분류 컬럼이 있으면 분류로 판정(메추리알은 소분류, 가공 메추리알은 중분류 '계란' + 이름). 없으면 이름 기반.
-    const quail = group ? subGroup.includes('메추리알') || group.includes('메추리알') || (group === '계란' && name.includes('메추리'))
+    const eggClass = group === '계란' || subGroup.includes('계란'); // 올가닉계란(중분류 올가닉신선) 포함
+    const quail = group ? subGroup.includes('메추리알') || group.includes('메추리알') || (eggClass && name.includes('메추리'))
       : name.includes('메추리알') && !/장조림|조림|볶음|샐러드|김밥|꼬치/.test(name);
     const kimchi = group ? group.includes('김치') : isKimchiByName(name);
     const processedEgg = /연두부|장조림|소시지|소세지|과자|빵|볶음밥|말이|찜/.test(name) || ['두부/묵/콩가공품','반찬','햄/소시지','간편식','가공식품'].includes(group);
-    const egg = (group ? group === '계란' : /계란|식용란|유정란|왕란|특란|대란|신선란|구운란/.test(name) && !processedEgg) && !quail;
+    const egg = (group ? eggClass : /계란|식용란|유정란|왕란|특란|대란|신선란|구운란/.test(name) && !processedEgg) && !quail;
     const livestock = ['수입육','우육','돈육','계육','양념육'].includes(group);
     const processedChicken = /닭갈비|양념|볶음(?!탕)|훈제/.test(name); // '볶음탕용 생닭'은 원료육
     const seafoodOrPoultry = ['대중선어','구색선어','생선회','갑각류','패류','연체류'].includes(group) || (group === '계육' && !processedChicken);
@@ -203,7 +216,7 @@
       const profile = { sku:cell.sku, name, group:raw.group || '', subGroup:raw.subGroup || '', vendor:raw.vendor || '', boxWeightG:weightInGrams(raw.boxWeightRaw, 'box'), itemWeightG:weightInGrams(raw.itemWeightRaw, 'ea') || extractWeightFromName(name), incomingPlan:raw.incomingPlan || '', fragile:!!raw.fragile, event:!!raw.event };
       profile.category = categorize(profile);
       // '[30구 단위 구매 가능] … 15구'처럼 대괄호 안의 판촉 문구는 제외하고 구수 파싱
-      const egg = `${name.replace(/\[[^\]]*\]/g, ' ')} ${profile.group}`.match(/(?:^|\D)(10|15|20|30)\s*구/);
+      const egg = `${name.replace(/\[[^\]]*\]/g, ' ')} ${profile.group}`.match(/(?:^|\D)(10|15|20|30)\s*(?:구|개입)/);
       profile.eggSize = egg ? Number(egg[1]) : null;
       profiles.set(cell.sku, profile);
     });
@@ -224,7 +237,13 @@
   function candidateAllowed(pc, source, p) {
     if (pc.temp !== source.temp) return { ok:false, reason:'온도대 불일치' };
     if (CONFIG.disabledZones.has(pc.zone)) return { ok:false, reason:'할당 금지 구역' };
-    if (pc.family === 'gate' && p.outboundPcs < 100) return { ok:false, reason:'게이트랙 출고 기준 미달', kind:'volume' };
+    const eggGate = pc.zone === CONFIG.eggGateZone;
+    if (eggGate && !p.category.egg) return { ok:false, reason:`${CONFIG.eggGateZone} 계란 전용 게이트랙` };
+    if (pc.zone === CONFIG.nonEggGateZone && p.category.egg) return { ok:false, reason:`${CONFIG.nonEggGateZone} 비계란 게이트랙(계란 배치 불가)` };
+    // 계란 전용 게이트랙은 아래 계란 기준(eggAllowed)이 진입 여부를 판정
+    if (pc.family === 'gate' && !eggGate && p.outboundPcs < 100) return { ok:false, reason:'게이트랙 출고 기준 미달', kind:'volume' };
+    // 메추리알 전용 구역은 다른 SKU의 이동 대상에서 제외(현재 위치 재검증에는 적용하지 않음)
+    if (pc !== source && !p.category.quailEgg && inRange(pc.loc, ...CONFIG.quailZone)) return { ok:false, reason:'메추리알 전용 구역' };
     if (p.temp === 'frozen' && !CONFIG.frozenZones.has(pc.zone)) return { ok:false, reason:'냉동 전용 구역 필요' };
     if (p.temp !== 'frozen' && CONFIG.frozenZones.has(pc.zone)) return { ok:false, reason:'냉동 구역 배정 불가' };
     if (p.category.zeroToFive && p.temp !== 'frozen' && !CONFIG.chamberZones.has(pc.zone)) return { ok:false, reason:'0~5℃ 전용 구역 필요' };
@@ -233,17 +252,17 @@
     if (p.category.kimchi && pc.zone === 'C09' && (p.outboundPcs < 40 || p.stock < 50)) return { ok:false, reason:'저빈도 김치 C09 진입 불가', kind:'volume' };
     if (p.category.quailEgg) {
       const high = quailFlowEntry(p);
-      if (high ? pc.family !== 'flow' : !inRange(pc.loc,'A07-040505','A07-070505')) return { ok:false, reason:'메추리알 전용 위치 조건 불충족', kind:(high || pc.family === 'flow') ? 'volume' : undefined };
+      if (high ? pc.family !== 'flow' : !inRange(pc.loc, ...CONFIG.quailZone)) return { ok:false, reason:'메추리알 전용 위치 조건 불충족', kind:(high || pc.family === 'flow') ? 'volume' : undefined };
     }
-    if (p.category.egg && !eggAllowed(pc,p)) return { ok:false, reason:'계란 전용 위치 조건 불충족', kind:['A09','A10'].includes(pc.zone) ? 'volume' : undefined };
+    if (p.category.egg && !eggAllowed(pc,p)) return { ok:false, reason:'계란 전용 위치 조건 불충족', kind:pc.zone === CONFIG.eggGateZone ? 'volume' : undefined };
     if (!p.category.quailEgg && !p.category.kimchi && pc.family === 'flow' && p.temp !== 'frozen' && !isFlowAllowed(p)) return { ok:false, reason:'플로우랙 물량 기준 미달', kind:'volume' };
     if (pc.family === 'flow' && p.itemWeightG > 1000 && ((p.temp !== 'frozen' && pc.level === 4) || (p.temp === 'frozen' && pc.level === 5))) return { ok:false, reason:'플로우랙 중량 단수 제한', kind:'safety' };
     if ((p.boxWeightG > 7000 || p.itemWeightG > 3000) && pc.level > 2) return { ok:false, reason:'중량물 하단 보관 안전 수칙', kind:'safety' };
     return { ok:true };
   }
   function eggAllowed(pc,p) {
-    if ((p.outboundPcs >= 100 || p.stock >= 50) && ['A09','A10'].includes(pc.zone)) return true;
-    if (pc.zone !== 'A08') return p.event && pc.zone === 'A09';
+    if ((p.outboundPcs >= 100 || p.stock >= 50) && pc.zone === CONFIG.eggGateZone) return true;
+    if (pc.zone !== 'A08') return p.event && pc.zone === CONFIG.eggGateZone;
     if (![2,3,4].includes(pc.level)) return false;
     const ranges = {10:['A08-010101','A08-020505'],15:['A08-030101','A08-040505'],20:['A08-050101','A08-060505'],30:['A08-070101','A08-080505']};
     return !ranges[p.eggSize] || inRange(pc.loc, ...ranges[p.eggSize]);
@@ -285,6 +304,7 @@
   function preferredFamilies(p) {
     if (p.category.kimchi) return p.outboundPcs >= 40 && p.stock >= 50 ? ['flow'] : ['shelf'];
     if (p.category.quailEgg) return isFlowAllowed(p) ? ['flow'] : ['shelf'];
+    if (p.category.egg) return p.outboundPcs >= 100 || p.stock >= 50 ? ['gate','shelf'] : ['shelf']; // A09 계란 게이트랙 / A08 선반
     if (p.boxWeightG >= 7000 && p.stock >= 50) return ['flow','flat'];
     if (p.temp === 'frozen' && /^F/.test(p.sourceZone)) return ['flow','flat'];
     if (p.sourceFamily === 'gate' && p.outboundPcs >= 20) return ['flow','flat'];
@@ -392,6 +412,6 @@
     }
     return final;
   }
-  global.QPSRuleEngine=Object.freeze({recommend,version:'2.40.0'});
+  global.QPSRuleEngine=Object.freeze({recommend,version:'2.41.0'});
   global.buildRecommendations=recommend;
 })(window);
