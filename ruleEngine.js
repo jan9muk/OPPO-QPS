@@ -1,5 +1,13 @@
 /*
- * QPS Cell Allocation Rule Engine v2.36.0
+ * QPS Cell Allocation Rule Engine v2.36.2
+ *
+ * 핫픽스 이력:
+ * v2.36.1: isFlowAllowed()의 청과류 이름 예외(배추/양배추/무(통)/수박)가 재고 0개인
+ *   SKU에도 적용되어 "재고 0개인데 플로우랙 진입 필요"로 잘못 추천되는 문제 수정.
+ *   (예: 이름에 "양배추"가 포함된 요거트 제품이 청과류로 오분류) -> stock > 0 조건 추가.
+ * v2.36.2: stock > 0 만으로는 부족했음 — "쌈배추(80g)"처럼 실재고는 있지만 소포장인
+ *   품목까지 벌크 청과류로 오분류되는 문제 추가 발견. 상품명 파싱 중량(itemWeightG)이
+ *   1kg 미만이면 소포장으로 간주해 예외 제외. (임계값 1000g은 조정 가능한 값)
  *
  * 개선 사항
  * 1) 플로우랙 "진입 필요"를 EVICTION과 대칭되는 정식 mandatory 카테고리(ENTRY)로 승격
@@ -148,7 +156,7 @@
     return { cell, loc, zone:text(cell.zone), family:rackFamily(cell), temp:thermalClass(cell), level:levelOfLocation(loc), distRack:loc.slice(-6, -4), distSix:loc.slice(-6) };
   }
   function isFlowAllowed(p) {
-    return (p.category.quailEgg && p.outboundPcs >= 30 && p.stock >= 60) || p.outboundPcs >= 30 && p.stock >= 50 || p.sourceFamily === 'gate' && p.outboundPcs >= 20 || p.sourceFamily === 'flow' && (p.outboundPcs > 15 || p.stock > 20) || /배추|양배추|무\(통\)|수박/.test(p.name) || p.boxWeightG >= 7000;
+    return (p.category.quailEgg && p.outboundPcs >= 30 && p.stock >= 60) || p.outboundPcs >= 30 && p.stock >= 50 || p.sourceFamily === 'gate' && p.outboundPcs >= 20 || p.sourceFamily === 'flow' && (p.outboundPcs > 15 || p.stock > 20) || (p.stock > 0 && p.itemWeightG >= 1000 && /배추|양배추|무\(통\)|수박/.test(p.name)) || p.boxWeightG >= 7000;
   }
   function livestockAllowed(pc) { return inRange(pc.loc, 'D01-010101', 'D06-060505') || inRange(pc.loc, 'D07-030101', 'D07-060505'); }
   function candidateAllowed(pc, source, p) {
@@ -303,6 +311,6 @@
     }
     return final;
   }
-  global.QPSRuleEngine=Object.freeze({recommend,version:'2.36.0'});
+  global.QPSRuleEngine=Object.freeze({recommend,version:'2.36.2'});
   global.buildRecommendations=recommend;
 })(window);
