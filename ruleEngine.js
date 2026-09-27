@@ -1,12 +1,14 @@
 /*
- * QPS Cell Allocation Rule Engine v2.35.0
+ * QPS Cell Allocation Rule Engine v2.36.0
  *
  * 개선 사항
- * 1) 중량/계란 규격/W-S 키 문자열 보간 오류 수정
- * 2) 추천 문구가 아닌 구조화된 priorityType·moveType으로 안전/퇴출 쿼터 판정
- * 3) 온도·랙 패밀리·존 단위 공셀 인덱스 사용
- * 4) 필수 제약은 점수 계산 전에 후보에서 제외
- * 5) 추천 불가 항목은 NO_TARGET 상태로 반환
+ * 1) 플로우랙 "진입 필요"를 EVICTION과 대칭되는 정식 mandatory 카테고리(ENTRY)로 승격
+ *    -> 기존에는 urgency=0(soft 선호도)으로만 반영되어 추천 리스트 하위권에 묻혔음
+ * 2) 플로우랙 공셀 실재 여부(flowSpaceByTemp)에 따라 ENTRY urgency를 동적으로 조정
+ *    -> 공셀이 있으면 진입을 최우선으로, 공셀이 없으면 저빈도 SKU 퇴출이 먼저 오도록 자연 정렬
+ * 3) EVICTION/ENTRY 각각 독립적인 내부 쿼터(evictionQuotaRatio/entryQuotaRatio) 적용
+ * 4) v2.35.0의 기존 수정사항 유지(중량/문자열 보간 오류 수정, 구조화 priorityType·moveType,
+ *    온도·랙패밀리·존 단위 공셀 인덱스, 필수 제약 사전 필터링, NO_TARGET 상태 반환)
  */
 (function (global) {
   'use strict';
@@ -15,6 +17,7 @@
     maxRecommendations: 100,
     maxSourceCandidates: 1500,
     evictionQuotaRatio: 0.25,
+    entryQuotaRatio: 0.25,
     disabledZones: new Set(['E01', 'E02']),
     frozenZones: new Set(['E04', 'E05', 'E06', 'E07', 'F01', 'F02', 'F03', 'F04', 'F05', 'F06', 'F07', 'F08', 'F09', 'F10', 'F11', 'F12'])
   });
@@ -181,6 +184,7 @@
     if (c.kimchi && z === 'C08' && p.outboundPcs >= 60 && p.stock >= 80) mandatory.push({type:'FORWARD', text:'김치 고빈도 물량 급증으로 C09 전진 배치 필요'});
     if (source.family === 'gate' && p.outboundPcs <= 70 && p.stock <= 50) mandatory.push({type:'EVICTION', text:'게이트랙 기준 미달로 퇴출 필요'});
     if (!c.quailEgg && !c.kimchi && source.family === 'flow' && p.temp !== 'frozen' && p.stock > 0 && !isFlowAllowed(p)) mandatory.push({type:'EVICTION', text:'플로우랙 물량 기준 미달로 퇴출 필요'});
+    if (!c.quailEgg && !c.kimchi && ['shelf','showcase'].includes(source.family) && p.temp !== 'frozen' && isFlowAllowed(p)) mandatory.push({type:'ENTRY', text:'고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하)'});
     if (source.family === 'shelf' && p.stock >= 60 && !c.egg && !c.quailEgg && !['A01','B08','C08','D08','D09','D10'].includes(z)) soft.push('현재고 60개 이상으로 선반랙 한계 초과');
     return { mandatory, soft };
   }
@@ -253,6 +257,7 @@
     if(!allData || !Array.isArray(allData.assignedCells) || !Array.isArray(allData.emptyCells)) return [];
     const profiles=buildProfiles(allData), index=createEmptyIndex(allData.emptyCells), wsMap=buildWsMap(allData);
     let total=0; wsMap.forEach(v=>total+=v.pcs); const context={wsMap,average:wsMap.size?total/wsMap.size:0};
+    const flowSpaceByTemp={chilled:(index.byTempFamily.get('chilled|flow')||[]).length,frozen:(index.byTempFamily.get('frozen|flow')||[]).length};
     const active=[], seen=new Set();
     allData.assignedCells.forEach(cell=>{
       if(!cell.sku||seen.has(cell.sku)) return; seen.add(cell.sku);
@@ -261,30 +266,43 @@
       if(p.stock===0&&p.outboundPcs===0) return;
       const v=violations(source,p), mandatory=v.mandatory.length>0;
       if(p.outboundPcs>0&&p.stock<=p.outboundPcs*.5&&!mandatory) return;
-      const urgency= v.mandatory.some(x=>x.type==='SAFETY') ? 10000 : v.mandatory.some(x=>x.type==='FORWARD') ? 2000+p.outboundPcs : v.mandatory.some(x=>x.type==='EVICTION') ? 300+Math.max(0,(10-p.outboundPcs)*10+(20-p.stock)) : mandatory?100:0;
+      const hasFlowSpace=flowSpaceByTemp[p.temp]>0;
+      const urgency= v.mandatory.some(x=>x.type==='SAFETY') ? 10000
+        : v.mandatory.some(x=>x.type==='FORWARD') ? 2000+p.outboundPcs
+        : v.mandatory.some(x=>x.type==='ENTRY') ? (hasFlowSpace ? 1800+p.outboundPcs : 150+Math.min(150,p.outboundPcs))
+        : v.mandatory.some(x=>x.type==='EVICTION') ? 300+Math.max(0,(10-p.outboundPcs)*10+(20-p.stock))
+        : mandatory?100:0;
       active.push({source,p,v,mandatory,urgency,sort:p.touch+(mandatory?10000:0)});
     });
     active.sort((a,b)=>b.sort-a.sort);
     const used=new Set(), result=[];
     active.slice(0,CONFIG.maxSourceCandidates).forEach(item=>{
-      const preferred=preferredFamilies(item.p), pool=candidatePool(index,item.p,preferred); let best=null;
+      const isEntryItem=item.v.mandatory.some(x=>x.type==='ENTRY');
+      const preferred=isEntryItem?['flow','flat']:preferredFamilies(item.p);
+      const pool=isEntryItem
+        ? [...(index.byTempFamily.get(`${item.p.temp}|flow`)||[]),...(index.byTempFamily.get(`${item.p.temp}|flat`)||[])]
+        : candidatePool(index,item.p,preferred);
+      let best=null;
       for(const pc of pool){ if(used.has(pc.loc)) continue; const allowed=candidateAllowed(pc,item.source,item.p); if(!allowed.ok) continue; const s=score(pc,item.source,item.p,context,preferred); if(!s.balance.compliant&&!item.mandatory) continue; if(!best||s.score>best.scoreInfo.score||(s.score===best.scoreInfo.score&&pc.loc<best.pc.loc)) best={pc,scoreInfo:s}; }
       const sourceScore=score(item.source,item.source,item.p,context,preferred).score;
       if(!best&&!item.mandatory) return; if(best&&!item.mandatory&&best.scoreInfo.score<sourceScore+25) return;
       if(best) used.add(best.pc.loc);
-      const priorityType=item.v.mandatory.some(x=>x.type==='SAFETY')?'SAFETY':item.v.mandatory.some(x=>x.type==='COMPLIANCE')?'COMPLIANCE':item.v.mandatory.some(x=>x.type==='FORWARD')?'FORWARD':'OPTIMIZATION';
+      const priorityType=item.v.mandatory.some(x=>x.type==='SAFETY')?'SAFETY':item.v.mandatory.some(x=>x.type==='COMPLIANCE')?'COMPLIANCE':item.v.mandatory.some(x=>x.type==='FORWARD')?'FORWARD':item.v.mandatory.some(x=>x.type==='ENTRY')?'ENTRY':'OPTIMIZATION';
       const moveType=item.v.mandatory.some(x=>x.type==='EVICTION')?'EVICTION':best?'MOVE':'NO_TARGET';
       result.push({sku:item.source.cell.sku,productName:item.p.name||item.source.cell.productName||'',pcs:item.p.outboundPcs,stock:item.p.stock,toteCount:item.p.touch,temp:item.source.temp,currentCell:item.source.loc,currentRack:text(item.source.cell.rackType)||item.source.family,targetRack:best?(text(best.pc.cell.rackType)||best.pc.family):'공셀 확보 필요',targetCell:best?best.pc.loc:'-',targetWs:best?.pc.cell.ws||'',reason:best?reasons(item.source,best.pc,item.p,[...item.v.mandatory,...item.v.soft],preferred,best.scoreInfo):[...item.v.mandatory.map(x=>x.text),...item.v.soft].join(' · '),mandatory:item.mandatory?1:0,priorityType,moveType,urgency:item.urgency,improvement:best?best.scoreInfo.score-sourceScore:-999,status:best?'READY':'NO_TARGET'});
     });
     result.sort((a,b)=>b.urgency-a.urgency||b.mandatory-a.mandatory||b.improvement-a.improvement||b.toteCount-a.toteCount||b.pcs-a.pcs);
-    const final=[], evictionLimit=Math.floor(CONFIG.maxRecommendations*CONFIG.evictionQuotaRatio), evictions={count:0};
+    const final=[];
+    const quotaLimits={EVICTION:Math.floor(CONFIG.maxRecommendations*CONFIG.evictionQuotaRatio),ENTRY:Math.floor(CONFIG.maxRecommendations*CONFIG.entryQuotaRatio)};
+    const quotaCounts={EVICTION:0,ENTRY:0};
     for(const r of result){
-      if(r.priorityType==='SAFETY'||r.moveType!=='EVICTION'){ final.push(r); }
-      else if(evictions.count<evictionLimit){ final.push(r); evictions.count++; }
+      const quotaKey = r.priorityType==='SAFETY' ? null : (r.moveType==='EVICTION' ? 'EVICTION' : (r.priorityType==='ENTRY' ? 'ENTRY' : null));
+      if(!quotaKey){ final.push(r); }
+      else if(quotaCounts[quotaKey]<quotaLimits[quotaKey]){ final.push(r); quotaCounts[quotaKey]++; }
       if(final.length>=CONFIG.maxRecommendations) break;
     }
     return final;
   }
-  global.QPSRuleEngine=Object.freeze({recommend,version:'2.35.0'});
+  global.QPSRuleEngine=Object.freeze({recommend,version:'2.36.0'});
   global.buildRecommendations=recommend;
 })(window);
