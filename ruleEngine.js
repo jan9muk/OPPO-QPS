@@ -1,5 +1,7 @@
 /*
- * QPS Cell Allocation Rule Engine v2.43.0
+ * QPS Cell Allocation Rule Engine v2.43.1
+ *
+ * v2.43.1: 회귀 테스트용 내부 함수 노출(_internals), 계란 구수 파싱을 parseEggSize()로 분리. 동작 변화 없음.
  *
  * v2.43.0: D06 임시 보관 김치를 규정 위반(COMPLIANCE)에서 '이전 계획'(RELOCATION)으로 분리.
  *   CONFIG.kimchiTempZones(D06)에 있는 김치는 C08/C09 이전 대상으로 별도 쿼터
@@ -203,6 +205,11 @@
     const seafoodOrPoultry = ['대중선어','구색선어','생선회','갑각류','패류','연체류'].includes(group) || (group === '계육' && !processedChicken);
     return { egg, quailEgg: quail, livestock, kimchi, zeroToFive: seafoodOrPoultry || (['수입육','우육','돈육'].includes(group) && name.includes('다짐육')) };
   }
+  // '[30구 단위 구매 가능] … 15구'처럼 대괄호 안의 판촉 문구는 제외하고 구수 파싱
+  function parseEggSize(name, group) {
+    const m = `${text(name).replace(/\[[^\]]*\]/g, ' ')} ${text(group)}`.match(/(?:^|\D)(10|15|20|30)\s*(?:구|개입)/);
+    return m ? Number(m[1]) : null;
+  }
   function mapHeaders(rows) {
     if (!rows.length) return {};
     const headers = Object.keys(rows[0]), fields = { sku:['물류상품ID','SKU','상품ID','productid'], name:['물류상품명','상품명','품명','productname'], ...OPTIONAL_FIELDS };
@@ -232,9 +239,7 @@
       const raw = data.get(cell.sku) || {}, name = text(cell.productName || allData.skuMeta.get(cell.sku)?.name || raw.name);
       const profile = { sku:cell.sku, name, group:raw.group || '', subGroup:raw.subGroup || '', vendor:raw.vendor || '', boxWeightG:weightInGrams(raw.boxWeightRaw, 'box'), itemWeightG:weightInGrams(raw.itemWeightRaw, 'ea') || extractWeightFromName(name), incomingPlan:raw.incomingPlan || '', fragile:!!raw.fragile, event:!!raw.event };
       profile.category = categorize(profile);
-      // '[30구 단위 구매 가능] … 15구'처럼 대괄호 안의 판촉 문구는 제외하고 구수 파싱
-      const egg = `${name.replace(/\[[^\]]*\]/g, ' ')} ${profile.group}`.match(/(?:^|\D)(10|15|20|30)\s*(?:구|개입)/);
-      profile.eggSize = egg ? Number(egg[1]) : null;
+      profile.eggSize = parseEggSize(name, profile.group);
       profiles.set(cell.sku, profile);
     });
     return profiles;
@@ -433,6 +438,7 @@
     // (총량 절단 시 urgency가 낮은 퇴출류가 쿼터와 무관하게 통째로 잘리는 문제가 있었음).
     return result;
   }
-  global.QPSRuleEngine=Object.freeze({recommend,version:'2.43.0'});
+  // _internals: 회귀 테스트(tests/)용. 화면 코드에서는 쓰지 않는다.
+  global.QPSRuleEngine=Object.freeze({recommend,version:'2.43.1',CONFIG,_internals:Object.freeze({categorize,parseEggSize,rackFamily,thermalClass})});
   global.buildRecommendations=recommend;
 })(window);
