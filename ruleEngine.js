@@ -1,5 +1,9 @@
 /*
- * QPS Cell Allocation Rule Engine v2.43.1
+ * QPS Cell Allocation Rule Engine v2.44.0
+ *
+ * v2.44.0: 평대(flat)를 플로우랙의 차선으로 분리. 피킹은 동등하나 보충이 불편하므로,
+ *   플로우랙 선호 SKU(진입 포함)는 플로우랙 적정 공셀을 먼저 찾고, 없을 때만 평대, 그다음 기타 랙을 탐색.
+ *   평대로 배정되면 사유에 '플로우랙 적정 공셀 없어 평대 차선 배치'를 표시.
  *
  * v2.43.1: 추천 사유의 랙 명칭 오표기 수정. 평대(flat: D02-01~02, E04-07~08)를 '플로우랙'으로,
  *   쇼케이스/리치인(showcase)을 '선반랙'으로 표기하던 문제를 FAMILY_LABEL로 정정.
@@ -367,9 +371,10 @@
     const pools=preferred.map(f=>index.byTempFamily.get(`${p.temp}|${f}`)||[]).filter(x=>x.length);
     return pools.length ? pools.flat() : (index.byTemp[p.temp]||[]);
   }
-  function reasons(source,target,p,violations,preferred,scoreInfo) {
+  function reasons(source,target,p,violations,preferred,scoreInfo,flowTiered) {
     const list=violations.map(v=>typeof v==='string'?v:v.text);
-    if(preferred.includes(target.family)) list.push(`${FAMILY_LABEL[target.family]||'기타'} 배치 권장`);
+    if(flowTiered&&target.family==='flat') list.push('플로우랙 적정 공셀 없어 평대 차선 배치');
+    else if(preferred.includes(target.family)) list.push(`${FAMILY_LABEL[target.family]||'기타'} 배치 권장`);
     if(p.category.egg) list.push('계란 전용 위치 조건 반영');
     if(p.category.kimchi) list.push('김치 전용(C08/C09) 구역 반영');
     if(p.category.zeroToFive && p.temp!=='frozen') list.push('0~5℃ 전용 보관 조건 반영');
@@ -418,8 +423,14 @@
         : candidatePool(index,item.p,preferred);
       // 일반 축산은 D03~D06 등 비챔버 공셀을 먼저 찾고, 없을 때만 5℃ 챔버(D01~D02)를 사용
       const generalLivestock=isGeneralLivestock(item.p);
-      const pickBest=allowChamber=>{ let best=null;
-      for(const pc of pool){ if(used.has(pc.loc)) continue; if(!allowChamber&&CONFIG.chamberZones.has(pc.zone)) continue; const allowed=candidateAllowed(pc,item.source,item.p); if(!allowed.ok) continue; const s=score(pc,item.source,item.p,context,preferred); if(!s.balance.compliant&&!item.mandatory) continue; if(!best||s.score>best.scoreInfo.score||(s.score===best.scoreInfo.score&&pc.loc<best.pc.loc)) best={pc,scoreInfo:s}; }
+      // 평대는 피킹은 플로우랙과 동등하지만 보충이 불편하므로, 플로우랙 선호 SKU는
+      // 플로우랙 → 평대 → 그 외 순으로 단계 탐색(앞 단계에 적정 공셀이 없을 때만 다음 단계)
+      const tiers=preferred.includes('flow')
+        ? [pool.filter(pc=>pc.family==='flow'),pool.filter(pc=>pc.family==='flat'),pool.filter(pc=>pc.family!=='flow'&&pc.family!=='flat')]
+        : [pool];
+      const pickBest=allowChamber=>{ for(const tier of tiers){ const best=pickTier(tier,allowChamber); if(best) return best; } return null; };
+      const pickTier=(tier,allowChamber)=>{ let best=null;
+      for(const pc of tier){ if(used.has(pc.loc)) continue; if(!allowChamber&&CONFIG.chamberZones.has(pc.zone)) continue; const allowed=candidateAllowed(pc,item.source,item.p); if(!allowed.ok) continue; const s=score(pc,item.source,item.p,context,preferred); if(!s.balance.compliant&&!item.mandatory) continue; if(!best||s.score>best.scoreInfo.score||(s.score===best.scoreInfo.score&&pc.loc<best.pc.loc)) best={pc,scoreInfo:s}; }
       return best; };
       let best=pickBest(!generalLivestock);
       if(!best&&generalLivestock) best=pickBest(true);
@@ -430,13 +441,13 @@
       if(quotaKey) quotaCounts[quotaKey]++;
       const priorityType=item.v.mandatory.some(x=>x.type==='SAFETY')?'SAFETY':item.v.mandatory.some(x=>x.type==='COMPLIANCE')?'COMPLIANCE':item.v.mandatory.some(x=>x.type==='FORWARD')?'FORWARD':item.v.mandatory.some(x=>x.type==='ENTRY')?'ENTRY':item.v.mandatory.some(x=>x.type==='RELOCATION')?'RELOCATION':item.v.mandatory.some(x=>x.type==='POLICY')?'POLICY':'OPTIMIZATION';
       const moveType=item.v.mandatory.some(x=>x.type==='EVICTION'||x.type==='ZONE_EVICTION')?'EVICTION':best?'MOVE':'NO_TARGET';
-      result.push({sku:item.source.cell.sku,productName:item.p.name||item.source.cell.productName||'',pcs:item.p.outboundPcs,stock:item.p.stock,toteCount:item.p.touch,temp:item.source.temp,currentCell:item.source.loc,currentRack:text(item.source.cell.rackType)||item.source.family,targetRack:best?(text(best.pc.cell.rackType)||best.pc.family):'공셀 확보 필요',targetCell:best?best.pc.loc:'-',targetWs:best?.pc.cell.ws||'',reason:best?reasons(item.source,best.pc,item.p,[...item.v.mandatory,...item.v.soft],preferred,best.scoreInfo):[...item.v.mandatory.map(x=>x.text),...item.v.soft].join(' · '),mandatory:item.mandatory?1:0,priorityType,moveType,zoneEviction:has(item,'ZONE_EVICTION')&&!has(item,'EVICTION')?1:0,urgency:item.urgency,improvement:best?best.scoreInfo.score-sourceScore:-999,status:best?'READY':'NO_TARGET'});
+      result.push({sku:item.source.cell.sku,productName:item.p.name||item.source.cell.productName||'',pcs:item.p.outboundPcs,stock:item.p.stock,toteCount:item.p.touch,temp:item.source.temp,currentCell:item.source.loc,currentRack:text(item.source.cell.rackType)||item.source.family,targetRack:best?(text(best.pc.cell.rackType)||best.pc.family):'공셀 확보 필요',targetCell:best?best.pc.loc:'-',targetWs:best?.pc.cell.ws||'',reason:best?reasons(item.source,best.pc,item.p,[...item.v.mandatory,...item.v.soft],preferred,best.scoreInfo,tiers.length>1):[...item.v.mandatory.map(x=>x.text),...item.v.soft].join(' · '),mandatory:item.mandatory?1:0,priorityType,moveType,zoneEviction:has(item,'ZONE_EVICTION')&&!has(item,'EVICTION')?1:0,urgency:item.urgency,improvement:best?best.scoreInfo.score-sourceScore:-999,status:best?'READY':'NO_TARGET'});
     });
     result.sort((a,b)=>b.urgency-a.urgency||b.mandatory-a.mandatory||b.improvement-a.improvement||b.toteCount-a.toteCount||b.pcs-a.pcs);
     // 카테고리 쿼터가 배정 단계에서 이미 건수를 제한하므로 별도의 총량 절단은 하지 않는다
     // (총량 절단 시 urgency가 낮은 퇴출류가 쿼터와 무관하게 통째로 잘리는 문제가 있었음).
     return result;
   }
-  global.QPSRuleEngine=Object.freeze({recommend,version:'2.43.1'});
+  global.QPSRuleEngine=Object.freeze({recommend,version:'2.44.0'});
   global.buildRecommendations=recommend;
 })(window);
