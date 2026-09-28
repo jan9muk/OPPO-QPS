@@ -1,5 +1,8 @@
 /*
- * QPS Cell Allocation Rule Engine v2.43.0
+ * QPS Cell Allocation Rule Engine v2.43.1
+ *
+ * v2.43.1: 추천 사유의 랙 명칭 오표기 수정. 평대(flat: D02-01~02, E04-07~08)를 '플로우랙'으로,
+ *   쇼케이스/리치인(showcase)을 '선반랙'으로 표기하던 문제를 FAMILY_LABEL로 정정.
  *
  * v2.43.0: D06 임시 보관 김치를 규정 위반(COMPLIANCE)에서 '이전 계획'(RELOCATION)으로 분리.
  *   CONFIG.kimchiTempZones(D06)에 있는 김치는 C08/C09 이전 대상으로 별도 쿼터
@@ -101,6 +104,7 @@
     nonEggGateZone: 'A10',  // 비계란 게이트랙
     frozenZones: new Set(['E04', 'E05', 'E06', 'E07', 'F01', 'F02', 'F03', 'F04', 'F05', 'F06', 'F07', 'F08', 'F09', 'F10', 'F11', 'F12'])
   });
+  const FAMILY_LABEL = Object.freeze({ gate: '게이트랙', flow: '플로우랙', flat: '평대', shelf: '선반랙', showcase: '쇼케이스/리치인', other: '기타' });
   const FAMILY_RANK = Object.freeze({ gate: 1, flow: 2, flat: 2, shelf: 3, showcase: 3, other: 9 });
   const DISTANCE_MAP = Object.freeze({
     A01:[['05'],['06'],['01','03'],['02','04']], A02:[['02'],['01'],['03','05'],['04','06']],
@@ -365,7 +369,7 @@
   }
   function reasons(source,target,p,violations,preferred,scoreInfo) {
     const list=violations.map(v=>typeof v==='string'?v:v.text);
-    if(preferred.includes(target.family)) list.push(`${target.family==='gate'?'게이트랙':target.family==='flow'||target.family==='flat'?'플로우랙':'선반랙'} 배치 권장`);
+    if(preferred.includes(target.family)) list.push(`${FAMILY_LABEL[target.family]||'기타'} 배치 권장`);
     if(p.category.egg) list.push('계란 전용 위치 조건 반영');
     if(p.category.kimchi) list.push('김치 전용(C08/C09) 구역 반영');
     if(p.category.zeroToFive && p.temp!=='frozen') list.push('0~5℃ 전용 보관 조건 반영');
@@ -433,6 +437,6 @@
     // (총량 절단 시 urgency가 낮은 퇴출류가 쿼터와 무관하게 통째로 잘리는 문제가 있었음).
     return result;
   }
-  global.QPSRuleEngine=Object.freeze({recommend,version:'2.43.0'});
+  global.QPSRuleEngine=Object.freeze({recommend,version:'2.43.1'});
   global.buildRecommendations=recommend;
 })(window);
