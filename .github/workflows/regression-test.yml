@@ -1,0 +1,27 @@
+# 회귀 테스트: main으로 들어오는 PR과 main 푸시마다 실행된다.
+# 실패하면 PR 화면에 빨간 X가 표시되고, 로그에 무엇이 바뀌었는지 요약이 나온다.
+name: 회귀 테스트
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 회귀 테스트 실행
+        run: node tests/run.js
+        env:
+          TZ: Asia/Seoul
