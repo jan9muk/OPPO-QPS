@@ -94,19 +94,36 @@ test('김치찌개 같은 비김치는 김치 규정 위반이 아님', () => {
   assert.ok(!rec || !/김치 전용 구역 필요/.test(rec.reason));
   assert.ok(!rec || !/^C0[89]/.test(rec.targetCell));
 });
-test('게이트랙: A10의 계란은 규정 위반이며 A09(계란 게이트랙) 또는 A08 구수 구역으로만 이동 (v2.41.0)', () => {
-  // 계란은 A10으로 가지 않고, 게이트 기준(출고 100 또는 재고 50 이상)을 충족하면 A09도 허용된다.
-  // A09와 A08(30구 구역) 중 어디가 우선인지는 현재 점수로 결정된다(규칙상 둘 다 허용).
-  let r = run([cell('A10-010101', { name: '행복한 대란 30구', group: '계란', sub: '일반란', rack: 'Gate Rack', out: 150, stock: 700 }),
-    cell('A10-010102', { rack: 'Gate Rack' }), cell('A09-010101', { rack: 'Gate Rack' }), cell('A01-010201')]);
+test('게이트랙: A10의 계란은 규정 위반, A09의 비계란은 규정 위반 (v2.41.0)', () => {
+  const r = run([cell('A10-010101', { name: '행복한 대란 30구', group: '계란', sub: '일반란', rack: 'Gate Rack', out: 150, stock: 700 }),
+    cell('A10-010102', { rack: 'Gate Rack' }), cell('A09-010101', { rack: 'Gate Rack' }), cell('A01-010201'),
+    cell('A09-010102', { name: '손질배추 (통)', group: '엽/양채소', rack: 'Gate Rack', out: 30, stock: 40 })]);
   assert.equal(r.of('행복한 대란 30구').priorityType, 'COMPLIANCE');
   assert.equal(r.of('행복한 대란 30구').targetCell, 'A09-010101');
-  r = run([cell('A10-010101', { name: '행복한 대란 30구', group: '계란', sub: '일반란', rack: 'Gate Rack', out: 150, stock: 700 }),
-    cell('A09-010101', { rack: 'Gate Rack' }), cell('A08-070201'), cell('A08-010201')]);
-  assert.match(r.of('행복한 대란 30구').targetCell, /^(A09-|A08-0[78])/, '30구 계란이 30구 구역 밖 A08로 추천됨');
-  r = run([cell('A09-010102', { name: '손질배추 (통)', group: '엽/양채소', rack: 'Gate Rack', out: 30, stock: 40 }), cell('A01-010201')]);
   assert.equal(r.of('손질배추 (통)').priorityType, 'COMPLIANCE');
   assert.match(r.of('손질배추 (통)').reason, /A09 계란 전용/);
+});
+test('계란: 출고 100 이상은 A09 우선, A09가 차면 A08 구수 구역 (v2.45.0)', () => {
+  let r = run([cell('A10-010101', { name: '행복한 대란 30구', group: '계란', sub: '일반란', rack: 'Gate Rack', out: 150, stock: 700 }),
+    cell('A09-010101', { rack: 'Gate Rack' }), cell('A08-070201'), cell('A08-080201')]);
+  assert.equal(r.of('행복한 대란 30구').targetCell, 'A09-010101');
+  assert.match(r.of('행복한 대란 30구').reason, /A09 게이트랙 우선 배치/);
+  r = run([cell('A10-010101', { name: '행복한 대란 30구', group: '계란', sub: '일반란', rack: 'Gate Rack', out: 150, stock: 700 }),
+    cell('A08-070201'), cell('A08-010201')]);
+  assert.equal(r.of('행복한 대란 30구').targetCell, 'A08-070201', '30구 계란은 30구 구역(A08-07~08)으로');
+});
+test('계란은 플로우랙 진입(ENTRY) 대상이 아님 (v2.45.0)', () => {
+  const r = run([cell('A08-040205', { name: '하얀계란 15구', group: '계란', sub: '일반란', out: 69, stock: 113 }), cell('A07-020101', { rack: 'Flow Rack' })]);
+  const rec = r.of('하얀계란 15구');
+  assert.ok(!rec || rec.priorityType !== 'ENTRY', '계란이 플로우랙 진입으로 추천됨');
+});
+test('계란: A08의 출고 100 이상 계란은 A09 공셀이 있으면 이동 제안, 100 미만은 제안 없음 (v2.45.0)', () => {
+  const r = run([cell('A08-050203', { name: '순수백색 유정란 20구', group: '계란', sub: '유정란', out: 124, stock: 234 }),
+    cell('A08-040305', { name: '풀무원 동물복지 왕란 15구', group: '계란', sub: '특허란', out: 52, stock: 236 }),
+    cell('A09-010101', { rack: 'Gate Rack' }), cell('A09-010102', { rack: 'Gate Rack' })]);
+  assert.equal(r.of('순수백색 유정란 20구').targetCell, 'A09-010101');
+  const low = r.of('풀무원 동물복지 왕란 15구');
+  assert.ok(!low || !/^A09-/.test(low.targetCell), '출고 100 미만 계란을 A09로 우선 이동시키면 안 됨');
 });
 test('메추리알: 저빈도는 A07-060101~070505 전용 구역으로 (v2.41.0)', () => {
   const r = run([cell('B05-030204', { name: '깐메추리알 1kg', group: '계란', sub: '메추리알', out: 5, stock: 16 }), cell('B05-030205'), cell('A07-060101')]);

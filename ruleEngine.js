@@ -1,5 +1,10 @@
 /*
- * QPS Cell Allocation Rule Engine v2.44.1
+ * QPS Cell Allocation Rule Engine v2.45.0
+ *
+ * v2.45.0: 출고 100 이상(CONFIG.eggGatePriorityOut) 계란은 A09 계란 게이트랙을 우선 탐색하고,
+ *   A09에 적정 공셀이 없을 때만 A08 등 나머지를 탐색. A09 밖에 있는 해당 계란은 A09 공셀이 있으면 이동 제안.
+ *   출고 100 미만 계란은 재고 50 이상이면 A09 배치가 허용되지만 우선하지 않음(A09 14셀 대비 후보 과다 방지).
+ *   계란이 일반 '플로우랙 진입 필요'(ENTRY)로 잡혀 항상 공셀 없음으로 끝나던 문제 수정(계란은 플로우랙 배치 불가).
  *
  * v2.44.1: 회귀 테스트용 내부 함수 노출(_internals), 계란 구수 파싱을 parseEggSize()로 분리. 동작 변화 없음.
  *
@@ -107,6 +112,7 @@
     kimchiZones: new Set(['C08', 'C09']),  // 김치 전용 구역(장기적으로 모든 김치 응집)
     kimchiTempZones: new Set(['D06']),     // 김치 임시 보관 구역(규정 위반이 아닌 이전 계획 대상)
     eggGateZone: 'A09',     // 계란 전용 게이트랙
+    eggGatePriorityOut: 100, // 이 출고 수량 이상인 계란은 A09를 우선 탐색
     nonEggGateZone: 'A10',  // 비계란 게이트랙
     frozenZones: new Set(['E04', 'E05', 'E06', 'E07', 'F01', 'F02', 'F03', 'F04', 'F05', 'F06', 'F07', 'F08', 'F09', 'F10', 'F11', 'F12'])
   });
@@ -314,7 +320,8 @@
     if (c.quailEgg && source.family === 'flow' && p.outboundPcs <= CONFIG.quailFlow.exitOut && p.stock <= CONFIG.quailFlow.exitStock) mandatory.push({type:'EVICTION', text:'메추리알 물량 급감으로 플로우랙 퇴출 필요'});
     if (c.quailEgg && source.family !== 'flow' && p.temp !== 'frozen' && quailFlowEntry(p)) mandatory.push({type:'ENTRY', text:'메추리알 고빈도 물량으로 플로우랙 진입 필요'});
     if (!c.quailEgg && !c.kimchi && source.family === 'flow' && p.temp !== 'frozen' && p.stock > 0 && !isFlowAllowed(p)) mandatory.push({type:'EVICTION', text:'플로우랙 물량 기준 미달로 퇴출 필요'});
-    if (!c.quailEgg && !c.kimchi && ['shelf','showcase'].includes(source.family) && p.temp !== 'frozen' && isFlowAllowed(p)) mandatory.push({type:'ENTRY', text:'고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하)'});
+    // 계란은 플로우랙 배치 불가(A08/A09 전용)이므로 일반 진입 대상에서 제외 — 고빈도 계란은 A09 우선 탐색으로 처리
+    if (!c.quailEgg && !c.kimchi && !c.egg && ['shelf','showcase'].includes(source.family) && p.temp !== 'frozen' && isFlowAllowed(p)) mandatory.push({type:'ENTRY', text:'고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하)'});
     if (isGeneralLivestock(p) && CONFIG.chamberZones.has(z)) soft.push('일반 축산 5℃ 챔버(D01~D02) 대체 보관 중 · D03~D06 공셀 확보 시 복귀 권장');
     if (source.family === 'shelf' && p.stock >= 60 && !c.egg && !c.quailEgg && !['A01','B08','C08','D08','D09','D10'].includes(z)) soft.push('현재고 60개 이상으로 선반랙 한계 초과');
     return { mandatory, soft };
@@ -380,6 +387,7 @@
     const list=violations.map(v=>typeof v==='string'?v:v.text);
     if(flowTiered&&target.family==='flat') list.push('플로우랙 적정 공셀 없어 평대 차선 배치');
     else if(preferred.includes(target.family)) list.push(`${FAMILY_LABEL[target.family]||'기타'} 배치 권장`);
+    if(p.category.egg&&target.zone===CONFIG.eggGateZone&&p.outboundPcs>=CONFIG.eggGatePriorityOut) list.push(`고빈도 계란(출고 ${CONFIG.eggGatePriorityOut} 이상) ${CONFIG.eggGateZone} 게이트랙 우선 배치`);
     if(p.category.egg) list.push('계란 전용 위치 조건 반영');
     if(p.category.kimchi) list.push('김치 전용(C08/C09) 구역 반영');
     if(p.category.zeroToFive && p.temp!=='frozen') list.push('0~5℃ 전용 보관 조건 반영');
@@ -430,8 +438,12 @@
       const generalLivestock=isGeneralLivestock(item.p);
       // 평대는 피킹은 플로우랙과 동등하지만 보충이 불편하므로, 플로우랙 선호 SKU는
       // 플로우랙 → 평대 → 그 외 순으로 단계 탐색(앞 단계에 적정 공셀이 없을 때만 다음 단계)
-      const tiers=preferred.includes('flow')
+      // 고빈도 계란은 A09(계란 게이트랙) → 그 외 순으로 단계 탐색
+      const flowTiered=preferred.includes('flow');
+      const eggGateFirst=item.p.category.egg&&item.p.outboundPcs>=CONFIG.eggGatePriorityOut;
+      const tiers=flowTiered
         ? [pool.filter(pc=>pc.family==='flow'),pool.filter(pc=>pc.family==='flat'),pool.filter(pc=>pc.family!=='flow'&&pc.family!=='flat')]
+        : eggGateFirst ? [pool.filter(pc=>pc.zone===CONFIG.eggGateZone),pool.filter(pc=>pc.zone!==CONFIG.eggGateZone)]
         : [pool];
       const pickBest=allowChamber=>{ for(const tier of tiers){ const best=pickTier(tier,allowChamber); if(best) return best; } return null; };
       const pickTier=(tier,allowChamber)=>{ let best=null;
@@ -440,13 +452,14 @@
       let best=pickBest(!generalLivestock);
       if(!best&&generalLivestock) best=pickBest(true);
       const chamberReturn=generalLivestock&&CONFIG.chamberZones.has(item.source.zone)&&best&&!CONFIG.chamberZones.has(best.pc.zone);
+      const eggGateMove=eggGateFirst&&item.source.zone!==CONFIG.eggGateZone&&best&&best.pc.zone===CONFIG.eggGateZone;
       const sourceScore=score(item.source,item.source,item.p,context,preferred).score;
-      if(!best&&!item.mandatory) return; if(best&&!item.mandatory&&!chamberReturn&&best.scoreInfo.score<sourceScore+25) return;
+      if(!best&&!item.mandatory) return; if(best&&!item.mandatory&&!chamberReturn&&!eggGateMove&&best.scoreInfo.score<sourceScore+25) return;
       if(best) used.add(best.pc.loc);
       if(quotaKey) quotaCounts[quotaKey]++;
       const priorityType=item.v.mandatory.some(x=>x.type==='SAFETY')?'SAFETY':item.v.mandatory.some(x=>x.type==='COMPLIANCE')?'COMPLIANCE':item.v.mandatory.some(x=>x.type==='FORWARD')?'FORWARD':item.v.mandatory.some(x=>x.type==='ENTRY')?'ENTRY':item.v.mandatory.some(x=>x.type==='RELOCATION')?'RELOCATION':item.v.mandatory.some(x=>x.type==='POLICY')?'POLICY':'OPTIMIZATION';
       const moveType=item.v.mandatory.some(x=>x.type==='EVICTION'||x.type==='ZONE_EVICTION')?'EVICTION':best?'MOVE':'NO_TARGET';
-      result.push({sku:item.source.cell.sku,productName:item.p.name||item.source.cell.productName||'',pcs:item.p.outboundPcs,stock:item.p.stock,toteCount:item.p.touch,temp:item.source.temp,currentCell:item.source.loc,currentRack:text(item.source.cell.rackType)||item.source.family,targetRack:best?(text(best.pc.cell.rackType)||best.pc.family):'공셀 확보 필요',targetCell:best?best.pc.loc:'-',targetWs:best?.pc.cell.ws||'',reason:best?reasons(item.source,best.pc,item.p,[...item.v.mandatory,...item.v.soft],preferred,best.scoreInfo,tiers.length>1):[...item.v.mandatory.map(x=>x.text),...item.v.soft].join(' · '),mandatory:item.mandatory?1:0,priorityType,moveType,zoneEviction:has(item,'ZONE_EVICTION')&&!has(item,'EVICTION')?1:0,urgency:item.urgency,improvement:best?best.scoreInfo.score-sourceScore:-999,status:best?'READY':'NO_TARGET'});
+      result.push({sku:item.source.cell.sku,productName:item.p.name||item.source.cell.productName||'',pcs:item.p.outboundPcs,stock:item.p.stock,toteCount:item.p.touch,temp:item.source.temp,currentCell:item.source.loc,currentRack:text(item.source.cell.rackType)||item.source.family,targetRack:best?(text(best.pc.cell.rackType)||best.pc.family):'공셀 확보 필요',targetCell:best?best.pc.loc:'-',targetWs:best?.pc.cell.ws||'',reason:best?reasons(item.source,best.pc,item.p,[...item.v.mandatory,...item.v.soft],preferred,best.scoreInfo,flowTiered):[...item.v.mandatory.map(x=>x.text),...item.v.soft].join(' · '),mandatory:item.mandatory?1:0,priorityType,moveType,zoneEviction:has(item,'ZONE_EVICTION')&&!has(item,'EVICTION')?1:0,urgency:item.urgency,improvement:best?best.scoreInfo.score-sourceScore:-999,status:best?'READY':'NO_TARGET'});
     });
     result.sort((a,b)=>b.urgency-a.urgency||b.mandatory-a.mandatory||b.improvement-a.improvement||b.toteCount-a.toteCount||b.pcs-a.pcs);
     // 카테고리 쿼터가 배정 단계에서 이미 건수를 제한하므로 별도의 총량 절단은 하지 않는다
@@ -454,6 +467,6 @@
     return result;
   }
   // _internals: 회귀 테스트(tests/)용. 화면 코드에서는 쓰지 않는다.
-  global.QPSRuleEngine=Object.freeze({recommend,version:'2.44.1',CONFIG,_internals:Object.freeze({categorize,parseEggSize,rackFamily,thermalClass})});
+  global.QPSRuleEngine=Object.freeze({recommend,version:'2.45.0',CONFIG,_internals:Object.freeze({categorize,parseEggSize,rackFamily,thermalClass})});
   global.buildRecommendations=recommend;
 })(window);

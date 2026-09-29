@@ -613,19 +613,19 @@
    "from": "A10-010103",
    "to": "A09-010108",
    "urgency": 50229,
-   "reason": "A10 비계란 게이트랙(계란 배치 불가) · 게이트랙 배치 권장 · 계란 전용 위치 조건 반영 · W/S SKU 부하 편차 완화"
+   "reason": "A10 비계란 게이트랙(계란 배치 불가) · 게이트랙 배치 권장 · 고빈도 계란(출고 100 이상) A09 게이트랙 우선 배치 · 계란 전용 위치 조건 반영 · W/S SKU 부하 편차 완화"
   },
   {
    "sku": "0000001595597",
    "name": "[농할 20% 할인쿠폰 다운로드] 동물복지 유정란 20구 (대란, 1040g)",
    "priorityType": "COMPLIANCE",
-   "moveType": "NO_TARGET",
-   "status": "NO_TARGET",
+   "moveType": "MOVE",
+   "status": "READY",
    "zoneEviction": 0,
    "from": "A08-080401",
-   "to": "-",
+   "to": "A09-010105",
    "urgency": 50209,
-   "reason": "계란 전용 위치 조건 불충족 · 고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하)"
+   "reason": "계란 전용 위치 조건 불충족 · 게이트랙 배치 권장 · 고빈도 계란(출고 100 이상) A09 게이트랙 우선 배치 · 계란 전용 위치 조건 반영 · W/S SKU 부하 편차 완화"
   },
   {
    "sku": "0000001604390",
@@ -635,9 +635,9 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "A10-010111",
-   "to": "A09-010105",
+   "to": "A09-010102",
    "urgency": 50148,
-   "reason": "A10 비계란 게이트랙(계란 배치 불가) · 게이트랙 배치 권장 · 계란 전용 위치 조건 반영 · W/S SKU 부하 편차 완화"
+   "reason": "A10 비계란 게이트랙(계란 배치 불가) · 게이트랙 배치 권장 · 고빈도 계란(출고 100 이상) A09 게이트랙 우선 배치 · 계란 전용 위치 조건 반영 · W/S SKU 부하 편차 완화"
   },
   {
    "sku": "0000001578690",
@@ -1240,18 +1240,6 @@
    "reason": "김치 전용 구역(C08/C09) 확보를 위한 비김치 퇴출 필요 · 고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
   {
-   "sku": "0000001567722",
-   "name": "[농할 20% 할인쿠폰 다운로드] 무항생제 동물복지 유정란 신선 햇달걀 20구 (760g)",
-   "priorityType": "ENTRY",
-   "moveType": "NO_TARGET",
-   "status": "NO_TARGET",
-   "zoneEviction": 0,
-   "from": "A08-060304",
-   "to": "-",
-   "urgency": 1933,
-   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하)"
-  },
-  {
    "sku": "0000001563255",
    "name": "특등급 국산콩 콩나물 340g",
    "priorityType": "ENTRY",
@@ -1262,18 +1250,6 @@
    "to": "A02-020304",
    "urgency": 1925,
    "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
-  },
-  {
-   "sku": "0000001569134",
-   "name": "[농할 20% 할인쿠폰 다운로드] 순수백색 1등급 동물복지 유정란 20구 (대란, 1040g)",
-   "priorityType": "ENTRY",
-   "moveType": "NO_TARGET",
-   "status": "NO_TARGET",
-   "zoneEviction": 0,
-   "from": "A08-050203",
-   "to": "-",
-   "urgency": 1924,
-   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하)"
   },
   {
    "sku": "0000001559457",
@@ -1322,18 +1298,6 @@
    "to": "D02-020103",
    "urgency": 1870,
    "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 적정 공셀 없어 평대 차선 배치 · 0~5℃ 전용 보관 조건 반영"
-  },
-  {
-   "sku": "0000001572880",
-   "name": "하얀계란 15구 (대란, 780g)",
-   "priorityType": "ENTRY",
-   "moveType": "NO_TARGET",
-   "status": "NO_TARGET",
-   "zoneEviction": 0,
-   "from": "A08-040205",
-   "to": "-",
-   "urgency": 1869,
-   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하)"
   },
   {
    "sku": "0000001587594",
@@ -1456,52 +1420,88 @@
    "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
   {
-   "sku": "0000001596187",
-   "name": "[농할 20% 할인쿠폰 다운로드] 지리산 영양 신선산골란 20구 (특란, 1,200g)",
+   "sku": "0000001567967",
+   "name": "하루채소 오이맛고추 (80g)",
    "priorityType": "ENTRY",
-   "moveType": "NO_TARGET",
-   "status": "NO_TARGET",
+   "moveType": "MOVE",
+   "status": "READY",
    "zoneEviction": 0,
-   "from": "A08-050205",
-   "to": "-",
-   "urgency": 1852,
-   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하)"
-  },
-  {
-   "sku": "0000001572204",
-   "name": "풀무원 동물복지 왕란 15구 (1020g)",
-   "priorityType": "ENTRY",
-   "moveType": "NO_TARGET",
-   "status": "NO_TARGET",
-   "zoneEviction": 0,
-   "from": "A08-040305",
-   "to": "-",
-   "urgency": 1852,
-   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하)"
-  },
-  {
-   "sku": "0000001569970",
-   "name": "행복 가득담은 새하얀 반숙란 20구 (1000g)",
-   "priorityType": "ENTRY",
-   "moveType": "NO_TARGET",
-   "status": "NO_TARGET",
-   "zoneEviction": 0,
-   "from": "A08-050402",
-   "to": "-",
-   "urgency": 1850,
-   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하)"
-  },
-  {
-   "sku": "0000001572165",
-   "name": "감동란 10구 (500g)",
-   "priorityType": "ENTRY",
-   "moveType": "NO_TARGET",
-   "status": "NO_TARGET",
-   "zoneEviction": 0,
-   "from": "A08-010202",
-   "to": "-",
+   "from": "B08-010405",
+   "to": "B03-020301",
    "urgency": 1848,
-   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하)"
+   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장"
+  },
+  {
+   "sku": "0000001485521",
+   "name": "참깨햄버거빵 70g",
+   "priorityType": "ENTRY",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "D08-030303",
+   "to": "D07-020202",
+   "urgency": 1847,
+   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장"
+  },
+  {
+   "sku": "0000001553380",
+   "name": "[쓱7클럽]소가 순두부 350g*2",
+   "priorityType": "ENTRY",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "C02-050305",
+   "to": "C07-020301",
+   "urgency": 1846,
+   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 현재고 60개 이상으로 선반랙 한계 초과 · 플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
+  },
+  {
+   "sku": "0000001566828",
+   "name": "[하림] 냉장 볶음탕용 생닭 (1kg)",
+   "priorityType": "ENTRY",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "D02-030104",
+   "to": "D02-020108",
+   "urgency": 1845,
+   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 적정 공셀 없어 평대 차선 배치 · 0~5℃ 전용 보관 조건 반영"
+  },
+  {
+   "sku": "0000001644404",
+   "name": "다논 액티비아 더블 제로 플레인 150ml",
+   "priorityType": "ENTRY",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "C07-070505",
+   "to": "C07-020302",
+   "urgency": 1840,
+   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 현재고 60개 이상으로 선반랙 한계 초과 · 플로우랙 배치 권장"
+  },
+  {
+   "sku": "0000001556178",
+   "name": "[서울우유] 짜요짜요 포도맛 240g",
+   "priorityType": "ENTRY",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "B08-010301",
+   "to": "B06-050201",
+   "urgency": 1840,
+   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장"
+  },
+  {
+   "sku": "0000001608880",
+   "name": "한입 밤고구마 500g (6~10입)",
+   "priorityType": "ENTRY",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "B08-010203",
+   "to": "B09-010305",
+   "urgency": 1838,
+   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장"
   },
   {
    "sku": "0000001553894",
@@ -2104,18 +2104,6 @@
    "reason": "플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
   {
-   "sku": "0000001568591",
-   "name": "Im perfect 대파 900g",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "C10-010106",
-   "to": "C07-020302",
-   "urgency": 0,
-   "reason": "플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
-  },
-  {
    "sku": "0000001571386",
    "name": "[쓱:싹] 밀도 쓱싹식빵_480g",
    "priorityType": "OPTIMIZATION",
@@ -2128,30 +2116,6 @@
    "reason": "플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
   {
-   "sku": "0000001632546",
-   "name": "성주 고당도 꿀 참외 2kg (6~8입) 봉",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "B03-010103",
-   "to": "B06-050201",
-   "urgency": 0,
-   "reason": "플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
-  },
-  {
-   "sku": "0000001602313",
-   "name": "[농할 20% 할인쿠폰 다운로드]강원 백오이 800g (5입) 봉",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "A04-030204",
-   "to": "C07-020301",
-   "urgency": 0,
-   "reason": "플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
-  },
-  {
    "sku": "0000001604491",
    "name": "강원 인큐 애호박 (개, 200g이상)",
    "priorityType": "OPTIMIZATION",
@@ -2159,7 +2123,7 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "A07-030305",
-   "to": "B03-020301",
+   "to": "C03-060304",
    "urgency": 0,
    "reason": "플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
@@ -2172,18 +2136,6 @@
    "zoneEviction": 0,
    "from": "A07-020101",
    "to": "A07-020204",
-   "urgency": 0,
-   "reason": "플로우랙 배치 권장"
-  },
-  {
-   "sku": "0000001525420",
-   "name": "우리 아이가 좋아하는 깐메추리알 270g",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "B09-010104",
-   "to": "B09-010305",
    "urgency": 0,
    "reason": "플로우랙 배치 권장"
   },
@@ -2207,9 +2159,33 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "D07-010403",
-   "to": "D07-020202",
+   "to": "D07-020303",
    "urgency": 0,
    "reason": "플로우랙 배치 권장"
+  },
+  {
+   "sku": "0000001572880",
+   "name": "하얀계란 15구 (대란, 780g)",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "A08-040205",
+   "to": "A08-030201",
+   "urgency": 0,
+   "reason": "선반랙 배치 권장 · 계란 전용 위치 조건 반영"
+  },
+  {
+   "sku": "0000001596187",
+   "name": "[농할 20% 할인쿠폰 다운로드] 지리산 영양 신선산골란 20구 (특란, 1,200g)",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "A08-050205",
+   "to": "A08-050401",
+   "urgency": 0,
+   "reason": "선반랙 배치 권장 · 계란 전용 위치 조건 반영"
   },
   {
    "sku": "0000001566389",
@@ -2222,6 +2198,18 @@
    "to": "D05-030401",
    "urgency": 0,
    "reason": "선반랙 배치 권장"
+  },
+  {
+   "sku": "0000001572165",
+   "name": "감동란 10구 (500g)",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "A08-010202",
+   "to": "A08-010402",
+   "urgency": 0,
+   "reason": "선반랙 배치 권장 · 계란 전용 위치 조건 반영"
   },
   {
    "sku": "0000001567923",
@@ -2272,16 +2260,28 @@
    "reason": "플로우랙 배치 권장"
   },
   {
-   "sku": "0000001393593",
-   "name": "노브랜드 굿모닝머핀140g",
+   "sku": "0000001572204",
+   "name": "풀무원 동물복지 왕란 15구 (1020g)",
    "priorityType": "OPTIMIZATION",
    "moveType": "MOVE",
    "status": "READY",
    "zoneEviction": 0,
-   "from": "F09-040502",
-   "to": "F09-040206",
+   "from": "A08-040305",
+   "to": "A08-030404",
    "urgency": 0,
-   "reason": "플로우랙 배치 권장"
+   "reason": "선반랙 배치 권장 · 계란 전용 위치 조건 반영"
+  },
+  {
+   "sku": "0000001567722",
+   "name": "[농할 20% 할인쿠폰 다운로드] 무항생제 동물복지 유정란 신선 햇달걀 20구 (760g)",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "A08-060304",
+   "to": "A09-010113",
+   "urgency": 0,
+   "reason": "게이트랙 배치 권장 · 고빈도 계란(출고 100 이상) A09 게이트랙 우선 배치 · 계란 전용 위치 조건 반영 · W/S SKU 부하 편차 완화"
   }
  ]
 }
