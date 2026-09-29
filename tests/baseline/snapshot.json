@@ -577,7 +577,7 @@
    "from": "E07-060306",
    "to": "E07-060204",
    "urgency": 100000,
-   "reason": "중량물 하단 보관 안전 수칙 · 선반랙 배치 권장"
+   "reason": "중량물 하단 보관 안전 수칙 · 쇼케이스/리치인 배치 권장"
   },
   {
    "sku": "0000001598630",
@@ -671,9 +671,9 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "D07-010104",
-   "to": "D07-030402",
+   "to": "D03-020403",
    "urgency": 50033,
-   "reason": "축산 허가 구역 조건 불충족 · 선반랙 배치 권장"
+   "reason": "축산 허가 구역 조건 불충족 · 플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
   {
    "sku": "0000001519300",
@@ -1213,7 +1213,7 @@
    "from": "D01-050107",
    "to": "D02-020101",
    "urgency": 2139,
-   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 현재고 60개 이상으로 선반랙 한계 초과 · 플로우랙 배치 권장 · 0~5℃ 전용 보관 조건 반영"
+   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 현재고 60개 이상으로 선반랙 한계 초과 · 플로우랙 적정 공셀 없어 평대 차선 배치 · 0~5℃ 전용 보관 조건 반영"
   },
   {
    "sku": "0000001562759",
@@ -1295,7 +1295,7 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "D02-050505",
-   "to": "D03-020403",
+   "to": "D03-020405",
    "urgency": 1880,
    "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 일반 축산 5℃ 챔버(D01~D02) 대체 보관 중 · D03~D06 공셀 확보 시 복귀 권장 · 플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
@@ -1321,7 +1321,7 @@
    "from": "D02-030407",
    "to": "D02-020103",
    "urgency": 1870,
-   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장 · 0~5℃ 전용 보관 조건 반영"
+   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 적정 공셀 없어 평대 차선 배치 · 0~5℃ 전용 보관 조건 반영"
   },
   {
    "sku": "0000001572880",
@@ -1357,7 +1357,7 @@
    "from": "D02-030404",
    "to": "D02-020104",
    "urgency": 1865,
-   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장 · 0~5℃ 전용 보관 조건 반영"
+   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 적정 공셀 없어 평대 차선 배치 · 0~5℃ 전용 보관 조건 반영"
   },
   {
    "sku": "0000001561337",
@@ -1381,7 +1381,7 @@
    "from": "D02-030406",
    "to": "D02-020105",
    "urgency": 1859,
-   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장 · 0~5℃ 전용 보관 조건 반영"
+   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 적정 공셀 없어 평대 차선 배치 · 0~5℃ 전용 보관 조건 반영"
   },
   {
    "sku": "0000001571948",
@@ -1405,7 +1405,7 @@
    "from": "D02-030501",
    "to": "D02-020106",
    "urgency": 1857,
-   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장 · 0~5℃ 전용 보관 조건 반영"
+   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 적정 공셀 없어 평대 차선 배치 · 0~5℃ 전용 보관 조건 반영"
   },
   {
    "sku": "0000001567345",
@@ -1417,7 +1417,7 @@
    "from": "D01-050105",
    "to": "D02-020107",
    "urgency": 1856,
-   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 현재고 60개 이상으로 선반랙 한계 초과 · 플로우랙 배치 권장 · 0~5℃ 전용 보관 조건 반영 · W/S SKU 부하 편차 완화"
+   "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 현재고 60개 이상으로 선반랙 한계 초과 · 플로우랙 적정 공셀 없어 평대 차선 배치 · 0~5℃ 전용 보관 조건 반영 · W/S SKU 부하 편차 완화"
   },
   {
    "sku": "0000001567920",
@@ -2044,6 +2044,18 @@
    "reason": "D06 임시 보관 김치 · C08/C09 이전 계획 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
   },
   {
+   "sku": "0000001642142",
+   "name": "오뚜기 경주식 십원빵 오리지널 318g",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "E04-050307",
+   "to": "E04-070102",
+   "urgency": 0,
+   "reason": "플로우랙 적정 공셀 없어 평대 차선 배치"
+  },
+  {
    "sku": "0000001578676",
    "name": "한끼 양배추 800g 통",
    "priorityType": "OPTIMIZATION",
@@ -2051,69 +2063,33 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "A10-010109",
-   "to": "C07-020302",
+   "to": "A02-010205",
    "urgency": 0,
    "reason": "플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
   {
-   "sku": "0000001521565",
-   "name": "[노브랜드] 굿모닝 굿밀크 1L",
+   "sku": "0000001572588",
+   "name": "[냉동] 호주산 차돌양지 샤브샤브 500g",
    "priorityType": "OPTIMIZATION",
    "moveType": "MOVE",
    "status": "READY",
    "zoneEviction": 0,
-   "from": "C10-010107",
-   "to": "D10-050201",
+   "from": "F04-030105",
+   "to": "F04-040302",
    "urgency": 0,
-   "reason": "선반랙 배치 권장 · W/S SKU 부하 편차 완화"
+   "reason": "플로우랙 배치 권장"
   },
   {
-   "sku": "0000001604491",
-   "name": "강원 인큐 애호박 (개, 200g이상)",
+   "sku": "0000001615289",
+   "name": "CJ 고메 새우하가우 135g",
    "priorityType": "OPTIMIZATION",
    "moveType": "MOVE",
    "status": "READY",
    "zoneEviction": 0,
-   "from": "A07-030305",
-   "to": "A08-010402",
+   "from": "F11-040201",
+   "to": "F11-010402",
    "urgency": 0,
-   "reason": "선반랙 배치 권장 · W/S SKU 부하 편차 완화"
-  },
-  {
-   "sku": "0000001623662",
-   "name": "필리핀산 스위트마운틴 바나나 1kg",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "C10-010109",
-   "to": "D10-050203",
-   "urgency": 0,
-   "reason": "선반랙 배치 권장 · W/S SKU 부하 편차 완화"
-  },
-  {
-   "sku": "0000001571386",
-   "name": "[쓱:싹] 밀도 쓱싹식빵_480g",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "C10-010110",
-   "to": "D10-070403",
-   "urgency": 0,
-   "reason": "선반랙 배치 권장 · W/S SKU 부하 편차 완화"
-  },
-  {
-   "sku": "0000001519061",
-   "name": "노브랜드 국산콩두부300g*2입",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "B09-010205",
-   "to": "D10-050401",
-   "urgency": 0,
-   "reason": "선반랙 배치 권장 · W/S SKU 부하 편차 완화"
+   "reason": "플로우랙 배치 권장"
   },
   {
    "sku": "0000001633386",
@@ -2123,21 +2099,9 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "A07-010401",
-   "to": "A08-010201",
+   "to": "A04-020304",
    "urgency": 0,
-   "reason": "선반랙 배치 권장 · W/S SKU 부하 편차 완화"
-  },
-  {
-   "sku": "0000001568601",
-   "name": "I`mperfect 향이 가득한 표고버섯 (500g)",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "B04-050401",
-   "to": "D10-050404",
-   "urgency": 0,
-   "reason": "선반랙 배치 권장 · W/S SKU 부하 편차 완화"
+   "reason": "플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
   {
    "sku": "0000001568591",
@@ -2147,57 +2111,33 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "C10-010106",
-   "to": "C07-020301",
+   "to": "C07-020302",
    "urgency": 0,
    "reason": "플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
   {
-   "sku": "0000001568899",
-   "name": "반반상추 200g",
+   "sku": "0000001571386",
+   "name": "[쓱:싹] 밀도 쓱싹식빵_480g",
    "priorityType": "OPTIMIZATION",
    "moveType": "MOVE",
    "status": "READY",
    "zoneEviction": 0,
-   "from": "A03-050104",
-   "to": "A08-030404",
+   "from": "C10-010110",
+   "to": "C06-050304",
    "urgency": 0,
-   "reason": "선반랙 배치 권장 · W/S SKU 부하 편차 완화"
+   "reason": "플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
   {
-   "sku": "0000001606451",
-   "name": "5K프라이스 맛있는 콩나물 400g",
+   "sku": "0000001632546",
+   "name": "성주 고당도 꿀 참외 2kg (6~8입) 봉",
    "priorityType": "OPTIMIZATION",
    "moveType": "MOVE",
    "status": "READY",
    "zoneEviction": 0,
-   "from": "C01-050405",
-   "to": "D10-050405",
+   "from": "B03-010103",
+   "to": "B06-050201",
    "urgency": 0,
-   "reason": "선반랙 배치 권장 · W/S SKU 부하 편차 완화"
-  },
-  {
-   "sku": "0000001567916",
-   "name": "[농할 20% 할인쿠폰 다운로드]흙당근 1kg (3~5입) 봉",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "B03-020203",
-   "to": "D10-050202",
-   "urgency": 0,
-   "reason": "선반랙 배치 권장 · W/S SKU 부하 편차 완화"
-  },
-  {
-   "sku": "0000001604486",
-   "name": "강원 백오이 500g (3입) 봉",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "A05-020204",
-   "to": "D09-030403",
-   "urgency": 0,
-   "reason": "선반랙 배치 권장 · W/S SKU 부하 편차 완화"
+   "reason": "플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
   {
    "sku": "0000001602313",
@@ -2207,45 +2147,21 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "A04-030204",
-   "to": "B08-030303",
+   "to": "C07-020301",
    "urgency": 0,
-   "reason": "선반랙 배치 권장 · W/S SKU 부하 편차 완화"
+   "reason": "플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
   {
-   "sku": "0000001578686",
-   "name": "[농할 20% 할인쿠폰 다운로드]양상추 300g(1입)",
+   "sku": "0000001604491",
+   "name": "강원 인큐 애호박 (개, 200g이상)",
    "priorityType": "OPTIMIZATION",
    "moveType": "MOVE",
    "status": "READY",
    "zoneEviction": 0,
-   "from": "B01-020304",
-   "to": "D10-050402",
+   "from": "A07-030305",
+   "to": "B03-020301",
    "urgency": 0,
-   "reason": "선반랙 배치 권장 · W/S SKU 부하 편차 완화"
-  },
-  {
-   "sku": "0000001549582",
-   "name": "크라비 맛살 150g",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "C02-020102",
-   "to": "D10-070401",
-   "urgency": 0,
-   "reason": "선반랙 배치 권장 · W/S SKU 부하 편차 완화"
-  },
-  {
-   "sku": "0000001567952",
-   "name": "알배기 500g (1입)",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "D07-020201",
-   "to": "D10-050403",
-   "urgency": 0,
-   "reason": "선반랙 배치 권장 · W/S SKU 부하 편차 완화"
+   "reason": "플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
   {
    "sku": "0000001645425",
@@ -2272,16 +2188,100 @@
    "reason": "플로우랙 배치 권장"
   },
   {
-   "sku": "0000001568026",
-   "name": "청경채 200g (4~6입)",
+   "sku": "0000001640968",
+   "name": "알뜰 가지 (5입) 봉",
    "priorityType": "OPTIMIZATION",
    "moveType": "MOVE",
    "status": "READY",
    "zoneEviction": 0,
-   "from": "B04-050101",
-   "to": "D10-070402",
+   "from": "A05-020102",
+   "to": "A05-020202",
    "urgency": 0,
-   "reason": "선반랙 배치 권장 · W/S SKU 부하 편차 완화"
+   "reason": "플로우랙 배치 권장"
+  },
+  {
+   "sku": "0000001484342",
+   "name": "소프트샌드위치식빵_380g",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "D07-010403",
+   "to": "D07-020202",
+   "urgency": 0,
+   "reason": "플로우랙 배치 권장"
+  },
+  {
+   "sku": "0000001566389",
+   "name": "[농할 20% 할인쿠폰 다운로드][무항생제 1등급 한돈]자연마지 냉장 삼겹살 구이 500g",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "D05-050205",
+   "to": "D05-030401",
+   "urgency": 0,
+   "reason": "선반랙 배치 권장"
+  },
+  {
+   "sku": "0000001567923",
+   "name": "햇양파 (3kg)",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "A04-030102",
+   "to": "A04-020305",
+   "urgency": 0,
+   "reason": "플로우랙 배치 권장"
+  },
+  {
+   "sku": "0000001623618",
+   "name": "CJ 크리스피 치킨텐더 300g",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "F07-040102",
+   "to": "F07-030101",
+   "urgency": 0,
+   "reason": "플로우랙 배치 권장"
+  },
+  {
+   "sku": "0000001602314",
+   "name": "강원 파프리카 300g (2입) 봉",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "A06-060103",
+   "to": "A06-050402",
+   "urgency": 0,
+   "reason": "플로우랙 배치 권장"
+  },
+  {
+   "sku": "0000001578657",
+   "name": "어린 열무 500g",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "A04-030101",
+   "to": "A04-030305",
+   "urgency": 0,
+   "reason": "플로우랙 배치 권장"
+  },
+  {
+   "sku": "0000001393593",
+   "name": "노브랜드 굿모닝머핀140g",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "F09-040502",
+   "to": "F09-040206",
+   "urgency": 0,
+   "reason": "플로우랙 배치 권장"
   }
  ]
 }
