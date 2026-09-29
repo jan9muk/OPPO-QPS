@@ -141,6 +141,33 @@ test('메추리알 전용 구역은 다른 상품의 이동 대상이 아님 (v2
   assert.equal(r.of('냉장 쌈장').status, 'NO_TARGET');
 });
 
+test('상품명 중량 파싱: 묶음 표기(*2입, X2)는 곱하고 천 단위 쉼표 인식 (v2.48.0)', () => {
+  const w = engine._internals.extractWeightFromName;
+  assert.equal(w('하루채소 오이맛고추 (80g)'), 80);
+  assert.equal(w('노브랜드 국산콩두부300g*2입'), 600);
+  assert.equal(w('맛있는 왕교자김치 (468GX2)'), 936);
+  assert.equal(w('피코크 에이클래스 체다 슬라이스치즈 210g (30gX7)'), 210);
+  assert.equal(w('동치미육수 1,000ml'), 1000, '천 단위 쉼표');
+  assert.equal(w('동치미물냉면 1,880g (4인분)'), 1880);
+  assert.equal(w('수박 5kg'), 5000);
+});
+test('경량 상품(300g 이하)은 냉장 플로우랙 4단 우대, 무거우면 골든존(2~3단) (v2.48.0)', () => {
+  let r = run([cell('B08-010405', { name: '하루채소 오이맛고추 (80g)', group: '간편채소', out: 56, stock: 177 }),
+    cell('B09-020203', { rack: 'Flow Rack' }), cell('B09-020403', { rack: 'Flow Rack' })]);
+  assert.equal(r.of('하루채소 오이맛고추 (80g)').targetCell, 'B09-020403');
+  r = run([cell('B08-010405', { name: '국산콩 두부 (400g)', group: '두부/묵/콩가공품', out: 56, stock: 177 }),
+    cell('B09-020203', { rack: 'Flow Rack' }), cell('B09-020403', { rack: 'Flow Rack' })]);
+  assert.equal(r.of('국산콩 두부 (400g)').targetCell, 'B09-020203', '300g 초과는 골든존');
+  r = run([cell('B08-010405', { name: '하루채소 오이맛고추 (80g)', group: '간편채소', out: 56, stock: 177 }),
+    cell('B09-020203', { rack: 'Flow Rack' })]);
+  assert.equal(r.of('하루채소 오이맛고추 (80g)').targetCell, 'B09-020203', '4단 공셀이 없으면 골든존');
+});
+test('경량 상품(300g 이하)은 냉동 플로우랙 5단 우대 (v2.48.0)', () => {
+  const r = run([cell('F01-010101', { name: '냉동 미니 딤섬 (150g)', group: '냉동만두', rack: 'Flow Rack', temp: 'WET 냉동', out: 40, stock: 60 }),
+    cell('F01-010301', { rack: 'Flow Rack' }), cell('F01-010501', { rack: 'Flow Rack' })]);
+  assert.equal(r.of('냉동 미니 딤섬 (150g)').targetCell, 'F01-010501');
+});
+
 // ---------------- 우선순위 ----------------
 test('공셀 배정은 긴급도 순: 규정 위반이 이전 계획보다 먼저 공셀을 차지 (v2.40.0)', () => {
   // 이전 계획 건의 토트 수가 더 많아도(과거 정렬 기준) 규정 위반 건이 먼저 배정되어야 함
