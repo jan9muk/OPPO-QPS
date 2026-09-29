@@ -158,6 +158,37 @@ test('추천 목록은 긴급도 내림차순, 같은 셀을 두 번 추천하�
   assert.equal(new Set(targets).size, targets.length, '같은 공셀이 중복 추천됨');
 });
 
+test('W/S 부하: 이동을 확정할 때마다 부하를 갱신해 같은 W/S로 몰리지 않음 (v2.46.0)', () => {
+  // 규정 위반 김치 2건이 같은 조건의 C08 공셀 3개(APS2-02 2칸, APS2-03 1칸) 중 고른다.
+  // 부하 갱신이 없으면 두 건 모두 APS2-02로 가고, 갱신하면 두 번째 건은 APS2-03으로 간다.
+  const r = run([cell('C03-010101', { name: '김치A', group: '김치', out: 10, totes: 10, ws: 'APS2-01' }),
+    cell('C03-010102', { name: '김치B', group: '김치', out: 10, totes: 10, ws: 'APS2-01' }),
+    cell('C01-010101', { name: '고빈도 상품', group: '냉장양념', out: 40, totes: 40, ws: 'APS2-01' }),
+    cell('C08-010101', { ws: 'APS2-02' }), cell('C08-010102', { ws: 'APS2-02' }), cell('C08-010103', { ws: 'APS2-03' })]);
+  const ws = [r.of('김치A').targetWs, r.of('김치B').targetWs].sort();
+  assert.deepEqual(ws, ['APS2-02', 'APS2-03']);
+});
+test('퇴출→진입 연결: 공셀이 없으면 퇴출로 비게 될 플로우랙 셀을 진입에 사용 (v2.46.0)', () => {
+  const r = run([cell('C02-010101', { name: '저빈도 두부', group: '두부/묵/콩가공품', rack: 'Flow Rack', out: 2, stock: 5 }),
+    cell('C04-010101', { name: '고빈도 우유', group: '멸균우유/유제품', out: 60, stock: 80 }),
+    cell('C03-010101')]);
+  const out = r.of('저빈도 두부'), entry = r.of('고빈도 우유');
+  assert.equal(out.moveType, 'EVICTION');
+  assert.equal(out.targetCell, 'C03-010101');
+  assert.equal(entry.priorityType, 'ENTRY');
+  assert.equal(entry.status, 'AFTER_EVICTION');
+  assert.equal(entry.targetCell, 'C02-010101');
+  assert.equal(entry.dependsOnSku, out.sku);
+  assert.match(entry.reason, /저빈도 두부.*먼저 퇴출/);
+  assert.match(out.reason, /비운 셀은 '고빈도 우유'/);
+});
+test('퇴출→진입 연결: 퇴출 대상에 목적지가 없으면 그 셀은 쓰지 않음', () => {
+  const r = run([cell('C02-010101', { name: '저빈도 두부', group: '두부/묵/콩가공품', rack: 'Flow Rack', out: 2, stock: 5 }),
+    cell('C04-010101', { name: '고빈도 우유', group: '멸균우유/유제품', out: 60, stock: 80 })]);
+  assert.equal(r.of('저빈도 두부').status, 'NO_TARGET');
+  assert.equal(r.of('고빈도 우유').status, 'NO_TARGET');
+});
+
 // ---------------- 데이터 처리(qpsCore) ----------------
 test('셀 파일 병합: 같은 보관위치가 서로 다르면 오류, 같으면 중복 제거', () => {
   const a = { '작업대': 'APS2-01', '보관위치': 'A01-010101', '랙유형': 'Shelf Rack', '물류분류코드': 'WET 냉장', '물류상품ID': '1', '현재고': '5' };

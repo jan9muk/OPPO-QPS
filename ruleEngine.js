@@ -1,5 +1,14 @@
 /*
- * QPS Cell Allocation Rule Engine v2.45.0
+ * QPS Cell Allocation Rule Engine v2.46.0
+ *
+ * v2.46.0: 작업대(W/S) 부하 갱신 · 퇴출→진입 연결
+ *   - 이동을 하나 확정할 때마다 출발·도착 W/S의 부하(지시 토트 수)를 갱신해, 이후 추천이 같은
+ *     저부하 W/S로 몰리지 않게 함. 공셀만 있는 W/S도 부하 0으로 포함.
+ *     (부하 정의 = W/S에 할당된 SKU별 지시 토트 수 합계 = 대시보드 '지시 SKU수'와 동일)
+ *   - 부하 점수를 '큰 편차 감소'에서 '두 W/S 편차 제곱합 감소'로 변경. 출발 W/S가 과부하면 큰 편차가
+ *     항상 출발 쪽이라 도착 W/S 간 차이가 점수에 드러나지 않았음. 허용 기준(10% 이내 또는 개선)은 유지.
+ *   - 공셀이 없어 목적지가 없던 필수 추천(NO_TARGET)에, 같은 추천 목록에서 퇴출(EVICTION)로 비게 될
+ *     셀을 연결. 상태 'AFTER_EVICTION'으로 표시하고, 먼저 퇴출할 상품을 사유에 명시.
  *
  * v2.45.0: 출고 100 이상(CONFIG.eggGatePriorityOut) 계란은 A09 계란 게이트랙을 우선 탐색하고,
  *   A09에 적정 공셀이 없을 때만 A08 등 나머지를 탐색. A09 밖에 있는 해당 계란은 A09 공셀이 있으면 이동 제안.
@@ -353,17 +362,30 @@
     return isFlowAllowed(p) ? ['flow','flat','shelf'] : ['shelf','showcase','flat'];
   }
   function familyScore(family, preferred) { if (preferred.includes(family)) return 150; return Math.max(-80,35-Math.abs((FAMILY_RANK[family]||9)-Math.min(...preferred.map(x=>FAMILY_RANK[x]||9)))*45); }
+  // W/S 부하 = W/S에 할당된 SKU별 지시 토트 수 합계(대시보드 '지시 SKU수'와 같은 정의). 공셀만 있는 W/S는 0.
   function buildWsMap(allData) {
     const map=new Map(), seen=new Set();
-    allData.assignedCells.forEach(cell=>{ if(!cell.ws||!cell.sku) return; const pair=`${cell.ws}||${cell.sku}`; if(seen.has(pair)) return; seen.add(pair); const row=map.get(cell.ws)||{pcs:0}; row.pcs+=allData.skuToToteCount.get(cell.sku)||allData.skuToPcs.get(cell.sku)||0; map.set(cell.ws,row); });
+    allData.emptyCells.forEach(cell=>{ if(cell.ws&&!map.has(cell.ws)) map.set(cell.ws,{touches:0}); });
+    allData.assignedCells.forEach(cell=>{ if(!cell.ws||!cell.sku) return; const pair=`${cell.ws}||${cell.sku}`; if(seen.has(pair)) return; seen.add(pair); const row=map.get(cell.ws)||{touches:0}; row.touches+=allData.skuToToteCount.get(cell.sku)||0; map.set(cell.ws,row); });
     return map;
+  }
+  // 이동 확정 시 부하를 옮긴다(총량 불변이므로 평균도 불변)
+  function applyWsMove(context, from, to, touch) {
+    if (!from || !to || from===to || !touch) return;
+    const a=context.wsMap.get(from), b=context.wsMap.get(to); if(!a||!b) return;
+    a.touches-=touch; b.touches+=touch;
   }
   function balanceScore(context, from, to, touch) {
     if (!from || !to || from===to || !context.average) return {score:0, compliant:true};
     const a=context.wsMap.get(from), b=context.wsMap.get(to); if(!a||!b) return {score:0, compliant:true};
-    const before=Math.max(Math.abs((a.pcs-context.average)/context.average),Math.abs((b.pcs-context.average)/context.average));
-    const after=Math.max(Math.abs((a.pcs-touch-context.average)/context.average),Math.abs((b.pcs+touch-context.average)/context.average));
-    return {score:(before-after)*200, compliant:after<=CONFIG.wsDeviation || after<=before};
+    const avg=context.average, dev=v=>(v-avg)/avg;
+    // 허용 여부: 두 W/S 중 큰 편차가 기준(10%) 이내이거나 개선되면 허용(기존 기준 유지)
+    const before=Math.max(Math.abs(dev(a.touches)),Math.abs(dev(b.touches)));
+    const after=Math.max(Math.abs(dev(a.touches-touch)),Math.abs(dev(b.touches+touch)));
+    // 점수: 두 W/S 편차 제곱합의 감소량. 큰 편차만 보면 출발 W/S가 과부하일 때 도착 W/S의 부하 차이가
+    // 점수에 반영되지 않아, 이미 추천이 몰린 W/S와 빈 W/S를 구분하지 못했음.
+    const sq=(x,y)=>dev(x)**2+dev(y)**2;
+    return {score:(sq(a.touches,b.touches)-sq(a.touches-touch,b.touches+touch))*40, compliant:after<=CONFIG.wsDeviation || after<=before};
   }
   function score(pc,source,p,context,preferred) {
     const balance=balanceScore(context,source.cell.ws,pc.cell.ws,p.touch);
@@ -397,7 +419,7 @@
   function recommend(allData) {
     if(!allData || !Array.isArray(allData.assignedCells) || !Array.isArray(allData.emptyCells)) return [];
     const profiles=buildProfiles(allData), index=createEmptyIndex(allData.emptyCells), wsMap=buildWsMap(allData);
-    let total=0; wsMap.forEach(v=>total+=v.pcs); const context={wsMap,average:wsMap.size?total/wsMap.size:0};
+    let total=0; wsMap.forEach(v=>total+=v.touches); const context={wsMap,average:wsMap.size?total/wsMap.size:0};
     const flowSpaceByTemp={chilled:(index.byTempFamily.get('chilled|flow')||[]).length,frozen:(index.byTempFamily.get('frozen|flow')||[]).length};
     const active=[], seen=new Set();
     allData.assignedCells.forEach(cell=>{
@@ -420,7 +442,7 @@
     });
     // 공셀은 이 순서대로 선점되므로 반드시 urgency 순(동률이면 토트 수 순)으로 처리
     active.sort((a,b)=>b.urgency-a.urgency||b.p.touch-a.p.touch);
-    const used=new Set(), result=[];
+    const used=new Set(), result=[], vacating=[], waiting=[];
     const quotaLimits={COMPLIANCE:Math.floor(CONFIG.maxRecommendations*CONFIG.complianceQuotaRatio),ZONE_EVICTION:Math.floor(CONFIG.maxRecommendations*CONFIG.zoneEvictionQuotaRatio),RELOCATION:Math.floor(CONFIG.maxRecommendations*CONFIG.relocationQuotaRatio),EVICTION:Math.floor(CONFIG.maxRecommendations*CONFIG.evictionQuotaRatio),ENTRY:Math.floor(CONFIG.maxRecommendations*CONFIG.entryQuotaRatio),OPTIMIZATION:CONFIG.maxOptimization};
     const quotaCounts={COMPLIANCE:0,ZONE_EVICTION:0,RELOCATION:0,EVICTION:0,ENTRY:0,OPTIMIZATION:0};
     const has=(item,type)=>item.v.mandatory.some(x=>x.type===type);
@@ -455,18 +477,36 @@
       const eggGateMove=eggGateFirst&&item.source.zone!==CONFIG.eggGateZone&&best&&best.pc.zone===CONFIG.eggGateZone;
       const sourceScore=score(item.source,item.source,item.p,context,preferred).score;
       if(!best&&!item.mandatory) return; if(best&&!item.mandatory&&!chamberReturn&&!eggGateMove&&best.scoreInfo.score<sourceScore+25) return;
-      if(best) used.add(best.pc.loc);
+      if(best){ used.add(best.pc.loc); applyWsMove(context,item.source.cell.ws,best.pc.cell.ws,item.p.touch); }
       if(quotaKey) quotaCounts[quotaKey]++;
       const priorityType=item.v.mandatory.some(x=>x.type==='SAFETY')?'SAFETY':item.v.mandatory.some(x=>x.type==='COMPLIANCE')?'COMPLIANCE':item.v.mandatory.some(x=>x.type==='FORWARD')?'FORWARD':item.v.mandatory.some(x=>x.type==='ENTRY')?'ENTRY':item.v.mandatory.some(x=>x.type==='RELOCATION')?'RELOCATION':item.v.mandatory.some(x=>x.type==='POLICY')?'POLICY':'OPTIMIZATION';
       const moveType=item.v.mandatory.some(x=>x.type==='EVICTION'||x.type==='ZONE_EVICTION')?'EVICTION':best?'MOVE':'NO_TARGET';
-      result.push({sku:item.source.cell.sku,productName:item.p.name||item.source.cell.productName||'',pcs:item.p.outboundPcs,stock:item.p.stock,toteCount:item.p.touch,temp:item.source.temp,currentCell:item.source.loc,currentRack:text(item.source.cell.rackType)||item.source.family,targetRack:best?(text(best.pc.cell.rackType)||best.pc.family):'공셀 확보 필요',targetCell:best?best.pc.loc:'-',targetWs:best?.pc.cell.ws||'',reason:best?reasons(item.source,best.pc,item.p,[...item.v.mandatory,...item.v.soft],preferred,best.scoreInfo,flowTiered):[...item.v.mandatory.map(x=>x.text),...item.v.soft].join(' · '),mandatory:item.mandatory?1:0,priorityType,moveType,zoneEviction:has(item,'ZONE_EVICTION')&&!has(item,'EVICTION')?1:0,urgency:item.urgency,improvement:best?best.scoreInfo.score-sourceScore:-999,status:best?'READY':'NO_TARGET'});
+      const rec={sku:item.source.cell.sku,productName:item.p.name||item.source.cell.productName||'',pcs:item.p.outboundPcs,stock:item.p.stock,toteCount:item.p.touch,temp:item.source.temp,currentCell:item.source.loc,currentRack:text(item.source.cell.rackType)||item.source.family,targetRack:best?(text(best.pc.cell.rackType)||best.pc.family):'공셀 확보 필요',targetCell:best?best.pc.loc:'-',targetWs:best?.pc.cell.ws||'',reason:best?reasons(item.source,best.pc,item.p,[...item.v.mandatory,...item.v.soft],preferred,best.scoreInfo,flowTiered):[...item.v.mandatory.map(x=>x.text),...item.v.soft].join(' · '),mandatory:item.mandatory?1:0,priorityType,moveType,zoneEviction:has(item,'ZONE_EVICTION')&&!has(item,'EVICTION')?1:0,urgency:item.urgency,improvement:best?best.scoreInfo.score-sourceScore:-999,status:best?'READY':'NO_TARGET'};
+      result.push(rec);
+      if(best&&moveType==='EVICTION') vacating.push({item,rec});
+      if(!best&&item.mandatory) waiting.push({item,rec,preferred,flowTiered});
     });
+    // 퇴출→진입 연결: 목적지가 없던 필수 추천에, 퇴출로 비게 될 셀을 긴급도 순으로 배정
+    const vacantNodes=vacating.map(v=>({node:makeNode({...v.item.source.cell,sku:'',isEmpty:true,stock:0,productName:''}),by:v}));
+    waiting.sort((a,b)=>b.item.urgency-a.item.urgency||b.item.p.touch-a.item.p.touch);
+    for(const w of waiting){
+      let best=null;
+      for(const v of vacantNodes){ if(v.taken) continue; const allowed=candidateAllowed(v.node,w.item.source,w.item.p); if(!allowed.ok) continue; const s=score(v.node,w.item.source,w.item.p,context,w.preferred); if(!best||s.score>best.scoreInfo.score||(s.score===best.scoreInfo.score&&v.node.loc<best.v.node.loc)) best={v,scoreInfo:s}; }
+      if(!best) continue;
+      best.v.taken=true;
+      const {node,by}=best.v, r=w.rec;
+      applyWsMove(context,w.item.source.cell.ws,node.cell.ws,w.item.p.touch);
+      Object.assign(r,{targetCell:node.loc,targetRack:text(node.cell.rackType)||node.family,targetWs:node.cell.ws||'',moveType:'MOVE',status:'AFTER_EVICTION',
+        dependsOnSku:by.rec.sku,dependsOnCell:node.loc,
+        reason:`${reasons(w.item.source,node,w.item.p,[...w.item.v.mandatory,...w.item.v.soft],w.preferred,best.scoreInfo,w.flowTiered)} · 퇴출 예정 셀 사용: '${by.rec.productName}' 먼저 퇴출 후 진행`});
+      by.rec.reason+=` · 비운 셀은 '${r.productName}' 배치에 사용`;
+    }
     result.sort((a,b)=>b.urgency-a.urgency||b.mandatory-a.mandatory||b.improvement-a.improvement||b.toteCount-a.toteCount||b.pcs-a.pcs);
     // 카테고리 쿼터가 배정 단계에서 이미 건수를 제한하므로 별도의 총량 절단은 하지 않는다
     // (총량 절단 시 urgency가 낮은 퇴출류가 쿼터와 무관하게 통째로 잘리는 문제가 있었음).
     return result;
   }
   // _internals: 회귀 테스트(tests/)용. 화면 코드에서는 쓰지 않는다.
-  global.QPSRuleEngine=Object.freeze({recommend,version:'2.45.0',CONFIG,_internals:Object.freeze({categorize,parseEggSize,rackFamily,thermalClass})});
+  global.QPSRuleEngine=Object.freeze({recommend,version:'2.46.0',CONFIG,_internals:Object.freeze({categorize,parseEggSize,rackFamily,thermalClass})});
   global.buildRecommendations=recommend;
 })(window);
