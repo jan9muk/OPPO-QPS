@@ -580,18 +580,6 @@
    "reason": "중량물 하단 보관 안전 수칙 · 쇼케이스/리치인 배치 권장"
   },
   {
-   "sku": "0000001598630",
-   "name": "피코크x히밥 바삭촉촉 치킨너겟 1.2kg",
-   "priorityType": "SAFETY",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "F08-040502",
-   "to": "F06-010105",
-   "urgency": 100000,
-   "reason": "플로우랙 중량 단수 제한 · 플로우랙 배치 권장"
-  },
-  {
    "sku": "0000001570885",
    "name": "세척 사과 1.4kg (6~7입) 박스",
    "priorityType": "SAFETY",
@@ -612,6 +600,18 @@
    "zoneEviction": 0,
    "from": "B09-010404",
    "to": "B09-010305",
+   "urgency": 100000,
+   "reason": "플로우랙 중량 단수 제한 · 플로우랙 배치 권장"
+  },
+  {
+   "sku": "0000001598630",
+   "name": "피코크x히밥 바삭촉촉 치킨너겟 1.2kg",
+   "priorityType": "SAFETY",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "F08-040502",
+   "to": "F06-010105",
    "urgency": 100000,
    "reason": "플로우랙 중량 단수 제한 · 플로우랙 배치 권장"
   },
@@ -659,9 +659,9 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "A09-010114",
-   "to": "A02-020302",
+   "to": "A07-020204",
    "urgency": 50037,
-   "reason": "A09 계란 전용 게이트랙 · 게이트랙 기준 미달로 퇴출 필요 · 플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
+   "reason": "A09 계란 전용 게이트랙 · 게이트랙 기준 미달로 퇴출 필요 · 플로우랙 배치 권장"
   },
   {
    "sku": "0000001571040",
@@ -683,7 +683,7 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "D07-010104",
-   "to": "D03-020402",
+   "to": "D05-010101",
    "urgency": 50033,
    "reason": "축산 허가 구역 조건 불충족 · 플로우랙 배치 권장"
   },
@@ -928,6 +928,18 @@
    "reason": "김치 전용 구역 필요 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
   },
   {
+   "sku": "0000001569165",
+   "name": "깐메추리알 유정란 500g",
+   "priorityType": "COMPLIANCE",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "A07-040404",
+   "to": "A07-070501",
+   "urgency": 50004,
+   "reason": "메추리알 전용 위치 조건 불충족 · 선반랙 배치 권장"
+  },
+  {
    "sku": "0000001535869",
    "name": "김치공방 배추고갱이 김치 1kg",
    "priorityType": "COMPLIANCE",
@@ -950,18 +962,6 @@
    "to": "C08-080101",
    "urgency": 50004,
    "reason": "김치 전용 구역 필요 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
-  },
-  {
-   "sku": "0000001569165",
-   "name": "깐메추리알 유정란 500g",
-   "priorityType": "COMPLIANCE",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "A07-040404",
-   "to": "A07-070501",
-   "urgency": 50004,
-   "reason": "메추리알 전용 위치 조건 불충족 · 선반랙 배치 권장"
   },
   {
    "sku": "0000001578653",
@@ -1024,18 +1024,6 @@
    "reason": "김치 전용 구역 필요 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
   },
   {
-   "sku": "0000001561343",
-   "name": "어린이 한입 백김치 300g",
-   "priorityType": "COMPLIANCE",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "C05-040402",
-   "to": "C08-020502",
-   "urgency": 50003,
-   "reason": "김치 전용 구역 필요 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
-  },
-  {
    "sku": "0000001569147",
    "name": "깐메추리알 유정란 270g",
    "priorityType": "COMPLIANCE",
@@ -1058,6 +1046,18 @@
    "to": "A07-070503",
    "urgency": 50003,
    "reason": "메추리알 전용 위치 조건 불충족 · 선반랙 배치 권장"
+  },
+  {
+   "sku": "0000001561343",
+   "name": "어린이 한입 백김치 300g",
+   "priorityType": "COMPLIANCE",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "C05-040402",
+   "to": "C08-020502",
+   "urgency": 50003,
+   "reason": "김치 전용 구역 필요 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
   },
   {
    "sku": "0000001567275",
@@ -1120,18 +1120,6 @@
    "reason": "김치 전용 구역 필요 · 현재고 60개 이상으로 선반랙 한계 초과 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
   },
   {
-   "sku": "0000001625012",
-   "name": "비비고 흑백요리사 남도식 갓김치 300g",
-   "priorityType": "COMPLIANCE",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "C02-040302",
-   "to": "C08-050505",
-   "urgency": 50002,
-   "reason": "김치 전용 구역 필요 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
-  },
-  {
    "sku": "0000001554722",
    "name": "백김치 500g(파우치)",
    "priorityType": "COMPLIANCE",
@@ -1144,14 +1132,14 @@
    "reason": "김치 전용 구역 필요 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
   },
   {
-   "sku": "0000001479374",
-   "name": "비비고 남도식 포기배추김치 2.6kg",
+   "sku": "0000001625012",
+   "name": "비비고 흑백요리사 남도식 갓김치 300g",
    "priorityType": "COMPLIANCE",
    "moveType": "MOVE",
    "status": "READY",
    "zoneEviction": 0,
-   "from": "C04-050405",
-   "to": "C08-040103",
+   "from": "C02-040302",
+   "to": "C08-050505",
    "urgency": 50002,
    "reason": "김치 전용 구역 필요 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
   },
@@ -1164,6 +1152,18 @@
    "zoneEviction": 0,
    "from": "C05-040205",
    "to": "C08-040504",
+   "urgency": 50002,
+   "reason": "김치 전용 구역 필요 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
+  },
+  {
+   "sku": "0000001479374",
+   "name": "비비고 남도식 포기배추김치 2.6kg",
+   "priorityType": "COMPLIANCE",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "C04-050405",
+   "to": "C08-040103",
    "urgency": 50002,
    "reason": "김치 전용 구역 필요 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
   },
@@ -1235,7 +1235,7 @@
    "status": "READY",
    "zoneEviction": 1,
    "from": "C08-050404",
-   "to": "C05-020205",
+   "to": "C07-020201",
    "urgency": 2090,
    "reason": "김치 전용 구역(C08/C09) 확보를 위한 비김치 퇴출 필요 · 고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
@@ -1247,7 +1247,7 @@
    "status": "READY",
    "zoneEviction": 1,
    "from": "C08-030201",
-   "to": "C07-020201",
+   "to": "C07-020301",
    "urgency": 2034,
    "reason": "김치 전용 구역(C08/C09) 확보를 위한 비김치 퇴출 필요 · 고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장"
   },
@@ -1271,7 +1271,7 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "D08-010301",
-   "to": "D03-020403",
+   "to": "D05-010401",
    "urgency": 1909,
    "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장"
   },
@@ -1283,7 +1283,7 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "D02-050505",
-   "to": "D05-010101",
+   "to": "D03-020402",
    "urgency": 1880,
    "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 일반 축산 5℃ 챔버(D01~D02) 대체 보관 중 · D03~D06 공셀 확보 시 복귀 권장 · 플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
@@ -1295,7 +1295,7 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "D08-030103",
-   "to": "D03-020405",
+   "to": "D05-010402",
    "urgency": 1873,
    "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장"
   },
@@ -1343,7 +1343,7 @@
    "status": "READY",
    "zoneEviction": 1,
    "from": "C08-060303",
-   "to": "C07-020301",
+   "to": "C07-020302",
    "urgency": 1864,
    "reason": "김치 전용 구역(C08/C09) 확보를 위한 비김치 퇴출 필요 · 고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장"
   },
@@ -1427,7 +1427,7 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "D08-010404",
-   "to": "D05-010401",
+   "to": "D05-010404",
    "urgency": 1855,
    "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장"
   },
@@ -1439,7 +1439,7 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "B08-010405",
-   "to": "B06-050401",
+   "to": "B07-020401",
    "urgency": 1848,
    "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장"
   },
@@ -1451,7 +1451,7 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "D08-030303",
-   "to": "D05-010402",
+   "to": "D05-020403",
    "urgency": 1847,
    "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장"
   },
@@ -1463,7 +1463,7 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "C02-050305",
-   "to": "C05-020305",
+   "to": "C03-060304",
    "urgency": 1846,
    "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 현재고 60개 이상으로 선반랙 한계 초과 · 플로우랙 배치 권장"
   },
@@ -1487,7 +1487,7 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "C07-070505",
-   "to": "C07-020302",
+   "to": "C06-050404",
    "urgency": 1840,
    "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 현재고 60개 이상으로 선반랙 한계 초과 · 플로우랙 배치 권장"
   },
@@ -1499,7 +1499,7 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "B08-010301",
-   "to": "B07-020401",
+   "to": "B09-010401",
    "urgency": 1840,
    "reason": "고빈도 SKU 플로우랙 진입 필요 (선반랙 대비 보충·피킹 생산성 저하) · 플로우랙 배치 권장"
   },
@@ -1564,18 +1564,6 @@
    "reason": "플로우랙 물량 기준 미달로 퇴출 필요 · 선반랙 배치 권장"
   },
   {
-   "sku": "0000001557410",
-   "name": "톡톡 총각김치 1.4kg",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "EVICTION",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "C09-010203",
-   "to": "C08-060304",
-   "urgency": 417,
-   "reason": "김치 물량 급감으로 C09 플로우랙 퇴출 필요 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
-  },
-  {
    "sku": "0000001581282",
    "name": "CJ제일제당 즐거운동행 촌두부300g",
    "priorityType": "OPTIMIZATION",
@@ -1586,6 +1574,18 @@
    "to": "A02-040502",
    "urgency": 417,
    "reason": "플로우랙 물량 기준 미달로 퇴출 필요 · 선반랙 배치 권장"
+  },
+  {
+   "sku": "0000001557410",
+   "name": "톡톡 총각김치 1.4kg",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "EVICTION",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "C09-010203",
+   "to": "C08-060304",
+   "urgency": 417,
+   "reason": "김치 물량 급감으로 C09 플로우랙 퇴출 필요 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
   },
   {
    "sku": "0000001550179",
@@ -1636,18 +1636,6 @@
    "reason": "플로우랙 물량 기준 미달로 퇴출 필요 · 선반랙 배치 권장"
   },
   {
-   "sku": "0000001516504",
-   "name": "양반 포기김치 1.9kg",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "EVICTION",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "C09-030403",
-   "to": "C08-080202",
-   "urgency": 415,
-   "reason": "김치 물량 급감으로 C09 플로우랙 퇴출 필요 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
-  },
-  {
    "sku": "0000001392065",
    "name": "8가지 풍성한어묵탕 527g",
    "priorityType": "OPTIMIZATION",
@@ -1658,6 +1646,18 @@
    "to": "B01-060504",
    "urgency": 415,
    "reason": "플로우랙 물량 기준 미달로 퇴출 필요 · 선반랙 배치 권장"
+  },
+  {
+   "sku": "0000001516504",
+   "name": "양반 포기김치 1.9kg",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "EVICTION",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "C09-030403",
+   "to": "C08-080202",
+   "urgency": 415,
+   "reason": "김치 물량 급감으로 C09 플로우랙 퇴출 필요 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
   },
   {
    "sku": "0000001638073",
@@ -1672,18 +1672,6 @@
    "reason": "플로우랙 물량 기준 미달로 퇴출 필요 · 선반랙 배치 권장"
   },
   {
-   "sku": "0000001556249",
-   "name": "비비고 썰은배추 단지김치 300G (PET)",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "EVICTION",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "C09-010105",
-   "to": "C08-070502",
-   "urgency": 414,
-   "reason": "김치 물량 급감으로 C09 플로우랙 퇴출 필요 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
-  },
-  {
    "sku": "0000001565945",
    "name": "친환경 캠핑용 간편모둠쌈 300g/팩",
    "priorityType": "OPTIMIZATION",
@@ -1694,6 +1682,18 @@
    "to": "B07-040501",
    "urgency": 414,
    "reason": "플로우랙 물량 기준 미달로 퇴출 필요 · 선반랙 배치 권장"
+  },
+  {
+   "sku": "0000001556249",
+   "name": "비비고 썰은배추 단지김치 300G (PET)",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "EVICTION",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "C09-010105",
+   "to": "C08-070502",
+   "urgency": 414,
+   "reason": "김치 물량 급감으로 C09 플로우랙 퇴출 필요 · 선반랙 배치 권장 · 김치 전용(C08/C09) 구역 반영"
   },
   {
    "sku": "0000001642986",
@@ -1823,7 +1823,7 @@
    "status": "READY",
    "zoneEviction": 1,
    "from": "C08-010102",
-   "to": "C01-040505",
+   "to": "C07-050505",
    "urgency": 299,
    "reason": "김치 전용 구역(C08/C09) 확보를 위한 비김치 퇴출 필요 · 선반랙 배치 권장"
   },
@@ -1835,7 +1835,7 @@
    "status": "READY",
    "zoneEviction": 1,
    "from": "C08-010302",
-   "to": "C02-040505",
+   "to": "C07-060501",
    "urgency": 299,
    "reason": "김치 전용 구역(C08/C09) 확보를 위한 비김치 퇴출 필요 · 선반랙 배치 권장"
   },
@@ -1847,7 +1847,7 @@
    "status": "READY",
    "zoneEviction": 1,
    "from": "C08-050202",
-   "to": "C04-070505",
+   "to": "C06-040503",
    "urgency": 299,
    "reason": "김치 전용 구역(C08/C09) 확보를 위한 비김치 퇴출 필요 · 선반랙 배치 권장"
   },
@@ -1859,7 +1859,7 @@
    "status": "READY",
    "zoneEviction": 1,
    "from": "C08-050204",
-   "to": "C05-040502",
+   "to": "C06-040504",
    "urgency": 299,
    "reason": "김치 전용 구역(C08/C09) 확보를 위한 비김치 퇴출 필요 · 선반랙 배치 권장"
   },
@@ -1871,7 +1871,7 @@
    "status": "READY",
    "zoneEviction": 1,
    "from": "C08-050303",
-   "to": "C05-060505",
+   "to": "C06-040505",
    "urgency": 299,
    "reason": "김치 전용 구역(C08/C09) 확보를 위한 비김치 퇴출 필요 · 선반랙 배치 권장"
   },
@@ -1883,7 +1883,7 @@
    "status": "READY",
    "zoneEviction": 1,
    "from": "C08-020102",
-   "to": "C02-060502",
+   "to": "C07-060502",
    "urgency": 299,
    "reason": "김치 전용 구역(C08/C09) 확보를 위한 비김치 퇴출 필요 · 선반랙 배치 권장"
   },
@@ -1895,7 +1895,7 @@
    "status": "READY",
    "zoneEviction": 1,
    "from": "C08-020103",
-   "to": "C02-060505",
+   "to": "C07-070501",
    "urgency": 299,
    "reason": "김치 전용 구역(C08/C09) 확보를 위한 비김치 퇴출 필요 · 선반랙 배치 권장"
   },
@@ -1907,7 +1907,7 @@
    "status": "READY",
    "zoneEviction": 1,
    "from": "C08-030203",
-   "to": "C01-040104",
+   "to": "C06-040501",
    "urgency": 299,
    "reason": "김치 전용 구역(C08/C09) 확보를 위한 비김치 퇴출 필요 · 선반랙 배치 권장"
   },
@@ -1919,7 +1919,7 @@
    "status": "READY",
    "zoneEviction": 1,
    "from": "C08-020401",
-   "to": "C01-040101",
+   "to": "C07-070504",
    "urgency": 299,
    "reason": "김치 전용 구역(C08/C09) 확보를 위한 비김치 퇴출 필요 · 선반랙 배치 권장"
   },
@@ -1931,7 +1931,7 @@
    "status": "READY",
    "zoneEviction": 1,
    "from": "C08-040201",
-   "to": "C04-070504",
+   "to": "C06-040502",
    "urgency": 299,
    "reason": "김치 전용 구역(C08/C09) 확보를 위한 비김치 퇴출 필요 · 선반랙 배치 권장"
   },
@@ -2111,7 +2111,7 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "B09-010104",
-   "to": "B09-010401",
+   "to": "B09-010402",
    "urgency": 0,
    "reason": "플로우랙 배치 권장"
   },
@@ -2128,6 +2128,18 @@
    "reason": "플로우랙 배치 권장"
   },
   {
+   "sku": "0000001567401",
+   "name": "[농할 20% 할인쿠폰 다운로드][냉장] 한우 불고기1+등급300g",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "D03-010202",
+   "to": "D03-020403",
+   "urgency": 0,
+   "reason": "플로우랙 배치 권장"
+  },
+  {
    "sku": "0000001569624",
    "name": "깐쪽파 150g 봉",
    "priorityType": "OPTIMIZATION",
@@ -2138,18 +2150,6 @@
    "to": "A07-020403",
    "urgency": 0,
    "reason": "플로우랙 배치 권장"
-  },
-  {
-   "sku": "0000001633386",
-   "name": "[농할 20% 할인쿠폰 다운로드]인큐 애호박 (2입) 봉",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "A07-010401",
-   "to": "A02-020303",
-   "urgency": 0,
-   "reason": "플로우랙 배치 권장 · W/S SKU 부하 편차 완화"
   },
   {
    "sku": "0000001578686",
@@ -2176,26 +2176,14 @@
    "reason": "선반랙 배치 권장 · 계란 전용 위치 조건 반영"
   },
   {
-   "sku": "0000001645425",
-   "name": "[농할 20% 할인쿠폰 다운로드]부드러운 복숭아 1.25kg 내외 (4~6입)/팩",
+   "sku": "0000001633386",
+   "name": "[농할 20% 할인쿠폰 다운로드]인큐 애호박 (2입) 봉",
    "priorityType": "OPTIMIZATION",
    "moveType": "MOVE",
    "status": "READY",
    "zoneEviction": 0,
-   "from": "A07-020101",
-   "to": "A07-020204",
-   "urgency": 0,
-   "reason": "플로우랙 배치 권장"
-  },
-  {
-   "sku": "0000001551998",
-   "name": "고메함박스테이크152g",
-   "priorityType": "OPTIMIZATION",
-   "moveType": "MOVE",
-   "status": "READY",
-   "zoneEviction": 0,
-   "from": "C06-050204",
-   "to": "C06-050404",
+   "from": "A07-010401",
+   "to": "A07-010301",
    "urgency": 0,
    "reason": "플로우랙 배치 권장"
   },
@@ -2208,6 +2196,18 @@
    "zoneEviction": 0,
    "from": "A03-060303",
    "to": "A03-050404",
+   "urgency": 0,
+   "reason": "플로우랙 배치 권장"
+  },
+  {
+   "sku": "0000001630069",
+   "name": "hy하루우유 E-퍼스트밀크 900ml*2입",
+   "priorityType": "OPTIMIZATION",
+   "moveType": "MOVE",
+   "status": "READY",
+   "zoneEviction": 0,
+   "from": "C05-020104",
+   "to": "C05-020205",
    "urgency": 0,
    "reason": "플로우랙 배치 권장"
   },
@@ -2255,7 +2255,7 @@
    "status": "READY",
    "zoneEviction": 0,
    "from": "B09-010302",
-   "to": "B09-010402",
+   "to": "B09-020401",
    "urgency": 0,
    "reason": "플로우랙 배치 권장"
   },
@@ -2284,16 +2284,16 @@
    "reason": "플로우랙 배치 권장"
   },
   {
-   "sku": "0000001568483",
-   "name": "마니커 무항생제 닭다리살(정육)400g",
+   "sku": "0000001572880",
+   "name": "하얀계란 15구 (대란, 780g)",
    "priorityType": "OPTIMIZATION",
    "moveType": "MOVE",
    "status": "READY",
    "zoneEviction": 0,
-   "from": "D02-010101",
-   "to": "D01-050406",
+   "from": "A08-040205",
+   "to": "A08-030201",
    "urgency": 0,
-   "reason": "선반랙 배치 권장 · 0~5℃ 전용 보관 조건 반영 · W/S SKU 부하 편차 완화"
+   "reason": "선반랙 배치 권장 · 계란 전용 위치 조건 반영"
   }
  ]
 }

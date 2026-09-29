@@ -1,5 +1,10 @@
 /*
- * QPS Cell Allocation Rule Engine v2.48.0
+ * QPS Cell Allocation Rule Engine v2.49.0
+ *
+ * v2.49.0: 현재 위치 근접 가점(CONFIG.proximity). 같은 알파벳 구역 안에서 존 번호가 가까울수록 가점
+ *   (같은 존 +40, 1칸 +30, 2칸 +20, 3칸 +10). 기존에는 같은 존 +30·같은 알파벳 +10뿐이라 C01~C07이 모두
+ *   같은 점수였고, 동점이면 W/S 부하·셀 번호 순으로 정해져 C08에서 가장 먼 C01로 추천되기도 했음.
+ *   모든 이동(퇴출·진입·최적화·퇴출 후 이동)에 적용.
  *
  * v2.48.0: 300g 이하(CONFIG.lightItem.flowMaxG) 경량 상품은 플로우랙 최상단(냉장 4단·냉동 5단)을 우대(+60).
  *   최상단은 1kg 초과 상품이 금지된 단이라 경량 상품 전용에 가까운데, 기존에는 가점이 없어 고빈도 경량 상품이
@@ -206,6 +211,10 @@
     }),
     // 경량 상품 상단 배치: 플로우랙 최상단(냉장 4단·냉동 5단 — 1kg 초과 금지 단)은 이 중량 이하 상품을 우대해
     // 골든존(냉장 2~3단)을 무거운 고빈도 상품 몫으로 남긴다. 선반랙은 기존 기준(500g 이하 4~5단 우대) 유지.
+    // 현재 위치 근접: 같은 알파벳 구역 안에서 존 번호가 가까울수록 가점(존 번호 순서 = 실제 물리적 순서).
+    // 가점 = perStep × max(0, steps − 존 번호 차이) → 같은 존 +40, 1칸 +30, 2칸 +20, 3칸 +10, 4칸 이상 0.
+    // 랙 유형(150)·구역 규칙보다 작게 두어 기존 원칙은 뒤집지 않고, 비슷한 후보 중 가까운 쪽을 고르게 한다.
+    proximity: Object.freeze({ perStep: 10, steps: 4 }),
     lightItem: Object.freeze({
       flowMaxG: 300,
       flowTopLevelChilled: 4,
@@ -681,11 +690,21 @@
       compliant: after <= CONFIG.wsDeviation || after <= before
     };
   }
+  // 현재 셀과 목적지 셀의 존 번호 차이로 이동 거리를 근사(같은 알파벳 구역 안에서만)
+  function proximityScore(toZone, fromZone) {
+    if (!toZone || !fromZone || toZone[0] !== fromZone[0]) return 0;
+    const a = Number(toZone.slice(1)),
+      b = Number(fromZone.slice(1));
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
+    const { perStep, steps } = CONFIG.proximity;
+    return perStep * Math.max(0, steps - Math.abs(a - b));
+  }
   function score(pc, source, p, context, preferred) {
     const balance = balanceScore(context, source.cell.ws, pc.cell.ws, p.touch);
     let value = familyScore(pc.family, preferred) + distanceScore(pc, p) + zScore(pc, p) + balance.score;
     if (pc.zone === source.zone) value += 30;
     else if (pc.zone[0] === source.zone[0]) value += 10;
+    value += proximityScore(pc.zone, source.zone);
     if (pc.cell.ws && pc.cell.ws === source.cell.ws) value += 20;
     if (pc.zone.startsWith('F')) value += Number(pc.zone.slice(1)) * 3;
     const kf = CONFIG.kimchiFlow;
@@ -993,7 +1012,7 @@
   // _internals: 회귀 테스트(tests/)용. 화면 코드에서는 쓰지 않는다.
   global.QPSRuleEngine = Object.freeze({
     recommend,
-    version: '2.48.0',
+    version: '2.49.0',
     CONFIG,
     _internals: Object.freeze({ extractWeightFromName, categorize, parseEggSize, rackFamily, thermalClass })
   });
