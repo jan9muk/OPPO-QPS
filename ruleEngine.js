@@ -1,5 +1,11 @@
 /*
- * QPS Cell Allocation Rule Engine v2.47.0
+ * QPS Cell Allocation Rule Engine v2.48.0
+ *
+ * v2.48.0: 300g 이하(CONFIG.lightItem.flowMaxG) 경량 상품은 플로우랙 최상단(냉장 4단·냉동 5단)을 우대(+60).
+ *   최상단은 1kg 초과 상품이 금지된 단이라 경량 상품 전용에 가까운데, 기존에는 가점이 없어 고빈도 경량 상품이
+ *   골든존(냉장 2~3단, +30)을 차지했음. 4단 공셀이 없으면 기존처럼 골든존으로 배정.
+ *   상품명 중량 파싱 수정(중량물 안전 규칙에도 적용): '300g*2입'·'320GX2' 묶음 표기는 곱하고,
+ *   '1,000ml'·'1,880g'처럼 천 단위 쉼표가 있으면 000·880으로 잘못 읽던 문제 수정.
  *
  * v2.47.0: 구조 정리(동작 변화 없음). 규칙 함수 곳곳의 현장 기준 수치(플로우랙·게이트랙·김치 C09·계란 구역·
  *   축산 허가 위치·중량물 안전·선반 재고 한계·A10 정책)를 CONFIG로 모으고 주석을 붙임.
@@ -198,6 +204,15 @@
       flowBannedLevelChilled: 4,
       flowBannedLevelFrozen: 5
     }),
+    // 경량 상품 상단 배치: 플로우랙 최상단(냉장 4단·냉동 5단 — 1kg 초과 금지 단)은 이 중량 이하 상품을 우대해
+    // 골든존(냉장 2~3단)을 무거운 고빈도 상품 몫으로 남긴다. 선반랙은 기존 기준(500g 이하 4~5단 우대) 유지.
+    lightItem: Object.freeze({
+      flowMaxG: 300,
+      flowTopLevelChilled: 4,
+      flowTopLevelFrozen: 5,
+      flowTopBonus: 60,
+      shelfMaxG: 500
+    }),
     // 선반랙 재고 한계(보조 사유). 대용량 선반 존은 제외
     shelfStockLimit: 60,
     shelfStockLimitExemptZones: new Set(['A01', 'B08', 'C08', 'D08', 'D09', 'D10']),
@@ -256,11 +271,14 @@
     const source = `${text(value)} ${text(headerHint)}`.toLowerCase();
     return source.includes('kg') || source.includes('킬로') ? n * 1000 : n;
   }
+  // 상품명에서 한 번에 집는 단위의 중량(g) 추출. '300g*2입', '320GX2'처럼 중량 바로 뒤 묶음 표기는 곱한다.
   function extractWeightFromName(name) {
-    const m = text(name).match(/(\d+(?:\.\d+)?)\s*(kg|g|킬로|그램|l|ml)/i);
+    const m = text(name).match(/(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(kg|g|킬로|그램|l|ml)(?:\s*[x×*]\s*(\d+))?/i);
     if (!m) return 0;
     const unit = m[2].toLowerCase();
-    return ['kg', '킬로', 'l'].includes(unit) ? Number(m[1]) * 1000 : Number(m[1]);
+    const value = Number(m[1].replace(/,/g, ''));
+    const grams = ['kg', '킬로', 'l'].includes(unit) ? value * 1000 : value;
+    return m[3] ? grams * Number(m[3]) : grams;
   }
   function levelOfLocation(loc) {
     const m = text(loc).match(/(\d{6})$/);
@@ -587,7 +605,15 @@
       golden = p.temp === 'chilled' ? pc.level >= 1 && pc.level <= 4 : [1, 3, 5].includes(pc.level);
     if (golden) score += p.outboundPcs >= 30 ? 30 : p.outboundPcs <= 10 ? -30 : 0;
     if (dead) score += p.outboundPcs <= 10 ? 20 : p.outboundPcs >= 30 ? -30 : 0;
-    if (p.itemWeightG > 0 && p.itemWeightG <= 500 && pc.family === 'shelf')
+    const li = CONFIG.lightItem;
+    if (
+      p.itemWeightG > 0 &&
+      p.itemWeightG <= li.flowMaxG &&
+      pc.family === 'flow' &&
+      pc.level === (p.temp === 'frozen' ? li.flowTopLevelFrozen : li.flowTopLevelChilled)
+    )
+      score += li.flowTopBonus;
+    if (p.itemWeightG > 0 && p.itemWeightG <= li.shelfMaxG && pc.family === 'shelf')
       score += pc.level === 5 ? 60 : pc.level === 4 ? 30 : pc.level === 1 ? -60 : 0;
     return score;
   }
@@ -967,9 +993,9 @@
   // _internals: 회귀 테스트(tests/)용. 화면 코드에서는 쓰지 않는다.
   global.QPSRuleEngine = Object.freeze({
     recommend,
-    version: '2.47.0',
+    version: '2.48.0',
     CONFIG,
-    _internals: Object.freeze({ categorize, parseEggSize, rackFamily, thermalClass })
+    _internals: Object.freeze({ extractWeightFromName, categorize, parseEggSize, rackFamily, thermalClass })
   });
   global.buildRecommendations = recommend;
 })(window);
