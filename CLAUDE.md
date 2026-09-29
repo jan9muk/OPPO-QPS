@@ -16,6 +16,12 @@
 | `tests/` | 회귀 테스트(`node tests/run.js`, 외부 의존성 없음) |
 | `README.md` | 외부 사용자용 기능 소개. 화면 기능·필수 컬럼이 바뀌면 함께 수정 |
 
+## 코드 형식
+- JS는 `.prettierrc.json` 규칙으로 정리한다: `npx prettier@3 --write ruleEngine.js qpsCore.js`
+- `index.html`은 `<script>`·`<style>` 내용만 정리하고 HTML 본문은 손대지 않는다(줄바꿈이 화면 배치에 영향).
+- 표 형태가 의미 있는 상수(`DISTANCE_MAP`, `zoneDefs`)는 `// prettier-ignore`로 한 줄 유지.
+- 현장 기준 수치는 코드에 직접 쓰지 말고 `ruleEngine.js`의 `CONFIG`에 추가한다.
+
 ## 배포 루틴 (중요 수정 배포 시, 하루 1회 기준)
 1. 작업 브랜치에서 수정한다. main에 직접 푸시하지 않는다.
 2. `node tests/run.js` 실행 → 전부 통과해야 한다.
