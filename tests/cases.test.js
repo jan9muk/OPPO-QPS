@@ -226,6 +226,24 @@ test('퇴출→진입 연결: 퇴출 대상에 목적지가 없으면 그 셀은
   assert.equal(r.of('고빈도 우유').status, 'NO_TARGET');
 });
 
+test('진입+안전 위반: 플로우랙·평대 공셀이 없으면 안전한 선반 공셀로 위반 해소 (v2.50.0)', () => {
+  const r = run([cell('B05-030401', { name: '고빈도 세제 3.5kg', out: 80, stock: 90, totes: 40 }), cell('B05-030101', {})]);
+  const rec = r.of('고빈도 세제 3.5kg');
+  assert.equal(rec.priorityType, 'SAFETY');
+  assert.equal(rec.targetCell, 'B05-030101');
+  assert.match(rec.reason, /위반 해소 우선/);
+});
+test('진입+규정 위반: 허가 구역 밖 고빈도 축산은 허가 구역 선반 공셀로 이동 (v2.50.0)', () => {
+  const r = run([cell('E03-030402', { name: '양념 소불고기 500g', group: '양념육', out: 80, stock: 90, totes: 40 }), cell('D05-030301', {})]);
+  const rec = r.of('양념 소불고기 500g');
+  assert.equal(rec.priorityType, 'COMPLIANCE');
+  assert.equal(rec.targetCell, 'D05-030301');
+});
+test('순수 진입(위반 없음)은 선반 공셀로 옮기지 않음', () => {
+  const r = run([cell('B05-030201', { name: '고빈도 우유 900ml', out: 80, stock: 90, totes: 40 }), cell('B05-030301', {})]);
+  assert.equal(r.of('고빈도 우유 900ml').status, 'NO_TARGET');
+});
+
 // ---------------- 데이터 처리(qpsCore) ----------------
 test('셀 파일 병합: 같은 보관위치가 서로 다르면 오류, 같으면 중복 제거', () => {
   const a = { '작업대': 'APS2-01', '보관위치': 'A01-010101', '랙유형': 'Shelf Rack', '물류분류코드': 'WET 냉장', '물류상품ID': '1', '현재고': '5' };
