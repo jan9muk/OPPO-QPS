@@ -244,6 +244,17 @@ test('순수 진입(위반 없음)은 선반 공셀로 옮기지 않음', () => 
   assert.equal(r.of('고빈도 우유 900ml').status, 'NO_TARGET');
 });
 
+test('C09 김치: 진입~퇴출 사이 완충 구간이면 C08 선반 이동을 제안하지 않음 (v2.51.0)', () => {
+  const r = run([cell('C09-020105', { name: '포기김치 3.5kg', group: '김치', rack: 'Flow Rack', out: 36, stock: 117, totes: 34 }), cell('C08-030205', {})]);
+  assert.equal(r.of('포기김치 3.5kg'), undefined);
+});
+test('C09 김치: 퇴출 기준(출고 15·재고 20 이하)이면 C08로 퇴출', () => {
+  const r = run([cell('C09-020105', { name: '포기김치 1kg', group: '김치', rack: 'Flow Rack', out: 5, stock: 10 }), cell('C08-030205', {})]);
+  const rec = r.of('포기김치 1kg');
+  assert.equal(rec.moveType, 'EVICTION');
+  assert.equal(rec.targetCell, 'C08-030205');
+});
+
 // ---------------- 데이터 처리(qpsCore) ----------------
 test('셀 파일 병합: 같은 보관위치가 서로 다르면 오류, 같으면 중복 제거', () => {
   const a = { '작업대': 'APS2-01', '보관위치': 'A01-010101', '랙유형': 'Shelf Rack', '물류분류코드': 'WET 냉장', '물류상품ID': '1', '현재고': '5' };
