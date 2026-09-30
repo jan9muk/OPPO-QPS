@@ -1,5 +1,10 @@
 /*
- * QPS Cell Allocation Rule Engine v2.49.0
+ * QPS Cell Allocation Rule Engine v2.50.0
+ *
+ * v2.50.0: 플로우랙 진입 대상이면서 안전·규정 위반인 건(예: 4단 선반의 3kg 초과 고빈도 상품, 허가 구역 밖의
+ *   고빈도 축산)이 플로우랙·평대 공셀만 탐색해, 위반을 해소할 선반 공셀이 있어도 '공셀 없음'으로 끝나던 문제 수정.
+ *   플로우랙 → 평대 → 그 외 순으로 탐색하고, 그 외 랙으로 배정되면 사유에 '위반 해소 우선'을 표시.
+ *   순수 진입 건(위반 없음)은 기존대로 플로우랙·평대만 탐색.
  *
  * v2.49.0: 현재 위치 근접 가점(CONFIG.proximity). 같은 알파벳 구역 안에서 존 번호가 가까울수록 가점
  *   (같은 존 +40, 1칸 +30, 2칸 +20, 3칸 +10). 기존에는 같은 존 +30·같은 알파벳 +10뿐이라 C01~C07이 모두
@@ -741,6 +746,8 @@
     const list = violations.map(v => (typeof v === 'string' ? v : v.text));
     if (flowTiered && target.family === 'flat') list.push('플로우랙 적정 공셀 없어 평대 차선 배치');
     else if (preferred.includes(target.family)) list.push(`${FAMILY_LABEL[target.family] || '기타'} 배치 권장`);
+    else if (flowTiered)
+      list.push(`플로우랙·평대 적정 공셀 없어 ${FAMILY_LABEL[target.family] || '기타'} 차선 배치(위반 해소 우선)`);
     if (p.category.egg && target.zone === CONFIG.eggGateZone && p.outboundPcs >= CONFIG.eggGatePriorityOut)
       list.push(`고빈도 계란(출고 ${CONFIG.eggGatePriorityOut} 이상) ${CONFIG.eggGateZone} 게이트랙 우선 배치`);
     if (p.category.egg) list.push('계란 전용 위치 조건 반영');
@@ -850,11 +857,16 @@
       if (quotaKey && quotaCounts[quotaKey] >= quotaLimits[quotaKey]) return;
       const isEntryItem = item.v.mandatory.some(x => x.type === 'ENTRY');
       const preferred = isEntryItem ? ['flow', 'flat'] : preferredFamilies(item.p);
+      // 진입 건은 플로우랙·평대만 탐색. 단 안전·규정 위반을 함께 가진 건은 위반 해소가 먼저이므로
+      // 플로우랙·평대에 적정 공셀이 없으면 선반 등 나머지도 탐색(아래 단계 탐색의 3단계)
+      const urgentFix = has(item, 'SAFETY') || has(item, 'COMPLIANCE');
       const pool = isEntryItem
-        ? [
-            ...(index.byTempFamily.get(`${item.p.temp}|flow`) || []),
-            ...(index.byTempFamily.get(`${item.p.temp}|flat`) || [])
-          ]
+        ? urgentFix
+          ? index.byTemp[item.p.temp] || []
+          : [
+              ...(index.byTempFamily.get(`${item.p.temp}|flow`) || []),
+              ...(index.byTempFamily.get(`${item.p.temp}|flat`) || [])
+            ]
         : candidatePool(index, item.p, preferred);
       // 일반 축산은 D03~D06 등 비챔버 공셀을 먼저 찾고, 없을 때만 5℃ 챔버(D01~D02)를 사용
       const generalLivestock = isGeneralLivestock(item.p);
@@ -1012,7 +1024,7 @@
   // _internals: 회귀 테스트(tests/)용. 화면 코드에서는 쓰지 않는다.
   global.QPSRuleEngine = Object.freeze({
     recommend,
-    version: '2.49.0',
+    version: '2.50.0',
     CONFIG,
     _internals: Object.freeze({ extractWeightFromName, categorize, parseEggSize, rackFamily, thermalClass })
   });

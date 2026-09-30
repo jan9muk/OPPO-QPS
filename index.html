@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QPS Dashboard v8.37.0</title>
+  <title>QPS Dashboard v8.38.0</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="xlsxFastReader.js?v=1.0.0"></script>
@@ -672,7 +672,7 @@
 </head>
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
-  <div class="card"><div class="title">QPS Dashboard v8.37.0</div><div class="subtitle">데이터 정합성 검증 · 안전 이슈 · 추천 불가 상태를 명확히 표시합니다.</div></div>
+  <div class="card"><div class="title">QPS Dashboard v8.38.0</div><div class="subtitle">데이터 정합성 검증 · 안전 이슈 · 추천 불가 상태를 명확히 표시합니다.</div></div>
   <div class="card" id="dropZone" style="border:2px dashed transparent;transition:.2s"><div class="row"><div class="group" style="flex:1"><label>데이터 세트 동시 업로드 (박스상품 1개 + 셀할당 파일 여러 개 가능)</label><input type="file" id="multiFile" accept=".xlsx,.xls" multiple></div><div class="group"><label>작업 시작 시간 설정</label><select id="startTimeSelect" onchange="saveStartTime();if(window.qpsAllData)updateHUD(window.qpsAllData)"><option value="13">13:00 시작</option><option value="14" selected>14:00 시작</option></select></div></div><div class="status" id="status" style="margin-bottom:4px">* 박스상품 상세정보와 셀할당현황 파일을 동시에 업로드해 주세요. 중복·충돌 셀은 자동 검증합니다.</div><div style="margin-top:8px;font-size:12px;color:#6b7280">* 브라우저에 데이터가 캐싱됩니다. <button class="btn-reset" onclick="clearCacheAndReload()" style="padding:4px 8px;font-size:11px;margin-left:8px">강제 캐시 초기화</button></div></div>
   <div id="emptyState" class="card empty">데이터를 표시하려면 박스상품 상세정보와 셀할당현황 파일을 동시에 업로드해 주세요.</div>
   <div id="content" class="section">
@@ -1301,6 +1301,11 @@ async function handleFilesSimultaneously(files) {
       throw new Error(
         '셀할당현황 파일이 없고, 저장된 이전 셀할당 데이터도 없습니다. 최초 1회는 셀할당현황 파일을 함께 올려주세요.'
       );
+    // 저장된 셀할당이 시연용 목업이면 실데이터 박스 파일과 섞이지 않도록 셀할당 파일을 함께 받는다
+    if (!cells.length && isDemoMeta(cellMeta))
+      throw new Error(
+        '저장된 셀할당현황은 시연용 목업 데이터입니다. 셀할당현황 파일을 박스상품 파일과 함께 올려주세요.'
+      );
     const now = new Date().toLocaleString('ko-KR');
     boxRows = boxes[0].rows;
     boxMeta = { fileName: boxes[0].file.name, sheetName: boxes[0].sheetName, updatedAt: now };
@@ -1335,6 +1340,10 @@ async function handleFilesSimultaneously(files) {
     showLoading(false);
   }
   if (ok) await tryBuild();
+}
+// 첫 접속 시 불러온 시연용 목업 데이터인지(구버전 캐시는 파일명 표기로 판별)
+function isDemoMeta(meta) {
+  return !!meta && (meta.demo === true || /\(원격\)/.test(meta.fileName || ''));
 }
 async function fetchRemoteExcel(url, type) {
   try {
@@ -1406,8 +1415,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const now = new Date().toLocaleString('ko-KR');
         boxRows = b.rows;
         cellRows = c.rows;
-        boxMeta = { fileName: 'box_latest.xlsx (원격)', sheetName: b.sheetName, updatedAt: now };
-        cellMeta = { fileName: 'cell_latest.xlsx (원격)', sheetName: c.sheetName, updatedAt: now };
+        boxMeta = { fileName: 'box_latest.xlsx (원격)', sheetName: b.sheetName, updatedAt: now, demo: true };
+        cellMeta = { fileName: 'cell_latest.xlsx (원격)', sheetName: c.sheetName, updatedAt: now, demo: true };
         appendDebug('원격 정적 데이터 로드 완료');
         await Promise.all([cacheSave('boxData', boxRows, boxMeta), cacheSave('cellData', cellRows, cellMeta)]).catch(
           e => appendDebug(`캐시 저장 실패: ${e.message || e}`)
