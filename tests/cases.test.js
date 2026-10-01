@@ -33,6 +33,14 @@ test('축산: 볶음탕용 생닭은 0~5℃ 대상, 양념·닭갈비는 아님 
   assert.equal(cat('호주청정우 다짐육 300g', '우육').zeroToFive, true);
   assert.equal(cat('고등어 필렛', '대중선어').zeroToFive, true);
 });
+test('축산: 중분류 훈제육은 축산 구역 대상 아님 (v2.52.0)', () => {
+  assert.equal(cat('[냉장][다향] 훈제오리 슬라이스 450g', '훈제육', '훈제오리').livestock, false);
+  assert.equal(cat('[냉장][다향] 참나무 훈제삼겹 슬라이스 500g', '훈제육', '훈제가공기타').livestock, false);
+  assert.equal(cat('[냉장] CAB 양념 소불고기 600g', '양념육', '우육').livestock, true);
+  // 축산 허가 구역 밖 선반에 있어도 규정 위반으로 잡지 않음
+  const r = run([cell('C05-030301', { name: '훈제오리 500g', group: '훈제육', sub: '훈제오리', out: 5, stock: 20 }), cell('D05-030301', {})]);
+  assert.ok(!r.of('훈제오리 500g') || !['SAFETY', 'COMPLIANCE'].includes(r.of('훈제오리 500g').priorityType));
+});
 test('계란: 올가닉계란(중분류 올가닉신선)도 계란, 가공식품은 계란 아님 (v2.41.0)', () => {
   assert.equal(cat('[1번사육] 동물복지 신선유정란 15개입', '올가닉신선', '올가닉계란').egg, true);
   assert.equal(cat('우리집 신선계란 15구', '계란', '일반란').egg, true);
