@@ -283,6 +283,15 @@ test('작업대별 보충 우선 SKU: 지시 PCS 상위 3개와 셀·현재고 (
     ['상품B', 60, 20, 40, 'A01-010102'], ['상품C', 30, 30, 30, 'A01-010103'], ['상품A', 10, 10, 50, 'A01-010101']]);
   assert.equal(top[0].remainPcs, 60); // 테스트 데이터는 모두 '피킹지시' 상태(미완료)
 });
+test('우선 보충 필요 SKU: 잔여 지시 PCS 순, 피킹 완료 SKU 제외', () => {
+  const c = (loc, sku, stock) => ({ '작업대': 'APS1-01', '보관위치': loc, '랙유형': 'Shelf Rack', '물류분류코드': 'WET 냉장', '물류상품ID': sku, '물류상품명': 'P' + sku, '현재고': String(stock) });
+  const b = (sku, no, pcs, status) => ({ '물류상품ID': sku, '피킹지시수량': String(pcs), '배송번호': no, '배송박스순번': '1', 'WMS배송진행상태': status });
+  const d = core.buildAllData(
+    [b('1', 'a', 100, '피킹완료'), b('2', 'b', 30, '피킹지시'), b('2', 'c', 20, '피킹완료'), b('3', 'd', 40, '피킹지시')],
+    [c('A01-010101', '1', 10), c('A01-010102', '2', 5), c('A01-010103', '3', 50)]
+  );
+  assert.deepEqual(d.wsTopSkus['APS1-01'].map(x => [x.sku.slice(-1), x.remainPcs, x.pcs, x.stock]), [['3', 40, 40, 50], ['2', 30, 50, 5]]);
+});
 test('엑셀 날짜 일련번호는 현지 시각으로 해석', () => {
   const d = core.parseExcelDate(46292.5); // 2026-09-27 12:00 (현지)
   assert.equal(d.getFullYear(), 2026); assert.equal(d.getMonth(), 8); assert.equal(d.getDate(), 27); assert.equal(d.getHours(), 12);
