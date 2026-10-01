@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QPS Dashboard v8.40.0</title>
+  <title>QPS Dashboard v8.40.1</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="xlsxFastReader.js?v=1.0.0"></script>
@@ -811,7 +811,7 @@
 </head>
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
-  <div class="card"><div class="title">QPS Dashboard v8.40.0</div><div class="subtitle">데이터 정합성 검증 · 안전 이슈 · 추천 불가 상태를 명확히 표시합니다.</div></div>
+  <div class="card"><div class="title">QPS Dashboard v8.40.1</div><div class="subtitle">데이터 정합성 검증 · 안전 이슈 · 추천 불가 상태를 명확히 표시합니다.</div></div>
   <div class="card" id="dropZone" style="border:2px dashed transparent;transition:.2s"><div class="row"><div class="group" style="flex:1"><label>데이터 세트 동시 업로드 (박스상품 1개 + 셀할당 파일 여러 개 가능)</label><input type="file" id="multiFile" accept=".xlsx,.xls" multiple></div><div class="group"><label>작업 시작 시간 설정</label><select id="startTimeSelect" onchange="saveStartTime();if(window.qpsAllData)updateHUD(window.qpsAllData)"><option value="13">13:00 시작</option><option value="14" selected>14:00 시작</option></select></div></div><div class="status" id="status" style="margin-bottom:4px">* 박스상품 상세정보와 셀할당현황 파일을 동시에 업로드해 주세요. 중복·충돌 셀은 자동 검증합니다.</div><div style="margin-top:8px;font-size:12px;color:#6b7280">* 브라우저에 데이터가 캐싱됩니다. <button class="btn-reset" onclick="clearCacheAndReload()" style="padding:4px 8px;font-size:11px;margin-left:8px">강제 캐시 초기화</button></div></div>
   <div id="emptyState" class="card empty">데이터를 표시하려면 박스상품 상세정보와 셀할당현황 파일을 동시에 업로드해 주세요.</div>
   <div id="content" class="section">
@@ -1242,7 +1242,7 @@ function buildMobileRefillNode(d) {
     .join('');
   const node = document.createElement('div');
   node.className = 'mobile-refill';
-  node.innerHTML = `<div class="mr-title">우선 보충 필요 SKU</div><div class="mr-sub">${time ? `${escapeHtml(time)} 기준 · ` : ''}부하 평균 +${overPct}% 이상 · 초과율 높은 작업대 순</div><div class="mr-legend">잔여 = 아직 피킹 안 한 수량 · <span style="color:#dc2626">빨간 현재고 = 잔여보다 적음</span></div>${cards || `<div class="mr-card" style="color:#64748b">평균 +${overPct}% 이상 과부하 작업대가 없습니다.</div>`}${rest > 0 ? `<div class="mr-sub" style="text-align:center">외 ${rest}개 작업대는 대시보드에서 확인</div>` : ''}`;
+  node.innerHTML = `<div class="mr-title">우선 보충 필요 SKU</div>${time ? `<div class="mr-sub">${escapeHtml(time)} 기준</div>` : ''}<div class="mr-legend">잔여 = 아직 피킹 안 한 수량 · <span style="color:#dc2626">빨간 현재고 = 잔여보다 적음</span></div>${cards || `<div class="mr-card" style="color:#64748b">평균 +${overPct}% 이상 과부하 작업대가 없습니다.</div>`}${rest > 0 ? `<div class="mr-sub" style="text-align:center">외 ${rest}개 작업대는 대시보드에서 확인</div>` : ''}`;
   return node;
 }
 function renderInsights(d) {
