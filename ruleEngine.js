@@ -1,5 +1,10 @@
 /*
- * QPS Cell Allocation Rule Engine v2.50.0
+ * QPS Cell Allocation Rule Engine v2.51.0
+ *
+ * v2.51.0: C09 김치 플로우랙 완충 구간을 최적화 제안에도 적용. 진입 기준(출고 40·재고 50) 미만이지만 퇴출 기준
+ *   (출고 15·재고 20 이하)에는 해당하지 않는 C09 김치를, 선호 랙 판정이 진입 기준만 보고 '선반 권장'으로 판단해
+ *   C08 선반 이동을 최적화 제안하던 문제 수정(예: 별미포기김치3.5kg 출고 36·재고 117 → C08).
+ *   이제 퇴출 기준에 걸릴 때만 필수 퇴출로 C08 이동을 추천.
  *
  * v2.50.0: 플로우랙 진입 대상이면서 안전·규정 위반인 건(예: 4단 선반의 3kg 초과 고빈도 상품, 허가 구역 밖의
  *   고빈도 축산)이 플로우랙·평대 공셀만 탐색해, 위반을 해소할 선반 공셀이 있어도 '공셀 없음'으로 끝나던 문제 수정.
@@ -632,10 +637,12 @@
     return score;
   }
   function preferredFamilies(p) {
-    if (p.category.kimchi)
-      return p.outboundPcs >= CONFIG.kimchiFlow.entryOut && p.stock >= CONFIG.kimchiFlow.entryStock
-        ? ['flow']
-        : ['shelf'];
+    if (p.category.kimchi) {
+      const kf = CONFIG.kimchiFlow;
+      // 이미 C09에 있는 김치는 퇴출 기준(출고·재고 모두 이하)에 걸리기 전까지 플로우랙 유지(진입~퇴출 사이 완충 구간)
+      const resident = p.sourceZone === kf.zone && (p.outboundPcs > kf.exitOut || p.stock > kf.exitStock);
+      return resident || (p.outboundPcs >= kf.entryOut && p.stock >= kf.entryStock) ? ['flow'] : ['shelf'];
+    }
     if (p.category.quailEgg) return isFlowAllowed(p) ? ['flow'] : ['shelf'];
     if (p.category.egg) return eggGateQualified(p) ? ['gate', 'shelf'] : ['shelf']; // A09 계란 게이트랙 / A08 선반
     if (p.boxWeightG >= CONFIG.flow.heavyBoxG && p.stock >= CONFIG.flow.entryStock) return ['flow', 'flat'];
@@ -1024,7 +1031,7 @@
   // _internals: 회귀 테스트(tests/)용. 화면 코드에서는 쓰지 않는다.
   global.QPSRuleEngine = Object.freeze({
     recommend,
-    version: '2.50.0',
+    version: '2.51.0',
     CONFIG,
     _internals: Object.freeze({ extractWeightFromName, categorize, parseEggSize, rackFamily, thermalClass })
   });

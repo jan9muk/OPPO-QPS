@@ -244,6 +244,17 @@ test('순수 진입(위반 없음)은 선반 공셀로 옮기지 않음', () => 
   assert.equal(r.of('고빈도 우유 900ml').status, 'NO_TARGET');
 });
 
+test('C09 김치: 진입~퇴출 사이 완충 구간이면 C08 선반 이동을 제안하지 않음 (v2.51.0)', () => {
+  const r = run([cell('C09-020105', { name: '포기김치 3.5kg', group: '김치', rack: 'Flow Rack', out: 36, stock: 117, totes: 34 }), cell('C08-030205', {})]);
+  assert.equal(r.of('포기김치 3.5kg'), undefined);
+});
+test('C09 김치: 퇴출 기준(출고 15·재고 20 이하)이면 C08로 퇴출', () => {
+  const r = run([cell('C09-020105', { name: '포기김치 1kg', group: '김치', rack: 'Flow Rack', out: 5, stock: 10 }), cell('C08-030205', {})]);
+  const rec = r.of('포기김치 1kg');
+  assert.equal(rec.moveType, 'EVICTION');
+  assert.equal(rec.targetCell, 'C08-030205');
+});
+
 // ---------------- 데이터 처리(qpsCore) ----------------
 test('셀 파일 병합: 같은 보관위치가 서로 다르면 오류, 같으면 중복 제거', () => {
   const a = { '작업대': 'APS2-01', '보관위치': 'A01-010101', '랙유형': 'Shelf Rack', '물류분류코드': 'WET 냉장', '물류상품ID': '1', '현재고': '5' };
@@ -258,6 +269,28 @@ test('파일 유형 판별과 필요 컬럼 보관', () => {
   const keep = core.keepColumnFor('box');
   assert.ok(keep('WMS배송진행상태_1') && keep('수정일시') && keep('P박스당중량'));
   assert.ok(!keep('운송장번호') && !keep('피킹작업자'));
+});
+test('작업대별 보충 우선 SKU: 지시 PCS 상위 3개와 셀·현재고 (qpsCore v1.2.0)', () => {
+  const r = run([
+    cell('A01-010101', { name: '상품A', ws: 'APS1-01', out: 10, totes: 10, stock: 50 }),
+    cell('A01-010102', { name: '상품B', ws: 'APS1-01', out: 60, totes: 20, stock: 40 }),
+    cell('A01-010103', { name: '상품C', ws: 'APS1-01', out: 30, totes: 30, stock: 30 }),
+    cell('A01-010104', { name: '상품D', ws: 'APS1-01', out: 5, totes: 5 }),
+    cell('A02-010101', { name: '상품E', ws: 'APS1-02', out: 90, totes: 50 })
+  ]);
+  const top = r.data.wsTopSkus['APS1-01'];
+  assert.deepEqual(top.map(x => [x.name, x.pcs, x.totes, x.stock, x.cells.join()]), [
+    ['상품B', 60, 20, 40, 'A01-010102'], ['상품C', 30, 30, 30, 'A01-010103'], ['상품A', 10, 10, 50, 'A01-010101']]);
+  assert.equal(top[0].remainPcs, 60); // 테스트 데이터는 모두 '피킹지시' 상태(미완료)
+});
+test('우선 보충 필요 SKU: 잔여 지시 PCS 순, 피킹 완료 SKU 제외', () => {
+  const c = (loc, sku, stock) => ({ '작업대': 'APS1-01', '보관위치': loc, '랙유형': 'Shelf Rack', '물류분류코드': 'WET 냉장', '물류상품ID': sku, '물류상품명': 'P' + sku, '현재고': String(stock) });
+  const b = (sku, no, pcs, status) => ({ '물류상품ID': sku, '피킹지시수량': String(pcs), '배송번호': no, '배송박스순번': '1', 'WMS배송진행상태': status });
+  const d = core.buildAllData(
+    [b('1', 'a', 100, '피킹완료'), b('2', 'b', 30, '피킹지시'), b('2', 'c', 20, '피킹완료'), b('3', 'd', 40, '피킹지시')],
+    [c('A01-010101', '1', 10), c('A01-010102', '2', 5), c('A01-010103', '3', 50)]
+  );
+  assert.deepEqual(d.wsTopSkus['APS1-01'].map(x => [x.sku.slice(-1), x.remainPcs, x.pcs, x.stock]), [['3', 40, 40, 50], ['2', 30, 50, 5]]);
 });
 test('엑셀 날짜 일련번호는 현지 시각으로 해석', () => {
   const d = core.parseExcelDate(46292.5); // 2026-09-27 12:00 (현지)
