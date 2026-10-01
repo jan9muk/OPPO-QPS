@@ -210,9 +210,9 @@
     }
     .ws-top-row {
       display: grid;
-      grid-template-columns: 52px 1fr;
+      grid-template-columns: 62px 1fr;
       gap: 6px;
-      padding: 4px 0;
+      padding: 5px 0;
       border-bottom: 1px solid #eef2f7;
       font-size: 11px;
     }
@@ -220,6 +220,16 @@
       font-weight: 800;
       color: #1f2937;
       padding-top: 1px;
+    }
+    .ws-top-load {
+      font-size: 10px;
+      font-weight: 600;
+      color: #64748b;
+      line-height: 13px;
+      margin-top: 2px;
+    }
+    .ws-top-load b {
+      color: #dc2626;
     }
     .ws-top-line {
       display: grid;
@@ -1029,7 +1039,7 @@ window.renderLoadZones = () => {
     globalMax = Math.max(0, ...active.map(x => x.totalTouches)),
     globalAvg = active.length ? active.reduce((a, x) => a + x.totalTouches, 0) / active.length : 0,
     totalInbound = machineList.reduce((a, m) => a + (stats[m].inboundTotes || 0), 0);
-  let html = `<div class="card" style="padding:0;overflow:hidden;margin-bottom:18px"><div style="padding:14px 18px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background:#f8fafc"><div class="subhead" style="margin:0;font-size:16px;color:#1e293b">작업대별 부하 모니터링</div><label style="font-size:12px;font-weight:800"><input type="checkbox" onchange="window.qpsLoadScaleMode=this.checked?'all':'machine';renderLoadZones()" ${mode === 'all' ? 'checked' : ''}> 전체 스케일</label></div><div style="padding:18px;background:#fff"><div class="zones" style="margin-bottom:0;grid-template-columns:repeat(3,minmax(340px,1fr))">`;
+  let html = `<div class="card" style="padding:0;overflow:hidden;margin-bottom:18px"><div style="padding:14px 18px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background:#f8fafc"><div class="subhead" style="margin:0;font-size:16px;color:#1e293b">작업대별 부하 모니터링</div><label style="font-size:12px;font-weight:800"><input type="checkbox" onchange="window.qpsLoadScaleMode=this.checked?'all':'machine';renderLoadZones();renderWsTopSkus(window.qpsAllData)" ${mode === 'all' ? 'checked' : ''}> 전체 스케일</label></div><div style="padding:18px;background:#fff"><div class="zones" style="margin-bottom:0;grid-template-columns:repeat(3,minmax(340px,1fr))">`;
   for (const machine of machineList) {
     const def = zoneDefs[machine],
       st = stats[machine],
@@ -1067,33 +1077,37 @@ function shortProductName(name) {
     .replace(/\s+/g, ' ')
     .trim();
 }
-// 작업대별 보충 우선 SKU: 지시 PCS 상위 3개(셀·상품명·지시 PCS·현재고). 잔여 지시보다 재고가 적으면 재고를 빨갛게 표시.
+// 작업대별 보충 우선 SKU: 부하(지시 SKU수)가 평균을 넘는 작업대만, 지시 PCS 상위 3개(셀·상품명·지시 PCS·현재고).
+// 평균 기준은 부하 모니터링과 같다(기본 호기 평균, '전체 스케일' 체크 시 전체 평균). 잔여 지시보다 재고가 적으면 빨간색.
 function renderWsTopSkus(d) {
-  const top = d.wsTopSkus || {};
-  let html = `<div class="card" style="padding:0;overflow:hidden;margin-bottom:18px"><div style="padding:14px 18px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background:#f8fafc"><div class="subhead" style="margin:0;font-size:16px;color:#1e293b">작업대별 보충 우선 SKU <span style="font-size:12px;font-weight:700;color:#64748b">지시 PCS 상위 3</span></div><div style="font-size:11px;color:#64748b;font-weight:700">셀 · 상품명 · 지시 PCS / 현재고 · <span style="color:#dc2626">빨간 재고 = 잔여 지시보다 적음</span></div></div><div style="padding:18px;background:#fff"><div class="zones" style="margin-bottom:0">`;
+  const top = d.wsTopSkus || {},
+    mode = window.qpsLoadScaleMode,
+    touchOf = ws => d.wsMetrics[ws]?.totalTouches || 0,
+    activeAll = Object.values(d.wsMetrics).filter(x => x.totalTouches > 0),
+    globalAvg = activeAll.length ? activeAll.reduce((a, x) => a + x.totalTouches, 0) / activeAll.length : 0;
+  let blocks = '',
+    count = 0;
   for (const machine of machineList) {
-    const def = zoneDefs[machine];
-    html += `<div class="aps-block" style="border:1px solid #e2e8f0;border-radius:12px;padding:12px;background:#f8fafc"><div class="aps-head" style="border-bottom:1px solid #e2e8f0;margin-bottom:8px;padding-bottom:6px"><div class="aps-title" style="font-size:16px">${def.label}</div></div><div class="zone-columns" style="gap:12px">`;
-    for (const col of def.cols) {
-      html += `<div><div class="zone-head" style="font-size:13px;color:#475569;padding-bottom:4px"><span>${col.zone}</span></div>`;
-      for (const ws of col.order) {
-        if (!ws) continue;
-        const list = top[ws] || [];
-        const lines = list.length
-          ? list
-              .map(
-                (x, i) =>
-                  `<div class="ws-top-line"><span class="ws-top-rank">${i + 1}</span><span class="ws-top-cell">${escapeHtml(x.cells.map(formatCleanCell).join(',') || '-')}</span><span class="ws-top-name" title="${escAttr(`${x.sku} ${x.name}`)}">${escapeHtml(shortProductName(x.name) || x.sku)}</span><span class="ws-top-qty">${fmt(x.pcs)}<span style="color:#94a3b8"> / </span><span style="color:${x.remainPcs > x.stock ? '#dc2626' : '#475569'}">${fmt(x.stock)}</span></span></div>`
-              )
-              .join('')
-          : '<div style="color:#94a3b8;line-height:16px">지시 없음</div>';
-        html += `<div class="ws-top-row"><div class="ws-top-ws">${escapeHtml(formatWsName(ws))}</div><div>${lines}</div></div>`;
-      }
-      html += '</div>';
-    }
-    html += '</div></div>';
+    const def = zoneDefs[machine],
+      list = def.cols.flatMap(c => c.order).filter(ws => ws && touchOf(ws) > 0),
+      avg = mode === 'all' ? globalAvg : list.length ? list.reduce((a, ws) => a + touchOf(ws), 0) / list.length : 0,
+      over = list.filter(ws => touchOf(ws) > avg).sort((a, b) => touchOf(b) - touchOf(a));
+    count += over.length;
+    const rows = over
+      .map(ws => {
+        const lines = (top[ws] || [])
+          .map(
+            (x, i) =>
+              `<div class="ws-top-line"><span class="ws-top-rank">${i + 1}</span><span class="ws-top-cell">${escapeHtml(x.cells.map(formatCleanCell).join(',') || '-')}</span><span class="ws-top-name" title="${escAttr(`${x.sku} ${x.name}`)}">${escapeHtml(shortProductName(x.name) || x.sku)}</span><span class="ws-top-qty">${fmt(x.pcs)}<span style="color:#94a3b8"> / </span><span style="color:${x.remainPcs > x.stock ? '#dc2626' : '#475569'}">${fmt(x.stock)}</span></span></div>`
+          )
+          .join('');
+        const pct = avg ? Math.round((touchOf(ws) / avg - 1) * 100) : 0;
+        return `<div class="ws-top-row"><div class="ws-top-ws">${escapeHtml(formatWsName(ws))}<div class="ws-top-load">SKU ${fmt(touchOf(ws))}<br><b>+${pct}%</b></div></div><div>${lines}</div></div>`;
+      })
+      .join('');
+    blocks += `<div class="aps-block" style="border:1px solid #e2e8f0;border-radius:12px;padding:12px;background:#f8fafc"><div class="aps-head" style="border-bottom:1px solid #e2e8f0;margin-bottom:8px;padding-bottom:6px"><div class="aps-title" style="font-size:16px">${def.label}</div><div style="font-size:12px;color:#64748b;font-weight:700">평균 SKU ${fmt(Math.round(avg))} 초과 ${over.length}개</div></div>${rows || '<div style="color:#94a3b8;font-size:12px;padding:6px 0">평균 초과 작업대 없음</div>'}</div>`;
   }
-  $('#wsTopArea').innerHTML = html + '</div></div></div>';
+  $('#wsTopArea').innerHTML = `<div class="card" style="padding:0;overflow:hidden;margin-bottom:18px"><div style="padding:14px 18px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background:#f8fafc"><div class="subhead" style="margin:0;font-size:16px;color:#1e293b">과부하 작업대 보충 우선 SKU <span style="font-size:12px;font-weight:700;color:#64748b">부하 평균 초과 ${count}개 작업대 · 지시 PCS 상위 3</span></div><div style="font-size:11px;color:#64748b;font-weight:700">셀 · 상품명 · 지시 PCS / 현재고 · <span style="color:#dc2626">빨간 재고 = 잔여 지시보다 적음</span></div></div><div style="padding:18px;background:#fff"><div class="zones" style="margin-bottom:0">${blocks}</div></div></div>`;
 }
 function renderInsights(d) {
   const impacts = [];
