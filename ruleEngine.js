@@ -1,5 +1,9 @@
 /*
- * QPS Cell Allocation Rule Engine v2.51.0
+ * QPS Cell Allocation Rule Engine v2.52.0
+ *
+ * v2.52.0: 축산 구역 규칙을 적용할 중분류를 CONFIG.livestockGroups로 명시(수입육·우육·돈육·계육·양념육).
+ *   중분류 '훈제육'(훈제오리·훈제삼겹 등)은 축산 구역(D01~D06·D07 일부)에 꼭 둘 필요가 없음을 현장 기준으로 확정하고
+ *   테스트로 고정. 동작 변화 없음(기존에도 목록에 없었음).
  *
  * v2.51.0: C09 김치 플로우랙 완충 구간을 최적화 제안에도 적용. 진입 기준(출고 40·재고 50) 미만이지만 퇴출 기준
  *   (출고 15·재고 20 이하)에는 해당하지 않는 C09 김치를, 선호 랙 판정이 진입 기준만 보고 '선반 권장'으로 판단해
@@ -205,6 +209,8 @@
         30: ['A08-070101', 'A08-080505']
       })
     }),
+    // 축산 구역 규칙(허가 위치·0~5℃ 챔버)을 적용할 중분류. 훈제육(훈제오리·훈제삼겹 등)은 가공품이라 제외
+    livestockGroups: new Set(['수입육', '우육', '돈육', '계육', '양념육']),
     // 일반 축산 허가 위치
     livestockRanges: Object.freeze([
       ['D01-010101', 'D06-060505'],
@@ -345,7 +351,7 @@
       ['두부/묵/콩가공품', '반찬', '햄/소시지', '간편식', '가공식품'].includes(group);
     const egg =
       (group ? eggClass : /계란|식용란|유정란|왕란|특란|대란|신선란|구운란/.test(name) && !processedEgg) && !quail;
-    const livestock = ['수입육', '우육', '돈육', '계육', '양념육'].includes(group);
+    const livestock = CONFIG.livestockGroups.has(group); // 훈제육 등 목록에 없는 중분류는 축산 구역 대상 아님
     const processedChicken = /닭갈비|양념|볶음(?!탕)|훈제/.test(name); // '볶음탕용 생닭'은 원료육
     const seafoodOrPoultry =
       ['대중선어', '구색선어', '생선회', '갑각류', '패류', '연체류'].includes(group) ||
@@ -1031,7 +1037,7 @@
   // _internals: 회귀 테스트(tests/)용. 화면 코드에서는 쓰지 않는다.
   global.QPSRuleEngine = Object.freeze({
     recommend,
-    version: '2.51.0',
+    version: '2.52.0',
     CONFIG,
     _internals: Object.freeze({ extractWeightFromName, categorize, parseEggSize, rackFamily, thermalClass })
   });
