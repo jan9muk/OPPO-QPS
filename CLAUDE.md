@@ -13,7 +13,7 @@
 | `xlsxFastReader.js` | 고속 XLSX 리더(스트리밍, 필요한 컬럼만). 실패 시 index.html이 SheetJS로 대체 |
 | `ruleEngine.js` | 셀 이동 추천 규칙 엔진. 구역·쿼터 설정은 상단 `CONFIG` |
 | `box_latest.xlsx` / `cell_latest.xlsx` | **시연용 목업 데이터**(캐시 없는 외부 사용자용). 실데이터 아님 |
-| `tests/` | 회귀 테스트(`node tests/run.js`, 외부 의존성 없음) |
+| `tests/` | 회귀 테스트(`node tests/run.js`, 외부 의존성 없음). `tests/ui/smoke.js`는 브라우저 화면 점검(Playwright, CI에서 실행) |
 | `README.md` | 외부 사용자용 기능 소개. 화면 기능·필수 컬럼이 바뀌면 함께 수정 |
 
 ## 코드 형식
@@ -34,7 +34,9 @@
    - `index.html` 제목·헤더의 `QPS Dashboard vX.Y.Z`
    - `ruleEngine.js` 상단 변경 이력 + `version`
    - 수정한 스크립트(`qpsCore.js`, `xlsxFastReader.js`)의 파일 내 version과 `index.html`의 `?v=`
-4. PR을 만든다(체크리스트 템플릿 자동 적용) → "회귀 테스트" 체크가 초록색인지 확인 → merge.
+4. PR을 만든다(체크리스트 템플릿 자동 적용) → "회귀 테스트"·"화면 점검" 체크가 모두 초록색인지 확인 → merge.
+   - 화면(index.html)을 고쳤다면 로컬에서도 `node tests/ui/smoke.js`로 확인한다(CDN 차단 환경은 `QPS_UI_OFFLINE=1`).
+   - PR에 커밋을 추가하면 PR 설명의 '이 PR에 포함된 마지막 변경'을 갱신한다(merge 시점 확인용).
 5. Actions의 "pages build and deployment" 완료 후 사이트에서 버전 표기를 확인한다(옛 화면이면 Ctrl+F5).
 
 ## 현장 운영 기준 (ruleEngine.js에 반영됨, tests/cases.test.js로 고정)

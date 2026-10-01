@@ -3,6 +3,7 @@
 
 ## 배포 전 점검 (CLAUDE.md 배포 루틴)
 - [ ] `node tests/run.js` 통과 (PR의 "회귀 테스트" 체크가 초록색)
+- [ ] 화면을 고쳤다면: "화면 점검" 체크가 초록색
 - [ ] 기준값(`tests/baseline/snapshot.json`)이 바뀌었다면: 의도한 변화이며 사유를 아래에 적음
 - [ ] 규칙을 추가·변경했다면: `tests/cases.test.js`에 사례를 추가·수정함
 - [ ] 버전 올림: 대시보드(`index.html` 제목·헤더), 규칙 엔진(`ruleEngine.js` 상단·version), 수정한 스크립트의 `?v=`
