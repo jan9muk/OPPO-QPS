@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QPS Dashboard v8.39.0</title>
+  <title>QPS Dashboard v8.40.0</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="xlsxFastReader.js?v=1.0.0"></script>
@@ -221,9 +221,77 @@
       color: #1f2937;
       padding-top: 1px;
     }
-    .ws-top-sep {
-      color: #94a3b8;
+    .mobile-refill {
+      position: fixed;
+      left: -10000px;
+      top: 0;
+      width: 420px;
+      padding: 18px 16px;
+      background: #fff;
+      color: #1f2937;
+      font-family: inherit;
+    }
+    .mr-title {
+      font-size: 24px;
+      font-weight: 800;
+    }
+    .mr-sub {
+      font-size: 14px;
+      color: #475569;
+      margin-top: 4px;
       font-weight: 600;
+    }
+    .mr-legend {
+      font-size: 13px;
+      color: #64748b;
+      margin: 6px 0 12px;
+    }
+    .mr-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      background: #f8fafc;
+    }
+    .mr-ws {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .mr-ws span {
+      font-size: 14px;
+      color: #dc2626;
+      font-weight: 700;
+      margin-left: 6px;
+    }
+    .mr-item {
+      padding: 6px 0;
+      border-top: 1px solid #e2e8f0;
+      font-size: 17px;
+      line-height: 1.35;
+    }
+    .mr-name b {
+      color: #1e3a8a;
+    }
+    .mr-qty {
+      font-size: 16px;
+      color: #475569;
+      margin-top: 2px;
+    }
+    .mr-qty b {
+      color: #111827;
+      font-size: 18px;
+    }
+    .mr-flag {
+      display: inline-block;
+      background: #dc2626;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      border-radius: 4px;
+      padding: 1px 6px;
+      margin-left: 4px;
+      vertical-align: 2px;
     }
     .ws-top-load {
       font-size: 10px;
@@ -237,7 +305,7 @@
     }
     .ws-top-line {
       display: grid;
-      grid-template-columns: 10px 68px minmax(0, 1fr) max-content;
+      grid-template-columns: 10px 68px minmax(0, 1fr) 40px 40px 44px;
       gap: 4px;
       line-height: 16px;
       color: #334155;
@@ -260,6 +328,24 @@
       font-weight: 800;
       text-align: right;
       color: #1f2937;
+    }
+    .ws-top-qty.sub {
+      font-weight: 600;
+      color: #64748b;
+    }
+    .ws-top-head {
+      display: grid;
+      grid-template-columns: 62px 1fr;
+      gap: 6px;
+      font-size: 10px;
+      font-weight: 800;
+      color: #64748b;
+      padding-bottom: 3px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .ws-top-head .ws-top-line {
+      color: #64748b;
+      line-height: 14px;
     }
     .zone-head {
       display: flex;
@@ -725,12 +811,12 @@
 </head>
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
-  <div class="card"><div class="title">QPS Dashboard v8.39.0</div><div class="subtitle">데이터 정합성 검증 · 안전 이슈 · 추천 불가 상태를 명확히 표시합니다.</div></div>
+  <div class="card"><div class="title">QPS Dashboard v8.40.0</div><div class="subtitle">데이터 정합성 검증 · 안전 이슈 · 추천 불가 상태를 명확히 표시합니다.</div></div>
   <div class="card" id="dropZone" style="border:2px dashed transparent;transition:.2s"><div class="row"><div class="group" style="flex:1"><label>데이터 세트 동시 업로드 (박스상품 1개 + 셀할당 파일 여러 개 가능)</label><input type="file" id="multiFile" accept=".xlsx,.xls" multiple></div><div class="group"><label>작업 시작 시간 설정</label><select id="startTimeSelect" onchange="saveStartTime();if(window.qpsAllData)updateHUD(window.qpsAllData)"><option value="13">13:00 시작</option><option value="14" selected>14:00 시작</option></select></div></div><div class="status" id="status" style="margin-bottom:4px">* 박스상품 상세정보와 셀할당현황 파일을 동시에 업로드해 주세요. 중복·충돌 셀은 자동 검증합니다.</div><div style="margin-top:8px;font-size:12px;color:#6b7280">* 브라우저에 데이터가 캐싱됩니다. <button class="btn-reset" onclick="clearCacheAndReload()" style="padding:4px 8px;font-size:11px;margin-left:8px">강제 캐시 초기화</button></div></div>
   <div id="emptyState" class="card empty">데이터를 표시하려면 박스상품 상세정보와 셀할당현황 파일을 동시에 업로드해 주세요.</div>
   <div id="content" class="section">
     <div class="hud-panel"><div class="hud-box"><div class="hud-label">실시간 처리 속도 (최근 1시간)</div><div class="hud-value val-tph" id="hudInstantTph">0<span class="hud-unit">totes/hr</span></div></div><div class="hud-box"><div class="hud-label">시간당 평균 처리량 (누적)</div><div class="hud-value val-avg" id="hudAvgTph">0<span class="hud-unit">totes/hr</span></div></div><div class="hud-box"><div class="hud-label">신규 지시 인입 속도 (Inbound 2F)</div><div class="hud-value val-inbound" id="hudInboundTph">0<span class="hud-unit">totes/hr</span></div></div><div class="hud-box"><div class="hud-label">2층 피킹 잔여 토트</div><div class="hud-value val-remain" id="hudRemain">0<span class="hud-unit">totes</span></div></div><div class="hud-box"><div class="hud-label">설비 분리포율 (Bypass 제외)</div><div class="hud-value val-split1" id="hudEqSplit">0.00<span class="hud-unit">박스/건</span></div></div><div class="hud-box"><div class="hud-label">전체 분리포율 (Bypass 포함)</div><div class="hud-value val-split2" id="hudAllSplit">0.00<span class="hud-unit">박스/건</span></div></div></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin:15px 0 10px"><div style="font-size:16px;font-weight:800;color:#1e293b">현장 상황 요약 (카톡 공유 대상 영역)</div><button class="btn-capture" id="captureBtn" onclick="captureToClipboard()">📸 카톡 공유용 화면 캡처</button></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:15px 0 10px"><div style="font-size:16px;font-weight:800;color:#1e293b">현장 상황 요약 (카톡 공유 대상 영역)</div><div style="display:flex;gap:8px"><button class="btn-capture" id="captureRefillBtn" onclick="captureRefillMobile()" style="background:#b91c1c">📱 보충 목록 캡처 (모바일)</button><button class="btn-capture" id="captureBtn" onclick="captureToClipboard()">📸 카톡 공유용 화면 캡처</button></div></div>
     <div id="captureTarget" style="padding:20px;background:#f5f7fb;border-radius:16px;margin:0 -20px"><div id="insightArea"></div><div class="machine-grid" id="machineSummary"></div><div id="loadZonesArea"></div><div id="wsTopArea"></div><div class="zones" id="progressZonesArea"></div></div>
     <div class="card" style="overflow-x:auto;margin-top:30px"><div class="subhead">셀 이동 추천 <span style="font-size:12px;font-weight:normal;color:#ef4444;margin-left:8px">* 안전/규정 위반인데 공셀이 없으면 ‘공셀 확보 필요’로 표시됩니다. 진입/퇴출은 카테고리별로 구분 표시되며, 플로우랙 공셀이 있으면 진입이, 없으면 퇴출이 우선 정렬됩니다.</span></div><table><thead><tr><th>순번</th><th>상태</th><th>SKU</th><th>상품명</th><th>현재고</th><th>지시 토트</th><th>지시 PCS</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>추천 랙</th><th>추천 셀</th><th>사유</th><th>관리</th></tr></thead><tbody id="recommendBody"></tbody></table></div>
     <div class="card" id="passCard" style="overflow-x:auto"><div class="subhead accordion-header" style="display:flex;justify-content:space-between;align-items:center" onclick="togglePassList()"><span>셀 이동 패스 목록 (<span id="passCount">0</span>) <span id="passToggleIcon">▼</span></span><button class="btn-reset" onclick="event.stopPropagation();resetIgnored()">패스 목록 전체 초기화</button></div><div id="passListContent" style="display:none;margin-top:14px"><table><thead><tr><th>SKU</th><th>상품명</th><th>사유</th><th>관리</th></tr></thead><tbody id="passedBody"><tr><td colspan="4" style="text-align:center;color:#6b7280;padding:20px">패스된 항목이 없습니다.</td></tr></tbody></table></div></div>
@@ -1081,38 +1167,83 @@ function shortProductName(name) {
     .replace(/\s+/g, ' ')
     .trim();
 }
-// 과부하 작업대 우선 보충 필요 SKU: 부하(지시 SKU수)가 평균을 넘는 작업대만, 잔여 지시 PCS 상위 3개
+// 과부하 작업대 우선 보충 필요 SKU: 부하(지시 SKU수)가 평균보다 WS_TOP_MIN_OVER 이상 높은 작업대만, 잔여 지시 PCS 상위 3개
 // (셀·상품명·잔여/지시 PCS·현재고, 잔여 0은 제외). 평균 기준은 부하 모니터링과 같다(기본 전체 평균, '호기별 스케일' 체크 시 호기 평균).
-// 잔여 지시보다 재고가 적으면 재고를 빨간색으로 표시.
-function renderWsTopSkus(d) {
-  const top = d.wsTopSkus || {},
-    mode = window.qpsLoadScaleMode,
+// 잔여 지시보다 재고가 적으면 재고를 빨간색으로 표시. PC 화면 섹션과 모바일 캡처가 같은 목록(overloadedWs)을 쓴다.
+const WS_TOP_MIN_OVER = 0.1; // 평균 대비 10% 이상 초과한 작업대만 표시
+const MOBILE_REFILL_MAX_WS = 10; // 모바일 캡처는 초과율 상위 작업대만(이미지가 너무 길면 카톡에서 축소되어 읽기 어려움)
+function overloadedWs(d) {
+  const mode = window.qpsLoadScaleMode,
     touchOf = ws => d.wsMetrics[ws]?.totalTouches || 0,
     activeAll = Object.values(d.wsMetrics).filter(x => x.totalTouches > 0),
     globalAvg = activeAll.length ? activeAll.reduce((a, x) => a + x.totalTouches, 0) / activeAll.length : 0;
-  let blocks = '',
-    count = 0;
-  for (const machine of machineList) {
-    const def = zoneDefs[machine],
-      list = def.cols.flatMap(c => c.order).filter(ws => ws && touchOf(ws) > 0),
+  return machineList.map(machine => {
+    const list = zoneDefs[machine].cols.flatMap(c => c.order).filter(ws => ws && touchOf(ws) > 0),
       avg = mode === 'all' ? globalAvg : list.length ? list.reduce((a, ws) => a + touchOf(ws), 0) / list.length : 0,
-      over = list.filter(ws => touchOf(ws) > avg).sort((a, b) => touchOf(b) - touchOf(a));
-    count += over.length;
-    const rows = over
-      .map(ws => {
-        const lines = (top[ws] || [])
+      items = list
+        .filter(ws => avg && touchOf(ws) >= avg * (1 + WS_TOP_MIN_OVER))
+        .sort((a, b) => touchOf(b) - touchOf(a))
+        .map(ws => ({
+          ws,
+          touch: touchOf(ws),
+          pct: Math.round((touchOf(ws) / avg - 1) * 100),
+          top: d.wsTopSkus?.[ws] || []
+        }));
+    return { machine, label: zoneDefs[machine].label, avg, items };
+  });
+}
+const stockColor = x => (x.remainPcs > x.stock ? '#dc2626' : '#475569');
+function renderWsTopSkus(d) {
+  const groups = overloadedWs(d),
+    count = groups.reduce((a, g) => a + g.items.length, 0),
+    overPct = Math.round(WS_TOP_MIN_OVER * 100);
+  const head =
+    '<div class="ws-top-head"><div>작업대</div><div class="ws-top-line"><span></span><span>셀</span><span>상품명</span><span class="ws-top-qty">잔여</span><span class="ws-top-qty">지시</span><span class="ws-top-qty">현재고</span></div></div>';
+  const blocks = groups
+    .map(g => {
+      const rows = g.items
+        .map(it => {
+          const lines =
+            it.top
+              .map(
+                (x, i) =>
+                  `<div class="ws-top-line"><span class="ws-top-rank">${i + 1}</span><span class="ws-top-cell">${escapeHtml(x.cells.map(formatCleanCell).join(',') || '-')}</span><span class="ws-top-name" title="${escAttr(`${x.sku} ${x.name}`)}">${escapeHtml(shortProductName(x.name) || x.sku)}</span><span class="ws-top-qty">${fmt(x.remainPcs)}</span><span class="ws-top-qty sub">${fmt(x.pcs)}</span><span class="ws-top-qty" style="color:${stockColor(x)}">${fmt(x.stock)}</span></div>`
+              )
+              .join('') || '<div style="color:#94a3b8;line-height:16px">잔여 지시 없음</div>';
+          return `<div class="ws-top-row"><div class="ws-top-ws">${escapeHtml(formatWsName(it.ws))}<div class="ws-top-load">SKU ${fmt(it.touch)}<br><b>+${it.pct}%</b></div></div><div>${lines}</div></div>`;
+        })
+        .join('');
+      return `<div class="aps-block" style="border:1px solid #e2e8f0;border-radius:12px;padding:12px;background:#f8fafc"><div class="aps-head" style="border-bottom:1px solid #e2e8f0;margin-bottom:8px;padding-bottom:6px"><div class="aps-title" style="font-size:16px">${g.label}</div><div style="font-size:12px;color:#64748b;font-weight:700">평균 SKU ${fmt(Math.round(g.avg))} · +${overPct}% 이상 ${g.items.length}개</div></div>${rows ? head + rows : `<div style="color:#94a3b8;font-size:12px;padding:6px 0">평균 +${overPct}% 이상 작업대 없음</div>`}</div>`;
+    })
+    .join('');
+  $('#wsTopArea').innerHTML = `<div class="card" style="padding:0;overflow:hidden;margin-bottom:18px"><div style="padding:14px 18px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;gap:12px;background:#f8fafc"><div class="subhead" style="margin:0;font-size:16px;color:#1e293b">과부하 작업대 우선 보충 필요 SKU <span style="font-size:12px;font-weight:700;color:#64748b">부하 평균 +${overPct}% 이상 ${count}개 작업대 · 잔여 지시 PCS 상위 3</span></div><div style="font-size:11px;color:#64748b;font-weight:700">잔여 = 아직 피킹 안 한 지시 PCS · 지시 = 오늘 전체 지시 PCS · 현재고 = 셀 재고 · <span style="color:#dc2626">빨간 현재고 = 잔여보다 적음(보충 필요)</span></div></div><div style="padding:18px;background:#fff"><div class="zones" style="margin-bottom:0">${blocks}</div></div></div>`;
+}
+// 모바일 캡처용 보충 목록: 휴대폰 폭(420px) 세로 카드, 큰 글씨. 작업자용이라 '지시'는 빼고 셀·상품명·잔여·현재고만 표시.
+function buildMobileRefillNode(d) {
+  const groups = overloadedWs(d),
+    overPct = Math.round(WS_TOP_MIN_OVER * 100),
+    time = d.latestDataTimeMs
+      ? new Date(d.latestDataTimeMs).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '';
+  const all = groups.flatMap(g => g.items).sort((a, b) => b.pct - a.pct),
+    rest = all.length - MOBILE_REFILL_MAX_WS;
+  const cards = all
+    .slice(0, MOBILE_REFILL_MAX_WS)
+    .map(it => {
+      const lines =
+        it.top
           .map(
-            (x, i) =>
-              `<div class="ws-top-line"><span class="ws-top-rank">${i + 1}</span><span class="ws-top-cell">${escapeHtml(x.cells.map(formatCleanCell).join(',') || '-')}</span><span class="ws-top-name" title="${escAttr(`${x.sku} ${x.name}`)}">${escapeHtml(shortProductName(x.name) || x.sku)}</span><span class="ws-top-qty">${fmt(x.remainPcs)}<span class="ws-top-sep"> / ${fmt(x.pcs)} / </span><span style="color:${x.remainPcs > x.stock ? '#dc2626' : '#475569'}">${fmt(x.stock)}</span></span></div>`
+            x =>
+              `<div class="mr-item"><div class="mr-name"><b>${escapeHtml(x.cells.map(formatCleanCell).join(', ') || '-')}</b> ${escapeHtml(shortProductName(x.name) || x.sku)}</div><div class="mr-qty">잔여 <b>${fmt(x.remainPcs)}</b> · 현재고 <b style="color:${stockColor(x)}">${fmt(x.stock)}</b>${x.remainPcs > x.stock ? ' <span class="mr-flag">보충</span>' : ''}</div></div>`
           )
-          .join('') || '<div style="color:#94a3b8;line-height:16px">잔여 지시 없음</div>';
-        const pct = avg ? Math.round((touchOf(ws) / avg - 1) * 100) : 0;
-        return `<div class="ws-top-row"><div class="ws-top-ws">${escapeHtml(formatWsName(ws))}<div class="ws-top-load">SKU ${fmt(touchOf(ws))}<br><b>+${pct}%</b></div></div><div>${lines}</div></div>`;
-      })
-      .join('');
-    blocks += `<div class="aps-block" style="border:1px solid #e2e8f0;border-radius:12px;padding:12px;background:#f8fafc"><div class="aps-head" style="border-bottom:1px solid #e2e8f0;margin-bottom:8px;padding-bottom:6px"><div class="aps-title" style="font-size:16px">${def.label}</div><div style="font-size:12px;color:#64748b;font-weight:700">평균 SKU ${fmt(Math.round(avg))} 초과 ${over.length}개</div></div>${rows || '<div style="color:#94a3b8;font-size:12px;padding:6px 0">평균 초과 작업대 없음</div>'}</div>`;
-  }
-  $('#wsTopArea').innerHTML = `<div class="card" style="padding:0;overflow:hidden;margin-bottom:18px"><div style="padding:14px 18px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background:#f8fafc"><div class="subhead" style="margin:0;font-size:16px;color:#1e293b">과부하 작업대 우선 보충 필요 SKU <span style="font-size:12px;font-weight:700;color:#64748b">부하 평균 초과 ${count}개 작업대 · 잔여 지시 PCS 상위 3</span></div><div style="font-size:11px;color:#64748b;font-weight:700">셀 · 상품명 · 잔여 / 지시 PCS / 현재고 · <span style="color:#dc2626">빨간 재고 = 잔여 지시보다 적음</span></div></div><div style="padding:18px;background:#fff"><div class="zones" style="margin-bottom:0">${blocks}</div></div></div>`;
+          .join('') || '<div class="mr-item" style="color:#94a3b8">잔여 지시 없음</div>';
+      return `<div class="mr-card"><div class="mr-ws">${escapeHtml(formatWsName(it.ws))} <span>부하 +${it.pct}%</span></div>${lines}</div>`;
+    })
+    .join('');
+  const node = document.createElement('div');
+  node.className = 'mobile-refill';
+  node.innerHTML = `<div class="mr-title">우선 보충 필요 SKU</div><div class="mr-sub">${time ? `${escapeHtml(time)} 기준 · ` : ''}부하 평균 +${overPct}% 이상 · 초과율 높은 작업대 순</div><div class="mr-legend">잔여 = 아직 피킹 안 한 수량 · <span style="color:#dc2626">빨간 현재고 = 잔여보다 적음</span></div>${cards || `<div class="mr-card" style="color:#64748b">평균 +${overPct}% 이상 과부하 작업대가 없습니다.</div>`}${rest > 0 ? `<div class="mr-sub" style="text-align:center">외 ${rest}개 작업대는 대시보드에서 확인</div>` : ''}`;
+  return node;
 }
 function renderInsights(d) {
   const impacts = [];
@@ -1450,15 +1581,13 @@ async function fetchRemoteExcel(url, type) {
     return null;
   }
 }
-async function captureToClipboard() {
-  const target = $('#captureTarget'),
-    btn = $('#captureBtn'),
-    original = btn.innerHTML;
+async function copyNodeImage(target, btn, options) {
+  const original = btn.innerHTML;
   btn.innerHTML = '⏳ 캡처 중...';
   btn.disabled = true;
   btn.style.backgroundColor = '#94a3b8';
   try {
-    const canvas = await html2canvas(target, { scale: 1.5, useCORS: true, backgroundColor: '#f5f7fb' });
+    const canvas = await html2canvas(target, { useCORS: true, ...options });
     const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
     if (!blob) throw new Error('이미지 생성 실패');
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
@@ -1474,6 +1603,20 @@ async function captureToClipboard() {
     btn.style.backgroundColor = '';
     btn.disabled = false;
   }, 3000);
+}
+async function captureToClipboard() {
+  await copyNodeImage($('#captureTarget'), $('#captureBtn'), { scale: 1.5, backgroundColor: '#f5f7fb' });
+}
+// 작업자 공유용: 보충 목록만 휴대폰 폭 이미지로 만들어 복사(화면 밖에 잠시 붙였다가 제거)
+async function captureRefillMobile() {
+  if (!window.qpsAllData) return;
+  const node = buildMobileRefillNode(window.qpsAllData);
+  document.body.appendChild(node);
+  try {
+    await copyNodeImage(node, $('#captureRefillBtn'), { scale: 2, backgroundColor: '#ffffff' });
+  } finally {
+    node.remove();
+  }
 }
 document.addEventListener('DOMContentLoaded', async () => {
   if (typeof XLSX === 'undefined') {
