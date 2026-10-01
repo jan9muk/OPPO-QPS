@@ -221,10 +221,6 @@
       color: #1f2937;
       padding-top: 1px;
     }
-    .ws-top-sep {
-      color: #94a3b8;
-      font-weight: 600;
-    }
     .ws-top-load {
       font-size: 10px;
       font-weight: 600;
@@ -237,7 +233,7 @@
     }
     .ws-top-line {
       display: grid;
-      grid-template-columns: 10px 68px minmax(0, 1fr) max-content;
+      grid-template-columns: 10px 68px minmax(0, 1fr) 40px 40px 44px;
       gap: 4px;
       line-height: 16px;
       color: #334155;
@@ -260,6 +256,24 @@
       font-weight: 800;
       text-align: right;
       color: #1f2937;
+    }
+    .ws-top-qty.sub {
+      font-weight: 600;
+      color: #64748b;
+    }
+    .ws-top-head {
+      display: grid;
+      grid-template-columns: 62px 1fr;
+      gap: 6px;
+      font-size: 10px;
+      font-weight: 800;
+      color: #64748b;
+      padding-bottom: 3px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .ws-top-head .ws-top-line {
+      color: #64748b;
+      line-height: 14px;
     }
     .zone-head {
       display: flex;
@@ -1098,21 +1112,23 @@ function renderWsTopSkus(d) {
       avg = mode === 'all' ? globalAvg : list.length ? list.reduce((a, ws) => a + touchOf(ws), 0) / list.length : 0,
       over = list.filter(ws => touchOf(ws) > avg).sort((a, b) => touchOf(b) - touchOf(a));
     count += over.length;
+    const head =
+      '<div class="ws-top-head"><div>작업대</div><div class="ws-top-line"><span></span><span>셀</span><span>상품명</span><span class="ws-top-qty">잔여</span><span class="ws-top-qty">지시</span><span class="ws-top-qty">현재고</span></div></div>';
     const rows = over
       .map(ws => {
         const lines = (top[ws] || [])
           .map(
             (x, i) =>
-              `<div class="ws-top-line"><span class="ws-top-rank">${i + 1}</span><span class="ws-top-cell">${escapeHtml(x.cells.map(formatCleanCell).join(',') || '-')}</span><span class="ws-top-name" title="${escAttr(`${x.sku} ${x.name}`)}">${escapeHtml(shortProductName(x.name) || x.sku)}</span><span class="ws-top-qty">${fmt(x.remainPcs)}<span class="ws-top-sep"> / ${fmt(x.pcs)} / </span><span style="color:${x.remainPcs > x.stock ? '#dc2626' : '#475569'}">${fmt(x.stock)}</span></span></div>`
+              `<div class="ws-top-line"><span class="ws-top-rank">${i + 1}</span><span class="ws-top-cell">${escapeHtml(x.cells.map(formatCleanCell).join(',') || '-')}</span><span class="ws-top-name" title="${escAttr(`${x.sku} ${x.name}`)}">${escapeHtml(shortProductName(x.name) || x.sku)}</span><span class="ws-top-qty">${fmt(x.remainPcs)}</span><span class="ws-top-qty sub">${fmt(x.pcs)}</span><span class="ws-top-qty" style="color:${x.remainPcs > x.stock ? '#dc2626' : '#475569'}">${fmt(x.stock)}</span></div>`
           )
           .join('') || '<div style="color:#94a3b8;line-height:16px">잔여 지시 없음</div>';
         const pct = avg ? Math.round((touchOf(ws) / avg - 1) * 100) : 0;
         return `<div class="ws-top-row"><div class="ws-top-ws">${escapeHtml(formatWsName(ws))}<div class="ws-top-load">SKU ${fmt(touchOf(ws))}<br><b>+${pct}%</b></div></div><div>${lines}</div></div>`;
       })
       .join('');
-    blocks += `<div class="aps-block" style="border:1px solid #e2e8f0;border-radius:12px;padding:12px;background:#f8fafc"><div class="aps-head" style="border-bottom:1px solid #e2e8f0;margin-bottom:8px;padding-bottom:6px"><div class="aps-title" style="font-size:16px">${def.label}</div><div style="font-size:12px;color:#64748b;font-weight:700">평균 SKU ${fmt(Math.round(avg))} 초과 ${over.length}개</div></div>${rows || '<div style="color:#94a3b8;font-size:12px;padding:6px 0">평균 초과 작업대 없음</div>'}</div>`;
+    blocks += `<div class="aps-block" style="border:1px solid #e2e8f0;border-radius:12px;padding:12px;background:#f8fafc"><div class="aps-head" style="border-bottom:1px solid #e2e8f0;margin-bottom:8px;padding-bottom:6px"><div class="aps-title" style="font-size:16px">${def.label}</div><div style="font-size:12px;color:#64748b;font-weight:700">평균 SKU ${fmt(Math.round(avg))} 초과 ${over.length}개</div></div>${rows ? head + rows : '<div style="color:#94a3b8;font-size:12px;padding:6px 0">평균 초과 작업대 없음</div>'}</div>`;
   }
-  $('#wsTopArea').innerHTML = `<div class="card" style="padding:0;overflow:hidden;margin-bottom:18px"><div style="padding:14px 18px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background:#f8fafc"><div class="subhead" style="margin:0;font-size:16px;color:#1e293b">과부하 작업대 우선 보충 필요 SKU <span style="font-size:12px;font-weight:700;color:#64748b">부하 평균 초과 ${count}개 작업대 · 잔여 지시 PCS 상위 3</span></div><div style="font-size:11px;color:#64748b;font-weight:700">셀 · 상품명 · 잔여 / 지시 PCS / 현재고 · <span style="color:#dc2626">빨간 재고 = 잔여 지시보다 적음</span></div></div><div style="padding:18px;background:#fff"><div class="zones" style="margin-bottom:0">${blocks}</div></div></div>`;
+  $('#wsTopArea').innerHTML = `<div class="card" style="padding:0;overflow:hidden;margin-bottom:18px"><div style="padding:14px 18px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background:#f8fafc"><div class="subhead" style="margin:0;font-size:16px;color:#1e293b">과부하 작업대 우선 보충 필요 SKU <span style="font-size:12px;font-weight:700;color:#64748b">부하 평균 초과 ${count}개 작업대 · 잔여 지시 PCS 상위 3</span></div><div style="font-size:11px;color:#64748b;font-weight:700">잔여 = 아직 피킹 안 한 지시 PCS · 지시 = 오늘 전체 지시 PCS · 현재고 = 셀 재고 · <span style="color:#dc2626">빨간 현재고 = 잔여보다 적음(보충 필요)</span></div></div><div style="padding:18px;background:#fff"><div class="zones" style="margin-bottom:0">${blocks}</div></div></div>`;
 }
 function renderInsights(d) {
   const impacts = [];
