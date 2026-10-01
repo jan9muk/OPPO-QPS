@@ -1,7 +1,9 @@
 /*
- * QPS Core v1.1.0 — 화면(DOM)과 무관한 데이터 처리 로직
+ * QPS Core v1.2.0 — 화면(DOM)과 무관한 데이터 처리 로직
  *
  * index.html(화면)과 tests/(회귀 테스트)가 같은 코드를 쓰도록 분리한 파일.
+ * v1.2.0: buildAllData()가 작업대별 유입 토트 상위 SKU(wsTopSkus)를 함께 계산(부하 툴팁용).
+ *
  * 클래식 스크립트로 로드되며, 여기서 선언한 함수·상수는 index.html의 메인 스크립트에서 그대로 쓴다.
  * 이 파일을 수정하면 index.html의 <script src="qpsCore.js?v=..."> 버전도 함께 올릴 것(브라우저 캐시 무효화).
  */
@@ -11,6 +13,7 @@
 const COMPLETE_STATUS = new Set(['피킹완료', '패킹완료', '출하완료']);
 const EXCLUDE_STATUS = new Set(['전체취소', '전체결품']);
 const machineList = ['APS1', 'APS2', 'APS3'];
+const WS_TOP_SKU_COUNT = 3; // 작업대 부하 툴팁에 보여줄 상위 SKU 수
 // prettier-ignore
 const zoneDefs={APS1:{label:'1호기',cols:[{zone:'A존',order:['APS1-01','APS1-02','APS1-03','APS1-04','APS1-05','APS1-06','APS1-07','APS1-08','APS1-09','APS1-10']},{zone:'B존',order:['APS1-20','APS1-19','APS1-18','APS1-17','APS1-16','APS1-15','APS1-14','APS1-13','APS1-12','APS1-11']}]},APS2:{label:'2호기',cols:[{zone:'C존',order:['APS2-01','APS2-02','APS2-03','APS2-04','APS2-05','APS2-06','APS2-07','APS2-08','APS2-09','APS2-10']},{zone:'D존',order:['APS2-20','APS2-19','APS2-18','APS2-17','APS2-16','APS2-15','APS2-14','APS2-13','APS2-12','APS2-11']}]},APS3:{label:'3호기',cols:[{zone:'E존',order:[null,'APS3-07','APS3-06','APS3-05','APS3-04',null,null,'APS3-03','APS3-02','APS3-01',null,null]},{zone:'F존',order:['APS3-08','APS3-09','APS3-10','APS3-11','APS3-12','APS3-13','APS3-14','APS3-15','APS3-16','APS3-17','APS3-18','APS3-19']} ]}};
 
@@ -329,9 +332,13 @@ function buildAllData(bRows, cRows) {
     }
   let totalDirectedTouches = 0,
     totalCompleteTouches = 0;
+  const wsSkuTotes = new Map(); // ws → (sku → 유입 토트 수)
   for (const [key, entry] of touchMap) {
-    const toteKey = key.split('||')[0];
+    const [toteKey, sku] = key.split('||');
     for (const ws of entry.wsSet) {
+      if (!wsSkuTotes.has(ws)) wsSkuTotes.set(ws, new Map());
+      const bySku = wsSkuTotes.get(ws);
+      bySku.set(sku, (bySku.get(sku) || 0) + 1);
       const m = wsMetrics.get(ws);
       if (!m) continue;
       m.inboundTotes.add(toteKey);
@@ -344,6 +351,27 @@ function buildAllData(bRows, cRows) {
       }
     }
   }
+  // 작업대별 유입 토트 상위 SKU(부하 툴팁용): 물류상품ID·상품명·이 작업대의 보관위치·유입 토트 수
+  const skuCellsByWs = new Map(),
+    cellNames = new Map();
+  for (const c of assignedCells) {
+    if (!c.ws) continue;
+    const k = `${c.ws}||${c.sku}`;
+    if (!skuCellsByWs.has(k)) skuCellsByWs.set(k, []);
+    skuCellsByWs.get(k).push(c.location);
+    if (c.productName && !cellNames.has(c.sku)) cellNames.set(c.sku, c.productName);
+  }
+  const wsTopSkus = {};
+  for (const [ws, bySku] of wsSkuTotes)
+    wsTopSkus[ws] = [...bySku]
+      .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))
+      .slice(0, WS_TOP_SKU_COUNT)
+      .map(([sku, totes]) => ({
+        sku,
+        name: cellNames.get(sku) || skuMeta.get(sku)?.name || '',
+        cells: (skuCellsByWs.get(`${ws}||${sku}`) || []).sort(),
+        totes
+      }));
   const wsResult = {};
   for (const [ws, m] of wsMetrics)
     wsResult[ws] = {
@@ -377,6 +405,7 @@ function buildAllData(bRows, cRows) {
     skuToToteCount,
     skuMeta,
     wsMetrics: wsResult,
+    wsTopSkus,
     emptyCells,
     assignedCells,
     totalDirectedTouches,
@@ -441,7 +470,7 @@ function computeZoneStats(metrics) {
 
 // 테스트(Node)에서 명시적으로 접근하기 위한 묶음. 브라우저에서는 위 전역 선언을 그대로 사용한다.
 globalThis.QPSCore = Object.freeze({
-  version: '1.1.0',
+  version: '1.2.0',
   DISTANCE_MAP,
   COMPLETE_STATUS,
   EXCLUDE_STATUS,

@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QPS Dashboard v8.38.0</title>
+  <title>QPS Dashboard v8.39.0</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="xlsxFastReader.js?v=1.0.0"></script>
-  <script src="qpsCore.js?v=1.1.0"></script>
+  <script src="qpsCore.js?v=1.2.0"></script>
   <style>
     body {
       margin: 0;
@@ -291,6 +291,49 @@
     }
     .spark-row:hover .ws-tooltip {
       display: block;
+    }
+    .ws-top-title {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid #4b5563;
+      font-weight: 800;
+      color: #fcd34d;
+    }
+    .ws-top-table {
+      margin-top: 6px;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .ws-top-table tr,
+    .ws-top-table th,
+    .ws-top-table td {
+      background: transparent !important;
+      border: none !important;
+      color: inherit;
+    }
+    .spark-row.tip-down .ws-tooltip {
+      bottom: auto;
+      top: 80%;
+    }
+    .ws-top-table th {
+      color: #9ca3af;
+      font-weight: 600;
+      text-align: left;
+      padding: 0 8px 4px 0;
+    }
+    .ws-top-table td {
+      padding: 2px 8px 2px 0;
+      white-space: nowrap;
+    }
+    .ws-top-table .ws-top-name {
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .ws-top-table .ws-top-num {
+      text-align: right;
+      font-weight: 700;
+      color: #fca5a5;
     }
     .ws-tooltip-grid {
       display: grid;
@@ -672,7 +715,7 @@
 </head>
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
-  <div class="card"><div class="title">QPS Dashboard v8.38.0</div><div class="subtitle">데이터 정합성 검증 · 안전 이슈 · 추천 불가 상태를 명확히 표시합니다.</div></div>
+  <div class="card"><div class="title">QPS Dashboard v8.39.0</div><div class="subtitle">데이터 정합성 검증 · 안전 이슈 · 추천 불가 상태를 명확히 표시합니다.</div></div>
   <div class="card" id="dropZone" style="border:2px dashed transparent;transition:.2s"><div class="row"><div class="group" style="flex:1"><label>데이터 세트 동시 업로드 (박스상품 1개 + 셀할당 파일 여러 개 가능)</label><input type="file" id="multiFile" accept=".xlsx,.xls" multiple></div><div class="group"><label>작업 시작 시간 설정</label><select id="startTimeSelect" onchange="saveStartTime();if(window.qpsAllData)updateHUD(window.qpsAllData)"><option value="13">13:00 시작</option><option value="14" selected>14:00 시작</option></select></div></div><div class="status" id="status" style="margin-bottom:4px">* 박스상품 상세정보와 셀할당현황 파일을 동시에 업로드해 주세요. 중복·충돌 셀은 자동 검증합니다.</div><div style="margin-top:8px;font-size:12px;color:#6b7280">* 브라우저에 데이터가 캐싱됩니다. <button class="btn-reset" onclick="clearCacheAndReload()" style="padding:4px 8px;font-size:11px;margin-left:8px">강제 캐시 초기화</button></div></div>
   <div id="emptyState" class="card empty">데이터를 표시하려면 박스상품 상세정보와 셀할당현황 파일을 동시에 업로드해 주세요.</div>
   <div id="content" class="section">
@@ -1003,7 +1046,7 @@ window.renderLoadZones = () => {
     html += `<div class="aps-block" style="border:1px solid #e2e8f0;border-radius:12px;padding:16px;background:#f8fafc"><div class="aps-head" style="border-bottom:1px solid #e2e8f0;margin-bottom:12px;padding-bottom:8px"><div class="aps-title" style="font-size:16px">${def.label}</div><div style="font-size:12px;color:#64748b;font-weight:700">평균 SKU ${fmt(Math.round(base))} / 지시 토트 ${fmt(st.inboundTotes)} (${totalInbound ? ((st.inboundTotes / totalInbound) * 100).toFixed(1) : '0.0'}%)</div></div><div class="zone-columns">`;
     for (const col of def.cols) {
       html += `<div><div class="zone-head" style="font-size:13px;color:#475569;padding-bottom:6px"><span>${col.zone}</span></div><div class="spark-stack">${line}`;
-      for (const ws of col.order) {
+      for (const [rowIdx, ws] of col.order.entries()) {
         if (!ws) {
           html += '<div class="spark-row blank"></div>';
           continue;
@@ -1013,7 +1056,7 @@ window.renderLoadZones = () => {
           width = max ? Math.max(touch ? 3 : 0, (touch / max) * 100) : 0,
           skuPer = m.inboundToteCount ? (touch / m.inboundToteCount).toFixed(2) : '0.00',
           pcsPer = m.inboundToteCount ? (m.totalTouchPcs / m.inboundToteCount).toFixed(2) : '0.00';
-        html += `<div class="spark-row"><div class="ws-label">${escapeHtml(formatWsName(ws))}</div><div class="spark-track"><div class="spark-fill" style="width:${width}%;background:${getLoadColor(touch, base, max)}"></div></div><div class="spark-value"><div style="color:#64748b;font-size:10px">토트 <b style="font-size:12px;color:#475569">${fmt(m.inboundToteCount)}</b></div><div style="color:#64748b;font-size:10px">SKU <b style="font-size:12px;color:#1f2937">${fmt(touch)}</b></div></div><div class="ws-tooltip"><div style="font-weight:800;margin-bottom:10px;border-bottom:1px solid #4b5563;padding-bottom:6px">${escapeHtml(formatWsName(ws))} 부하 상세</div><div class="ws-tooltip-grid"><span>지시 토트</span><span>${fmt(m.inboundToteCount)}</span><span>지시 SKU수</span><span>${fmt(touch)}</span><span>토트당 SKU</span><span>${skuPer}</span><span>토트당 PCS</span><span>${pcsPer}</span></div></div></div>`;
+        html += `<div class="spark-row${rowIdx < 4 ? ' tip-down' : ''}"><div class="ws-label">${escapeHtml(formatWsName(ws))}</div><div class="spark-track"><div class="spark-fill" style="width:${width}%;background:${getLoadColor(touch, base, max)}"></div></div><div class="spark-value"><div style="color:#64748b;font-size:10px">토트 <b style="font-size:12px;color:#475569">${fmt(m.inboundToteCount)}</b></div><div style="color:#64748b;font-size:10px">SKU <b style="font-size:12px;color:#1f2937">${fmt(touch)}</b></div></div><div class="ws-tooltip"><div style="font-weight:800;margin-bottom:10px;border-bottom:1px solid #4b5563;padding-bottom:6px">${escapeHtml(formatWsName(ws))} 부하 상세</div><div class="ws-tooltip-grid"><span>지시 토트</span><span>${fmt(m.inboundToteCount)}</span><span>지시 SKU수</span><span>${fmt(touch)}</span><span>토트당 SKU</span><span>${skuPer}</span><span>토트당 PCS</span><span>${pcsPer}</span></div>${wsTopSkuHtml(d.wsTopSkus?.[ws])}</div></div>`;
       }
       html += '</div></div>';
     }
@@ -1021,6 +1064,17 @@ window.renderLoadZones = () => {
   }
   $('#loadZonesArea').innerHTML = html + '</div></div></div>';
 };
+// 부하 툴팁: 이 작업대로 유입되는 토트가 많은 상위 SKU(물류상품ID·상품명·보관위치·유입 토트 수)
+function wsTopSkuHtml(list) {
+  if (!list?.length) return '';
+  const rows = list
+    .map(
+      (x, i) =>
+        `<tr><td>${i + 1}</td><td>${escapeHtml(x.sku)}</td><td class="ws-top-name" title="${escAttr(x.name)}">${escapeHtml(x.name || '-')}</td><td>${escapeHtml(x.cells.map(formatCleanCell).join(', ') || '-')}</td><td class="ws-top-num">${fmt(x.totes)}</td></tr>`
+    )
+    .join('');
+  return `<div class="ws-top-title">유입 토트 상위 SKU</div><table class="ws-top-table"><thead><tr><th></th><th>물류상품ID</th><th>상품명</th><th>셀</th><th>토트</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
 function renderInsights(d) {
   const impacts = [];
   d.skuIncompleteTotes.forEach((t, sku) =>
