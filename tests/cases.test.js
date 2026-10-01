@@ -270,17 +270,18 @@ test('파일 유형 판별과 필요 컬럼 보관', () => {
   assert.ok(keep('WMS배송진행상태_1') && keep('수정일시') && keep('P박스당중량'));
   assert.ok(!keep('운송장번호') && !keep('피킹작업자'));
 });
-test('작업대 부하 툴팁: 유입 토트 상위 3개 SKU (qpsCore v1.2.0)', () => {
+test('작업대별 보충 우선 SKU: 지시 PCS 상위 3개와 셀·현재고 (qpsCore v1.2.0)', () => {
   const r = run([
-    cell('A01-010101', { name: '상품A', ws: 'APS1-01', out: 10, totes: 10 }),
-    cell('A01-010102', { name: '상품B', ws: 'APS1-01', out: 30, totes: 30 }),
-    cell('A01-010103', { name: '상품C', ws: 'APS1-01', out: 20, totes: 20 }),
+    cell('A01-010101', { name: '상품A', ws: 'APS1-01', out: 10, totes: 10, stock: 50 }),
+    cell('A01-010102', { name: '상품B', ws: 'APS1-01', out: 60, totes: 20, stock: 40 }),
+    cell('A01-010103', { name: '상품C', ws: 'APS1-01', out: 30, totes: 30, stock: 30 }),
     cell('A01-010104', { name: '상품D', ws: 'APS1-01', out: 5, totes: 5 }),
-    cell('A02-010101', { name: '상품E', ws: 'APS1-02', out: 50, totes: 50 })
+    cell('A02-010101', { name: '상품E', ws: 'APS1-02', out: 90, totes: 50 })
   ]);
   const top = r.data.wsTopSkus['APS1-01'];
-  assert.deepEqual(top.map(x => [x.name, x.totes, x.cells.join()]), [['상품B', 30, 'A01-010102'], ['상품C', 20, 'A01-010103'], ['상품A', 10, 'A01-010101']]);
-  assert.equal(top.reduce((a, x) => a + x.totes, 0) <= r.data.wsMetrics['APS1-01'].totalTouches, true);
+  assert.deepEqual(top.map(x => [x.name, x.pcs, x.totes, x.stock, x.cells.join()]), [
+    ['상품B', 60, 20, 40, 'A01-010102'], ['상품C', 30, 30, 30, 'A01-010103'], ['상품A', 10, 10, 50, 'A01-010101']]);
+  assert.equal(top[0].remainPcs, 60); // 테스트 데이터는 모두 '피킹지시' 상태(미완료)
 });
 test('엑셀 날짜 일련번호는 현지 시각으로 해석', () => {
   const d = core.parseExcelDate(46292.5); // 2026-09-27 12:00 (현지)

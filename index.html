@@ -208,6 +208,45 @@
       grid-template-columns: 1fr 1fr;
       gap: 24px;
     }
+    .ws-top-row {
+      display: grid;
+      grid-template-columns: 52px 1fr;
+      gap: 6px;
+      padding: 4px 0;
+      border-bottom: 1px solid #eef2f7;
+      font-size: 11px;
+    }
+    .ws-top-ws {
+      font-weight: 800;
+      color: #1f2937;
+      padding-top: 1px;
+    }
+    .ws-top-line {
+      display: grid;
+      grid-template-columns: 10px 68px minmax(0, 1fr) max-content;
+      gap: 4px;
+      line-height: 16px;
+      color: #334155;
+    }
+    .ws-top-rank {
+      color: #94a3b8;
+      font-weight: 700;
+    }
+    .ws-top-cell {
+      color: #475569;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .ws-top-name {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .ws-top-qty {
+      font-weight: 800;
+      text-align: right;
+      color: #1f2937;
+    }
     .zone-head {
       display: flex;
       justify-content: space-between;
@@ -291,49 +330,6 @@
     }
     .spark-row:hover .ws-tooltip {
       display: block;
-    }
-    .ws-top-title {
-      margin-top: 10px;
-      padding-top: 8px;
-      border-top: 1px solid #4b5563;
-      font-weight: 800;
-      color: #fcd34d;
-    }
-    .ws-top-table {
-      margin-top: 6px;
-      border-collapse: collapse;
-      font-size: 11px;
-    }
-    .ws-top-table tr,
-    .ws-top-table th,
-    .ws-top-table td {
-      background: transparent !important;
-      border: none !important;
-      color: inherit;
-    }
-    .spark-row.tip-down .ws-tooltip {
-      bottom: auto;
-      top: 80%;
-    }
-    .ws-top-table th {
-      color: #9ca3af;
-      font-weight: 600;
-      text-align: left;
-      padding: 0 8px 4px 0;
-    }
-    .ws-top-table td {
-      padding: 2px 8px 2px 0;
-      white-space: nowrap;
-    }
-    .ws-top-table .ws-top-name {
-      max-width: 220px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .ws-top-table .ws-top-num {
-      text-align: right;
-      font-weight: 700;
-      color: #fca5a5;
     }
     .ws-tooltip-grid {
       display: grid;
@@ -721,7 +717,7 @@
   <div id="content" class="section">
     <div class="hud-panel"><div class="hud-box"><div class="hud-label">실시간 처리 속도 (최근 1시간)</div><div class="hud-value val-tph" id="hudInstantTph">0<span class="hud-unit">totes/hr</span></div></div><div class="hud-box"><div class="hud-label">시간당 평균 처리량 (누적)</div><div class="hud-value val-avg" id="hudAvgTph">0<span class="hud-unit">totes/hr</span></div></div><div class="hud-box"><div class="hud-label">신규 지시 인입 속도 (Inbound 2F)</div><div class="hud-value val-inbound" id="hudInboundTph">0<span class="hud-unit">totes/hr</span></div></div><div class="hud-box"><div class="hud-label">2층 피킹 잔여 토트</div><div class="hud-value val-remain" id="hudRemain">0<span class="hud-unit">totes</span></div></div><div class="hud-box"><div class="hud-label">설비 분리포율 (Bypass 제외)</div><div class="hud-value val-split1" id="hudEqSplit">0.00<span class="hud-unit">박스/건</span></div></div><div class="hud-box"><div class="hud-label">전체 분리포율 (Bypass 포함)</div><div class="hud-value val-split2" id="hudAllSplit">0.00<span class="hud-unit">박스/건</span></div></div></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin:15px 0 10px"><div style="font-size:16px;font-weight:800;color:#1e293b">현장 상황 요약 (카톡 공유 대상 영역)</div><button class="btn-capture" id="captureBtn" onclick="captureToClipboard()">📸 카톡 공유용 화면 캡처</button></div>
-    <div id="captureTarget" style="padding:20px;background:#f5f7fb;border-radius:16px;margin:0 -20px"><div id="insightArea"></div><div class="machine-grid" id="machineSummary"></div><div id="loadZonesArea"></div><div class="zones" id="progressZonesArea"></div></div>
+    <div id="captureTarget" style="padding:20px;background:#f5f7fb;border-radius:16px;margin:0 -20px"><div id="insightArea"></div><div class="machine-grid" id="machineSummary"></div><div id="loadZonesArea"></div><div id="wsTopArea"></div><div class="zones" id="progressZonesArea"></div></div>
     <div class="card" style="overflow-x:auto;margin-top:30px"><div class="subhead">셀 이동 추천 <span style="font-size:12px;font-weight:normal;color:#ef4444;margin-left:8px">* 안전/규정 위반인데 공셀이 없으면 ‘공셀 확보 필요’로 표시됩니다. 진입/퇴출은 카테고리별로 구분 표시되며, 플로우랙 공셀이 있으면 진입이, 없으면 퇴출이 우선 정렬됩니다.</span></div><table><thead><tr><th>순번</th><th>상태</th><th>SKU</th><th>상품명</th><th>현재고</th><th>지시 토트</th><th>지시 PCS</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>추천 랙</th><th>추천 셀</th><th>사유</th><th>관리</th></tr></thead><tbody id="recommendBody"></tbody></table></div>
     <div class="card" id="passCard" style="overflow-x:auto"><div class="subhead accordion-header" style="display:flex;justify-content:space-between;align-items:center" onclick="togglePassList()"><span>셀 이동 패스 목록 (<span id="passCount">0</span>) <span id="passToggleIcon">▼</span></span><button class="btn-reset" onclick="event.stopPropagation();resetIgnored()">패스 목록 전체 초기화</button></div><div id="passListContent" style="display:none;margin-top:14px"><table><thead><tr><th>SKU</th><th>상품명</th><th>사유</th><th>관리</th></tr></thead><tbody id="passedBody"><tr><td colspan="4" style="text-align:center;color:#6b7280;padding:20px">패스된 항목이 없습니다.</td></tr></tbody></table></div></div>
     <div class="card" style="border:2px solid #dbeafe;margin-bottom:24px;padding:18px"><div class="subhead" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><span style="color:#1e3a8a">존(Zone) 출고량/재고 밀집도 히트맵</span><select id="zoneSelect" onchange="renderZoneHeatmap(this.value)" style="padding:6px 12px;font-weight:bold;border-color:#93c5fd;font-size:13px"><option value="">존 선택 (로딩 대기)</option></select></div><div class="legend-box"><div class="legend-item"><div class="legend-color hm-empty"></div>공셀</div><div class="legend-item"><div class="legend-color hm-low"></div>1~14건</div><div class="legend-item"><div class="legend-color hm-mid"></div>15~29건</div><div class="legend-item"><div class="legend-color hm-high"></div>30~49건</div><div class="legend-item"><div class="legend-color hm-extreme"></div>50건 이상</div></div><div id="heatmapArea" class="heatmap-container"><div style="color:#94a3b8;font-size:13px;text-align:center;width:100%;padding:30px">존(Zone)을 선택하면 다이나믹 레이아웃이 생성됩니다.</div></div></div>
@@ -1046,7 +1042,7 @@ window.renderLoadZones = () => {
     html += `<div class="aps-block" style="border:1px solid #e2e8f0;border-radius:12px;padding:16px;background:#f8fafc"><div class="aps-head" style="border-bottom:1px solid #e2e8f0;margin-bottom:12px;padding-bottom:8px"><div class="aps-title" style="font-size:16px">${def.label}</div><div style="font-size:12px;color:#64748b;font-weight:700">평균 SKU ${fmt(Math.round(base))} / 지시 토트 ${fmt(st.inboundTotes)} (${totalInbound ? ((st.inboundTotes / totalInbound) * 100).toFixed(1) : '0.0'}%)</div></div><div class="zone-columns">`;
     for (const col of def.cols) {
       html += `<div><div class="zone-head" style="font-size:13px;color:#475569;padding-bottom:6px"><span>${col.zone}</span></div><div class="spark-stack">${line}`;
-      for (const [rowIdx, ws] of col.order.entries()) {
+      for (const ws of col.order) {
         if (!ws) {
           html += '<div class="spark-row blank"></div>';
           continue;
@@ -1056,7 +1052,7 @@ window.renderLoadZones = () => {
           width = max ? Math.max(touch ? 3 : 0, (touch / max) * 100) : 0,
           skuPer = m.inboundToteCount ? (touch / m.inboundToteCount).toFixed(2) : '0.00',
           pcsPer = m.inboundToteCount ? (m.totalTouchPcs / m.inboundToteCount).toFixed(2) : '0.00';
-        html += `<div class="spark-row${rowIdx < 4 ? ' tip-down' : ''}"><div class="ws-label">${escapeHtml(formatWsName(ws))}</div><div class="spark-track"><div class="spark-fill" style="width:${width}%;background:${getLoadColor(touch, base, max)}"></div></div><div class="spark-value"><div style="color:#64748b;font-size:10px">토트 <b style="font-size:12px;color:#475569">${fmt(m.inboundToteCount)}</b></div><div style="color:#64748b;font-size:10px">SKU <b style="font-size:12px;color:#1f2937">${fmt(touch)}</b></div></div><div class="ws-tooltip"><div style="font-weight:800;margin-bottom:10px;border-bottom:1px solid #4b5563;padding-bottom:6px">${escapeHtml(formatWsName(ws))} 부하 상세</div><div class="ws-tooltip-grid"><span>지시 토트</span><span>${fmt(m.inboundToteCount)}</span><span>지시 SKU수</span><span>${fmt(touch)}</span><span>토트당 SKU</span><span>${skuPer}</span><span>토트당 PCS</span><span>${pcsPer}</span></div>${wsTopSkuHtml(d.wsTopSkus?.[ws])}</div></div>`;
+        html += `<div class="spark-row"><div class="ws-label">${escapeHtml(formatWsName(ws))}</div><div class="spark-track"><div class="spark-fill" style="width:${width}%;background:${getLoadColor(touch, base, max)}"></div></div><div class="spark-value"><div style="color:#64748b;font-size:10px">토트 <b style="font-size:12px;color:#475569">${fmt(m.inboundToteCount)}</b></div><div style="color:#64748b;font-size:10px">SKU <b style="font-size:12px;color:#1f2937">${fmt(touch)}</b></div></div><div class="ws-tooltip"><div style="font-weight:800;margin-bottom:10px;border-bottom:1px solid #4b5563;padding-bottom:6px">${escapeHtml(formatWsName(ws))} 부하 상세</div><div class="ws-tooltip-grid"><span>지시 토트</span><span>${fmt(m.inboundToteCount)}</span><span>지시 SKU수</span><span>${fmt(touch)}</span><span>토트당 SKU</span><span>${skuPer}</span><span>토트당 PCS</span><span>${pcsPer}</span></div></div></div>`;
       }
       html += '</div></div>';
     }
@@ -1064,16 +1060,40 @@ window.renderLoadZones = () => {
   }
   $('#loadZonesArea').innerHTML = html + '</div></div></div>';
 };
-// 부하 툴팁: 이 작업대로 유입되는 토트가 많은 상위 SKU(물류상품ID·상품명·보관위치·유입 토트 수)
-function wsTopSkuHtml(list) {
-  if (!list?.length) return '';
-  const rows = list
-    .map(
-      (x, i) =>
-        `<tr><td>${i + 1}</td><td>${escapeHtml(x.sku)}</td><td class="ws-top-name" title="${escAttr(x.name)}">${escapeHtml(x.name || '-')}</td><td>${escapeHtml(x.cells.map(formatCleanCell).join(', ') || '-')}</td><td class="ws-top-num">${fmt(x.totes)}</td></tr>`
-    )
-    .join('');
-  return `<div class="ws-top-title">유입 토트 상위 SKU</div><table class="ws-top-table"><thead><tr><th></th><th>물류상품ID</th><th>상품명</th><th>셀</th><th>토트</th></tr></thead><tbody>${rows}</tbody></table>`;
+// 좁은 칸 표시용: '[농할 20% 할인쿠폰 다운로드]' 같은 판촉 대괄호 문구 제거(브랜드 표기 [서울우유] 등은 유지)
+function shortProductName(name) {
+  return String(name || '')
+    .replace(/\[[^\]]*(?:%|할인|쿠폰|농할|기획|행사|특가|멤버십|클럽)[^\]]*\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+// 작업대별 보충 우선 SKU: 지시 PCS 상위 3개(셀·상품명·지시 PCS·현재고). 잔여 지시보다 재고가 적으면 재고를 빨갛게 표시.
+function renderWsTopSkus(d) {
+  const top = d.wsTopSkus || {};
+  let html = `<div class="card" style="padding:0;overflow:hidden;margin-bottom:18px"><div style="padding:14px 18px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background:#f8fafc"><div class="subhead" style="margin:0;font-size:16px;color:#1e293b">작업대별 보충 우선 SKU <span style="font-size:12px;font-weight:700;color:#64748b">지시 PCS 상위 3</span></div><div style="font-size:11px;color:#64748b;font-weight:700">셀 · 상품명 · 지시 PCS / 현재고 · <span style="color:#dc2626">빨간 재고 = 잔여 지시보다 적음</span></div></div><div style="padding:18px;background:#fff"><div class="zones" style="margin-bottom:0">`;
+  for (const machine of machineList) {
+    const def = zoneDefs[machine];
+    html += `<div class="aps-block" style="border:1px solid #e2e8f0;border-radius:12px;padding:12px;background:#f8fafc"><div class="aps-head" style="border-bottom:1px solid #e2e8f0;margin-bottom:8px;padding-bottom:6px"><div class="aps-title" style="font-size:16px">${def.label}</div></div><div class="zone-columns" style="gap:12px">`;
+    for (const col of def.cols) {
+      html += `<div><div class="zone-head" style="font-size:13px;color:#475569;padding-bottom:4px"><span>${col.zone}</span></div>`;
+      for (const ws of col.order) {
+        if (!ws) continue;
+        const list = top[ws] || [];
+        const lines = list.length
+          ? list
+              .map(
+                (x, i) =>
+                  `<div class="ws-top-line"><span class="ws-top-rank">${i + 1}</span><span class="ws-top-cell">${escapeHtml(x.cells.map(formatCleanCell).join(',') || '-')}</span><span class="ws-top-name" title="${escAttr(`${x.sku} ${x.name}`)}">${escapeHtml(shortProductName(x.name) || x.sku)}</span><span class="ws-top-qty">${fmt(x.pcs)}<span style="color:#94a3b8"> / </span><span style="color:${x.remainPcs > x.stock ? '#dc2626' : '#475569'}">${fmt(x.stock)}</span></span></div>`
+              )
+              .join('')
+          : '<div style="color:#94a3b8;line-height:16px">지시 없음</div>';
+        html += `<div class="ws-top-row"><div class="ws-top-ws">${escapeHtml(formatWsName(ws))}</div><div>${lines}</div></div>`;
+      }
+      html += '</div>';
+    }
+    html += '</div></div>';
+  }
+  $('#wsTopArea').innerHTML = html + '</div></div></div>';
 }
 function renderInsights(d) {
   const impacts = [];
@@ -1278,6 +1298,7 @@ function drawScreen(d) {
     })
     .join('');
   renderLoadZones();
+  renderWsTopSkus(d);
   renderProgress(d, stats);
   renderRecommendations(d, true);
   $('#footNote').textContent =
