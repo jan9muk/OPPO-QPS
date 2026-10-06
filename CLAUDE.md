@@ -13,7 +13,7 @@
 | `xlsxFastReader.js` | 고속 XLSX 리더(스트리밍, 필요한 컬럼만). 실패 시 index.html이 SheetJS로 대체 |
 | `ruleEngine.js` | 셀 이동 추천 규칙 엔진. 구역·쿼터 설정은 상단 `CONFIG` |
 | `box_latest.xlsx` / `cell_latest.xlsx` | **시연용 목업 데이터**(캐시 없는 외부 사용자용). 실데이터 아님 |
-| `tests/` | 회귀 테스트(`node tests/run.js`, 외부 의존성 없음) |
+| `tests/` | 회귀 테스트(`node tests/run.js`, 외부 의존성 없음). `tests/ui/smoke.js`는 브라우저 화면 점검(Playwright, CI에서 실행) |
 | `README.md` | 외부 사용자용 기능 소개. 화면 기능·필수 컬럼이 바뀌면 함께 수정 |
 
 ## 코드 형식
@@ -34,7 +34,9 @@
    - `index.html` 제목·헤더의 `QPS Dashboard vX.Y.Z`
    - `ruleEngine.js` 상단 변경 이력 + `version`
    - 수정한 스크립트(`qpsCore.js`, `xlsxFastReader.js`)의 파일 내 version과 `index.html`의 `?v=`
-4. PR을 만든다(체크리스트 템플릿 자동 적용) → "회귀 테스트" 체크가 초록색인지 확인 → merge.
+4. PR을 만든다(체크리스트 템플릿 자동 적용) → "회귀 테스트"·"화면 점검" 체크가 모두 초록색인지 확인 → merge.
+   - 화면(index.html)을 고쳤다면 로컬에서도 `node tests/ui/smoke.js`로 확인한다(CDN 차단 환경은 `QPS_UI_OFFLINE=1`).
+   - PR에 커밋을 추가하면 PR 설명의 '이 PR에 포함된 마지막 변경'을 갱신한다(merge 시점 확인용).
 5. Actions의 "pages build and deployment" 완료 후 사이트에서 버전 표기를 확인한다(옛 화면이면 Ctrl+F5).
 
 ## 현장 운영 기준 (ruleEngine.js에 반영됨, tests/cases.test.js로 고정)
@@ -50,3 +52,5 @@
 - 현재 위치 근접: 같은 알파벳 구역 안에서 존 번호가 가까운 셀 우대(존 번호 순서 = 실제 물리적 순서, C08 옆은 C07·C09). 모든 이동에 적용.
 - W/S 부하 = W/S에 할당된 SKU별 지시 토트 수 합계(대시보드 '지시 SKU수'). 이동을 확정할 때마다 갱신해 추천이 한 W/S로 몰리지 않게 한다.
 - 공셀이 없는 필수 추천은 같은 목록에서 퇴출로 비게 될 셀을 쓴다('퇴출 후 진입/이동', 먼저 퇴출할 상품을 사유에 표시).
+- 최적화 제안(필수 아님): 랙 유형이 바뀌고 더 맞는 랙으로 가는 이동만(같은 플로우랙 안에서 단만 바꾸는 이동 제외), 같은 알파벳 구역에서 존 번호 차이 2 이내만(`CONFIG.optimization`). 예외: 일반 축산 챔버 복귀, 고빈도 계란 A09 이동.
+- 게이트랙에 있는 SKU는 퇴출 기준(출고 70·재고 50 모두 이하) 전까지 게이트랙 유지(진입~퇴출 사이 완충 구간). 김치 C09도 같은 방식.

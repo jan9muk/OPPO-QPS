@@ -171,9 +171,36 @@ test('경량 상품(300g 이하)은 냉장 플로우랙 4단 우대, 무거우�
   assert.equal(r.of('하루채소 오이맛고추 (80g)').targetCell, 'B09-020203', '4단 공셀이 없으면 골든존');
 });
 test('경량 상품(300g 이하)은 냉동 플로우랙 5단 우대 (v2.48.0)', () => {
-  const r = run([cell('F01-010101', { name: '냉동 미니 딤섬 (150g)', group: '냉동만두', rack: 'Flow Rack', temp: 'WET 냉동', out: 40, stock: 60 }),
+  // 냉장 구역에 잘못 놓인 냉동 상품(규정 위반)을 냉동 플로우랙으로 옮길 때 5단을 고름
+  const r = run([cell('B05-010101', { name: '냉동 미니 딤섬 (150g)', group: '냉동만두', temp: 'WET 냉동', out: 40, stock: 60 }),
     cell('F01-010301', { rack: 'Flow Rack' }), cell('F01-010501', { rack: 'Flow Rack' })]);
   assert.equal(r.of('냉동 미니 딤섬 (150g)').targetCell, 'F01-010501');
+});
+test('최적화 제안: 같은 랙 유형 안에서 단만 바꾸는 이동은 제안하지 않음 (v2.53.0)', () => {
+  let r = run([cell('F01-010101', { name: '냉동 미니 딤섬 (150g)', group: '냉동만두', rack: 'Flow Rack', temp: 'WET 냉동', out: 40, stock: 60 }),
+    cell('F01-010301', { rack: 'Flow Rack' }), cell('F01-010501', { rack: 'Flow Rack' })]);
+  assert.equal(r.of('냉동 미니 딤섬 (150g)'), undefined);
+  r = run([cell('A03-050104', { name: '반반상추 200g', rack: 'Flow Rack', out: 77, stock: 468, totes: 71 }),
+    cell('A03-050401', { rack: 'Flow Rack' }), cell('A03-020201', { rack: 'Flow Rack' }), cell('A03-010401', {})]);
+  assert.equal(r.of('반반상추 200g'), undefined, '플로우랙 → 플로우랙(골든)·선반(하향) 모두 제안하지 않음');
+});
+test('최적화 제안: 평대 → 플로우랙처럼 더 맞는 랙 유형으로 가는 가까운 이동은 제안 (v2.53.0)', () => {
+  const r = run([cell('D02-010103', { name: '고빈도 닭가슴살 400g', group: '계육', sub: '백숙용닭', rack: '냉장평대', out: 60, stock: 80, totes: 50 }),
+    cell('D02-030201', {}), cell('D07-020201', { rack: 'Flow Rack' })]);
+  const rec = r.of('고빈도 닭가슴살 400g');
+  assert.ok(!rec || rec.targetCell !== 'D07-020201', '0~5℃ 상품은 챔버 밖 플로우랙 불가');
+  const r2 = run([cell('E04-020403', { name: '냉동 떡볶이 320g', rack: '냉동리치인', temp: 'WET 냉동', out: 40, stock: 60 }), cell('E04-070104', {})]);
+  assert.equal(r2.of('냉동 떡볶이 320g')?.targetCell, 'E04-070104');
+});
+test('게이트랙 완충 구간: 퇴출 기준 미달이 아니면 플로우랙 이동을 제안하지 않음, 먼 존도 제외 (v2.53.0)', () => {
+  let r = run([cell('A10-010109', { name: '한끼 양배추 800g 통', rack: 'Gate Rack', out: 63, stock: 366, totes: 60 }), cell('A09-050103', { rack: 'Flow Rack' }), cell('A01-050103', { rack: 'Flow Rack' })]);
+  assert.equal(r.of('한끼 양배추 800g 통'), undefined, '출고 63이지만 재고 366(>50)이라 게이트랙 유지');
+  // 퇴출 기준(출고 70·재고 50 모두 이하)이면 필수 퇴출로 이동(거리 제한 없음)
+  r = run([cell('A10-010109', { name: '저빈도 양배추 800g', rack: 'Gate Rack', out: 30, stock: 40, totes: 30 }), cell('A01-050103', { rack: 'Flow Rack' })]);
+  assert.equal(r.of('저빈도 양배추 800g').moveType, 'EVICTION');
+  // 최적화 제안은 존 번호 차이 2 이내만
+  r = run([cell('A01-010101', { name: '저빈도 소스 300g', rack: '냉장오픈다단', out: 2, stock: 30 }), cell('A06-010501', {})]);
+  assert.equal(r.of('저빈도 소스 300g'), undefined, 'A01 → A06(5칸)은 최적화 제안 안 함');
 });
 
 test('현재 위치 근접: 조건이 같으면 존 번호가 가까운 셀로 (C08 → C07, C01 아님) (v2.49.0)', () => {

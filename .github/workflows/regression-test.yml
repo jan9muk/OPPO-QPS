@@ -25,3 +25,23 @@ jobs:
         run: node tests/run.js
         env:
           TZ: Asia/Seoul
+
+  # 화면 점검: 실제 브라우저로 index.html을 열어 목업 데이터로 화면·업로드·캡처가 정상인지 확인한다.
+  # 위 회귀 테스트는 화면 코드를 실행하지 않으므로, 화면 코드의 오타·런타임 오류는 여기서 잡힌다.
+  ui-smoke:
+    name: 화면 점검
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Playwright 설치(Chromium)
+        run: |
+          npm i --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: 화면 점검 실행
+        run: node tests/ui/smoke.js
+        env:
+          TZ: Asia/Seoul

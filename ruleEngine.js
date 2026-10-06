@@ -1,5 +1,15 @@
 /*
- * QPS Cell Allocation Rule Engine v2.52.0
+ * QPS Cell Allocation Rule Engine v2.53.0
+ *
+ * v2.53.0: 최적화 제안(필수 아님) 정리(CONFIG.optimization)
+ *   - 랙 유형이 바뀌고 그 상품의 선호 순서에서 더 앞선 랙으로 가는 이동만 제안(예: 평대 → 플로우랙, 쇼케이스 → 선반).
+ *     같은 플로우랙 안에서 단만 바꾸는 이동(비골든 → 골든, 경량 상품 최상단)은 공수 대비 피킹 동선 개선이 작아 제외
+ *     (기존에는 골든 +30·최상단 +60 가점만으로 기준 +25를 넘었음). 선반 ↔ 플로우 이동은 필수 추천(진입·퇴출)이 담당.
+ *   - 같은 알파벳 구역에서 존 번호 차이 2 이내로만 이동. 거리는 가까우면 가점만 있고 멀어도 감점이 없어,
+ *     A10 → A01 같은 먼 거리 대량 재고 이동이 제안되었음.
+ *   - 게이트랙 완충 구간: 게이트랙에 있는 SKU는 퇴출 기준(출고 70·재고 50 모두 이하)에 걸리기 전까지 게이트랙이 선호 위치.
+ *     기존에는 출고 20 이상이면 플로우랙을 선호해, 퇴출 대상이 아닌 SKU(예: 한끼 양배추 출고 63·재고 366)를 플로우랙으로 제안.
+ *   - 예외: 일반 축산 챔버 → D03~D06 복귀, 고빈도 계란 A09 이동은 기존대로. 필수 추천(안전·규정·진입·퇴출 등)은 영향 없음.
  *
  * v2.52.0: 축산 구역 규칙을 적용할 중분류를 CONFIG.livestockGroups로 명시(수입육·우육·돈육·계육·양념육).
  *   중분류 '훈제육'(훈제오리·훈제삼겹 등)은 축산 구역(D01~D06·D07 일부)에 꼭 둘 필요가 없음을 현장 기준으로 확정하고
@@ -231,6 +241,10 @@
     // 가점 = perStep × max(0, steps − 존 번호 차이) → 같은 존 +40, 1칸 +30, 2칸 +20, 3칸 +10, 4칸 이상 0.
     // 랙 유형(150)·구역 규칙보다 작게 두어 기존 원칙은 뒤집지 않고, 비슷한 후보 중 가까운 쪽을 고르게 한다.
     proximity: Object.freeze({ perStep: 10, steps: 4 }),
+    // 최적화 제안(필수 아님)의 이동 범위. 같은 랙 유형 안에서 단만 바꾸는 이동(플로우랙 → 골든 플로우랙)은 공수 대비
+    // 피킹 동선 개선이 작아 제외하고, 같은 알파벳 구역에서 존 번호 차이 maxZoneStep 이내로만 이동한다(먼 거리 대량 이동 방지).
+    // 예외: 일반 축산의 챔버 → D03~D06 복귀, 고빈도 계란의 A09 이동(구역 규칙에 따른 이동).
+    optimization: Object.freeze({ requireRackChange: true, maxZoneStep: 2 }),
     lightItem: Object.freeze({
       flowMaxG: 300,
       flowTopLevelChilled: 4,
@@ -653,7 +667,12 @@
     if (p.category.egg) return eggGateQualified(p) ? ['gate', 'shelf'] : ['shelf']; // A09 계란 게이트랙 / A08 선반
     if (p.boxWeightG >= CONFIG.flow.heavyBoxG && p.stock >= CONFIG.flow.entryStock) return ['flow', 'flat'];
     if (p.temp === 'frozen' && /^F/.test(p.sourceZone)) return ['flow', 'flat'];
-    if (p.sourceFamily === 'gate' && p.outboundPcs >= CONFIG.flow.fromGateOut) return ['flow', 'flat'];
+    if (p.sourceFamily === 'gate') {
+      // 게이트랙에 이미 있으면 퇴출 기준(출고·재고 모두 이하)에 걸리기 전까지 게이트랙 유지(진입~퇴출 사이 완충 구간)
+      const g = CONFIG.gate;
+      if (p.outboundPcs > g.exitOut || p.stock > g.exitStock) return ['gate'];
+      if (p.outboundPcs >= CONFIG.flow.fromGateOut) return ['flow', 'flat'];
+    }
     return isFlowAllowed(p) ? ['flow', 'flat', 'shelf'] : ['shelf', 'showcase', 'flat'];
   }
   function familyScore(family, preferred) {
@@ -736,6 +755,25 @@
               : 50
             : 0;
     return { score: value, balance };
+  }
+  // 최적화 제안 대상 셀: 랙 유형이 바뀌고(선반 ↔ 플로우 등) 현재 위치에서 가까운 존이어야 한다(CONFIG.optimization)
+  function optimizationTargetOk(pc, item) {
+    const src = item.source,
+      p = item.p;
+    // 구역 규칙에 따른 이동은 거리·랙 유형 제한 없이 허용
+    if (isGeneralLivestock(p) && CONFIG.chamberZones.has(src.zone) && !CONFIG.chamberZones.has(pc.zone)) return true;
+    if (p.category.egg && p.outboundPcs >= CONFIG.eggGatePriorityOut && pc.zone === CONFIG.eggGateZone) return true;
+    const o = CONFIG.optimization;
+    if (o.requireRackChange) {
+      // 랙 유형이 바뀌고, 그 상품의 선호 순서에서 더 앞선 랙으로 가는 이동만(플로우랙 → 선반 같은 하향 이동 제외)
+      const rank = f => {
+        const i = item.preferred.indexOf(f);
+        return i < 0 ? 99 : i;
+      };
+      if (pc.family === src.family || rank(pc.family) >= rank(src.family)) return false;
+    }
+    if (!pc.zone || !src.zone || pc.zone[0] !== src.zone[0]) return false;
+    return Math.abs(Number(pc.zone.slice(1)) - Number(src.zone.slice(1))) <= o.maxZoneStep;
   }
   function createEmptyIndex(cells) {
     const index = { byTemp: { chilled: [], frozen: [] }, byTempFamily: new Map(), byTempZone: new Map() };
@@ -909,6 +947,7 @@
         for (const pc of tier) {
           if (used.has(pc.loc)) continue;
           if (!allowChamber && CONFIG.chamberZones.has(pc.zone)) continue;
+          if (!item.mandatory && !optimizationTargetOk(pc, { ...item, preferred })) continue;
           const allowed = candidateAllowed(pc, item.source, item.p);
           if (!allowed.ok) continue;
           const s = score(pc, item.source, item.p, context, preferred);
@@ -1037,7 +1076,7 @@
   // _internals: 회귀 테스트(tests/)용. 화면 코드에서는 쓰지 않는다.
   global.QPSRuleEngine = Object.freeze({
     recommend,
-    version: '2.52.0',
+    version: '2.53.0',
     CONFIG,
     _internals: Object.freeze({ extractWeightFromName, categorize, parseEggSize, rackFamily, thermalClass })
   });
