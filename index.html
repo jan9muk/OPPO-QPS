@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QPS Dashboard v8.40.1</title>
+  <title>QPS Dashboard v8.41.0</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="xlsxFastReader.js?v=1.0.0"></script>
@@ -811,13 +811,13 @@
 </head>
 <body>
   <div id="loadingOverlay"><div class="loader-box"><div class="loader"></div><div class="loader-text">불러오는 중</div></div></div>
-  <div class="card"><div class="title">QPS Dashboard v8.40.1</div><div class="subtitle">데이터 정합성 검증 · 안전 이슈 · 추천 불가 상태를 명확히 표시합니다.</div></div>
+  <div class="card"><div class="title">QPS Dashboard v8.41.0</div><div class="subtitle">데이터 정합성 검증 · 안전 이슈 · 추천 불가 상태를 명확히 표시합니다.</div></div>
   <div class="card" id="dropZone" style="border:2px dashed transparent;transition:.2s"><div class="row"><div class="group" style="flex:1"><label>데이터 세트 동시 업로드 (박스상품 1개 + 셀할당 파일 여러 개 가능)</label><input type="file" id="multiFile" accept=".xlsx,.xls" multiple></div><div class="group"><label>작업 시작 시간 설정</label><select id="startTimeSelect" onchange="saveStartTime();if(window.qpsAllData)updateHUD(window.qpsAllData)"><option value="13">13:00 시작</option><option value="14" selected>14:00 시작</option></select></div></div><div class="status" id="status" style="margin-bottom:4px">* 박스상품 상세정보와 셀할당현황 파일을 동시에 업로드해 주세요. 중복·충돌 셀은 자동 검증합니다.</div><div style="margin-top:8px;font-size:12px;color:#6b7280">* 브라우저에 데이터가 캐싱됩니다. <button class="btn-reset" onclick="clearCacheAndReload()" style="padding:4px 8px;font-size:11px;margin-left:8px">강제 캐시 초기화</button></div></div>
   <div id="emptyState" class="card empty">데이터를 표시하려면 박스상품 상세정보와 셀할당현황 파일을 동시에 업로드해 주세요.</div>
   <div id="content" class="section">
     <div class="hud-panel"><div class="hud-box"><div class="hud-label">실시간 처리 속도 (최근 1시간)</div><div class="hud-value val-tph" id="hudInstantTph">0<span class="hud-unit">totes/hr</span></div></div><div class="hud-box"><div class="hud-label">시간당 평균 처리량 (누적)</div><div class="hud-value val-avg" id="hudAvgTph">0<span class="hud-unit">totes/hr</span></div></div><div class="hud-box"><div class="hud-label">신규 지시 인입 속도 (Inbound 2F)</div><div class="hud-value val-inbound" id="hudInboundTph">0<span class="hud-unit">totes/hr</span></div></div><div class="hud-box"><div class="hud-label">2층 피킹 잔여 토트</div><div class="hud-value val-remain" id="hudRemain">0<span class="hud-unit">totes</span></div></div><div class="hud-box"><div class="hud-label">설비 분리포율 (Bypass 제외)</div><div class="hud-value val-split1" id="hudEqSplit">0.00<span class="hud-unit">박스/건</span></div></div><div class="hud-box"><div class="hud-label">전체 분리포율 (Bypass 포함)</div><div class="hud-value val-split2" id="hudAllSplit">0.00<span class="hud-unit">박스/건</span></div></div></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin:15px 0 10px"><div style="font-size:16px;font-weight:800;color:#1e293b">현장 상황 요약 (카톡 공유 대상 영역)</div><div style="display:flex;gap:8px"><button class="btn-capture" id="captureRefillBtn" onclick="captureRefillMobile()" style="background:#b91c1c">📱 보충 목록 캡처 (모바일)</button><button class="btn-capture" id="captureBtn" onclick="captureToClipboard()">📸 카톡 공유용 화면 캡처</button></div></div>
-    <div id="captureTarget" style="padding:20px;background:#f5f7fb;border-radius:16px;margin:0 -20px"><div id="insightArea"></div><div class="machine-grid" id="machineSummary"></div><div id="loadZonesArea"></div><div id="wsTopArea"></div><div class="zones" id="progressZonesArea"></div></div>
+    <div id="captureTarget" style="padding:20px;background:#f5f7fb;border-radius:16px;margin:0 -20px"><div id="insightArea"></div><div class="machine-grid" id="machineSummary"></div><div id="loadZonesArea"></div><div class="zones" id="progressZonesArea"></div><div id="wsTopArea"></div></div>
     <div class="card" style="overflow-x:auto;margin-top:30px"><div class="subhead">셀 이동 추천 <span style="font-size:12px;font-weight:normal;color:#ef4444;margin-left:8px">* 안전/규정 위반인데 공셀이 없으면 ‘공셀 확보 필요’로 표시됩니다. 진입/퇴출은 카테고리별로 구분 표시되며, 플로우랙 공셀이 있으면 진입이, 없으면 퇴출이 우선 정렬됩니다.</span></div><table><thead><tr><th>순번</th><th>상태</th><th>SKU</th><th>상품명</th><th>현재고</th><th>지시 토트</th><th>지시 PCS</th><th>온도대</th><th>현재 셀</th><th>현재 랙</th><th>추천 랙</th><th>추천 셀</th><th>사유</th><th>관리</th></tr></thead><tbody id="recommendBody"></tbody></table></div>
     <div class="card" id="passCard" style="overflow-x:auto"><div class="subhead accordion-header" style="display:flex;justify-content:space-between;align-items:center" onclick="togglePassList()"><span>셀 이동 패스 목록 (<span id="passCount">0</span>) <span id="passToggleIcon">▼</span></span><button class="btn-reset" onclick="event.stopPropagation();resetIgnored()">패스 목록 전체 초기화</button></div><div id="passListContent" style="display:none;margin-top:14px"><table><thead><tr><th>SKU</th><th>상품명</th><th>사유</th><th>관리</th></tr></thead><tbody id="passedBody"><tr><td colspan="4" style="text-align:center;color:#6b7280;padding:20px">패스된 항목이 없습니다.</td></tr></tbody></table></div></div>
     <div class="card" style="border:2px solid #dbeafe;margin-bottom:24px;padding:18px"><div class="subhead" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><span style="color:#1e3a8a">존(Zone) 출고량/재고 밀집도 히트맵</span><select id="zoneSelect" onchange="renderZoneHeatmap(this.value)" style="padding:6px 12px;font-weight:bold;border-color:#93c5fd;font-size:13px"><option value="">존 선택 (로딩 대기)</option></select></div><div class="legend-box"><div class="legend-item"><div class="legend-color hm-empty"></div>공셀</div><div class="legend-item"><div class="legend-color hm-low"></div>1~14건</div><div class="legend-item"><div class="legend-color hm-mid"></div>15~29건</div><div class="legend-item"><div class="legend-color hm-high"></div>30~49건</div><div class="legend-item"><div class="legend-color hm-extreme"></div>50건 이상</div></div><div id="heatmapArea" class="heatmap-container"><div style="color:#94a3b8;font-size:13px;text-align:center;width:100%;padding:30px">존(Zone)을 선택하면 다이나믹 레이아웃이 생성됩니다.</div></div></div>
@@ -1293,19 +1293,31 @@ function renderInsights(d) {
   $('#insightArea').innerHTML =
     `<div class="card" style="border:2px solid #fecaca;background:#fef2f2;margin-bottom:24px"><div class="subhead" style="color:#b91c1c">현장 확인 포인트 <span style="font-size:12px;font-weight:normal;color:#ef4444">* 미완료 토트 및 SKU 기준</span></div><div class="insight-grid">${block('피킹잔여 고빈도 SKU', '#f87171', skuHtml)}${block('피킹잔여 토트 수량 상위 작업대', '#fdba74', loadHtml)}${block('물성악화 작업대 순위 (2SKU 이상 토트)', '#fde047', comHtml)}</div></div>`;
 }
+// 저부하 작업대: 토트 유입이 적어 사람이 덜 가므로 완료율이 낮은 게 자연스럽다. 진척도 평균·하위 3 강조에서 제외.
+// 현장 지정(사유 표시) + 자동(호기 평균 부하의 LOW_LOAD_RATIO 미만).
+const LOW_LOAD_WS = { 'APS1-20': '자연 저부하', 'APS2-20': '부하 감축 운영' };
+const LOW_LOAD_RATIO = 0.5;
 function renderProgress(d, stats) {
   $('#progressZonesArea').innerHTML = machineList
     .map(machine => {
       const def = zoneDefs[machine],
-        st = stats[machine],
-        wsList = def.cols
-          .flatMap(c => c.order)
-          .filter(ws => ws && d.wsMetrics[ws]?.totalTouches > 0)
-          .map(ws => ({ ws, p: d.wsMetrics[ws].progressRate }))
-          .sort((a, b) => a.p - b.p),
-        bottom = new Set(wsList.slice(0, 3).map(x => x.ws)),
-        line = `<div class="avg-line" style="left:calc(63px + (100% - 143px) * ${st.progressRate})"></div>`;
-      return `<div class="card aps-block"><div class="aps-head"><div class="aps-title">${def.label} 피킹 진척도</div><div style="font-size:13px;color:#475569;font-weight:700">평균 완료율 ${fmtPct(st.progressRate)}</div></div><div class="zone-columns">${def.cols
+        touchOf = ws => d.wsMetrics[ws]?.totalTouches || 0,
+        active = def.cols.flatMap(c => c.order).filter(ws => ws && touchOf(ws) > 0),
+        avgLoad = active.length ? active.reduce((a, ws) => a + touchOf(ws), 0) / active.length : 0,
+        lowReason = ws => LOW_LOAD_WS[ws] || (touchOf(ws) < avgLoad * LOW_LOAD_RATIO ? '저부하' : ''),
+        normal = active.filter(ws => !lowReason(ws)),
+        sum = (list, k) => list.reduce((a, ws) => a + (d.wsMetrics[ws][k] || 0), 0),
+        avg = sum(normal, 'totalTouches') ? sum(normal, 'completeTouches') / sum(normal, 'totalTouches') : 0,
+        bottom = new Set(
+          normal
+            .map(ws => ({ ws, p: d.wsMetrics[ws].progressRate }))
+            .sort((a, b) => a.p - b.p)
+            .slice(0, 3)
+            .map(x => x.ws)
+        ),
+        excluded = active.length - normal.length,
+        line = `<div class="avg-line" style="left:calc(63px + (100% - 143px) * ${avg})"></div>`;
+      return `<div class="card aps-block"><div class="aps-head"><div class="aps-title">${def.label} 피킹 진척도</div><div style="font-size:13px;color:#475569;font-weight:700">평균 완료율 ${fmtPct(avg)}${excluded ? `<span style="font-size:11px;color:#94a3b8;font-weight:600"> (저부하 ${excluded}개 제외)</span>` : ''}</div></div><div class="zone-columns">${def.cols
         .map(
           col =>
             `<div><div class="zone-head"><span>${col.zone}</span></div><div class="spark-stack">${line}${col.order
@@ -1313,8 +1325,14 @@ function renderProgress(d, stats) {
                 if (!ws) return '<div class="spark-row blank"></div>';
                 const m = d.wsMetrics[ws] || {},
                   p = m.progressRate || 0,
-                  dev = p - st.progressRate;
-                return `<div class="spark-row"><div class="ws-label">${escapeHtml(formatWsName(ws))}</div><div class="spark-track"><div class="spark-fill" style="width:${p * 100}%;background:${getProgressColor(p, st.progressRate)}"></div></div><div class="spark-value"><div><b style="${bottom.has(ws) ? 'color:#b91c1c;background:#fee2e2;padding:2px 6px;border-radius:4px' : 'color:#1f2937'}">${fmtPctInt(p)}</b></div><div style="font-size:10px;color:${dev >= 0 ? '#10b981' : '#ef4444'}">(${dev >= 0 ? '+' : ''}${(dev * 100).toFixed(1)}%p)</div></div></div>`;
+                  label = `<div class="ws-label">${escapeHtml(formatWsName(ws))}</div>`;
+                if (!touchOf(ws))
+                  return `<div class="spark-row">${label}<div class="spark-track"></div><div class="spark-value"><div style="font-size:11px;color:#94a3b8;font-weight:700">지시 없음</div></div></div>`;
+                const low = lowReason(ws);
+                if (low)
+                  return `<div class="spark-row">${label}<div class="spark-track"><div class="spark-fill" style="width:${p * 100}%;background:#cbd5e1"></div></div><div class="spark-value"><div><b style="color:#94a3b8">${fmtPctInt(p)}</b></div><div style="font-size:10px;color:#94a3b8">${escapeHtml(low)}</div></div></div>`;
+                const dev = p - avg;
+                return `<div class="spark-row">${label}<div class="spark-track"><div class="spark-fill" style="width:${p * 100}%;background:${getProgressColor(p, avg)}"></div></div><div class="spark-value"><div><b style="${bottom.has(ws) ? 'color:#b91c1c;background:#fee2e2;padding:2px 6px;border-radius:4px' : 'color:#1f2937'}">${fmtPctInt(p)}</b></div><div style="font-size:10px;color:${dev >= 0 ? '#10b981' : '#ef4444'}">(${dev >= 0 ? '+' : ''}${(dev * 100).toFixed(1)}%p)</div></div></div>`;
               })
               .join('')}</div></div>`
         )
